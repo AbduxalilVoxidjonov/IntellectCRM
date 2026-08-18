@@ -42,6 +42,11 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
             teachers = GetDefaultTeachers();
         }
 
+        if (certificates.Count == 0)
+        {
+            certificates = GetDefaultCertificates();
+        }
+
         if (faqs.Count == 0)
         {
             faqs = GetDefaultFaqs();
@@ -605,6 +610,59 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
                 Id = "f3",
                 Question = "Darslar necha kishi guruhda o'tiladi?",
                 Answer = "Har bir guruhda maksimum 12-15 nafar o'quvchi ta'lim oladi. Bu har bir o'quvchiga individual e'tibor qaratish imkonini beradi.",
+                Order = 3,
+                IsActive = true
+            }
+        };
+    }
+
+    private static List<LandingCertificate> GetDefaultCertificates()
+    {
+        return new List<LandingCertificate>
+        {
+            new LandingCertificate
+            {
+                Id = "c1",
+                Title = "IELTS 8.5",
+                StudentName = "MUKHAMMADISA MAKHMUDOV",
+                ImageUrl = "img/certificates/cert-1.jpg",
+                Category = "Xalqaro",
+                CertType = "IELTS",
+                OverallScore = "8.5",
+                Listening = "9.0",
+                Reading = "8.5",
+                Writing = "7.5",
+                Speaking = "8.0",
+                Order = 1,
+                IsActive = true
+            },
+            new LandingCertificate
+            {
+                Id = "c2",
+                Title = "IELTS 8.0",
+                StudentName = "KRISTINA KHAFIZOVA",
+                ImageUrl = "img/certificates/cert-2.jpg",
+                Category = "Xalqaro",
+                CertType = "IELTS",
+                OverallScore = "8.0",
+                Listening = "8.5",
+                Reading = "8.0",
+                Writing = "7.5",
+                Speaking = "8.5",
+                Order = 2,
+                IsActive = true
+            },
+            new LandingCertificate
+            {
+                Id = "c3",
+                Title = "SAT Math 800",
+                StudentName = "ASADBEK RAHIMOV",
+                ImageUrl = "img/certificates/cert-3.jpg",
+                Category = "Milliy",
+                CertType = "SAT",
+                OverallScore = "1520",
+                Listening = "800",
+                Reading = "720",
                 Order = 3,
                 IsActive = true
             }

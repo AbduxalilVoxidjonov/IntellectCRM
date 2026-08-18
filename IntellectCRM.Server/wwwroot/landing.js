@@ -820,22 +820,19 @@
       slide.className = 'teacher-slide';
       slide.style.cursor = 'pointer';
 
-      var badgeHtml = t.badge ? '<span class="teacher-top-badge">' + escapeHtml(t.badge) + '</span>' : '';
-      
+      var badgeHtml = t.badge ? '<span class="teacher-badge">' + escapeHtml(t.badge) + '</span>' : '';
+      var photoSrc = escapeHtml(t.photoUrl || 'img/teachers/teacher-1.jpg');
+      var bioText = escapeHtml(t.shortBio || t.fullBio || '');
+
       slide.innerHTML =
         '<div class="teacher-card">' +
-          '<img class="teacher-photo-bg" src="' + escapeHtml(t.photoUrl || 'img/icons/icon-teacher.png') + '" alt="' + escapeHtml(t.fullName) + '" loading="lazy">' +
-          badgeHtml +
-          '<div class="teacher-card-overlay">' +
-            '<div class="teacher-card-name">' + escapeHtml(t.fullName) + '</div>' +
-            '<div class="teacher-card-subject">' + escapeHtml(t.subject) + '</div>' +
-            '<div class="teacher-card-meta">' +
-              '<div class="teacher-meta-item">' +
-                '<span class="teacher-meta-label">Ma\'lumot</span>' +
-                '<span class="teacher-meta-val">Batafsil ko\'rish →</span>' +
-              '</div>' +
-            '</div>' +
+          '<div class="teacher-avatar-wrap">' +
+            '<img src="' + photoSrc + '" alt="' + escapeHtml(t.fullName) + '" loading="lazy">' +
+            badgeHtml +
           '</div>' +
+          '<h3 class="teacher-name">' + escapeHtml(t.fullName) + '</h3>' +
+          '<div class="teacher-subject">' + escapeHtml(t.subject || '') + '</div>' +
+          '<p class="teacher-bio">' + bioText + '</p>' +
         '</div>';
 
       slide.addEventListener('click', function() {
