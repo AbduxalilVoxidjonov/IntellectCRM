@@ -6,18 +6,21 @@
 (function(){
   'use strict';
 
-  // Boshlang'ich (zaxira) ma'lumot — server javobi kelguncha yoki bo'sh bo'lsa ko'rsatiladi.
-  // ⚠️ Rasm manzillari MUTLAQ (`/img/...`): sahifa `MapFallback` orqali `/sertifikatlar` da ham,
-  // `/sertifikatlar/` (oxirida slash) da ham beriladi. Nisbiy `img/...` ikkinchisida
-  // `/sertifikatlar/img/...` bo'lib 404 qaytarardi va kartochkalar rasmsiz chiqardi.
-  var defaultCertificates = [
-    { studentName: 'MUKHAMMADISA MAKHMUDOV', overallScore: '8.5', listening: '9.0', reading: '8.5', writing: '7.5', speaking: '8.0', imageUrl: '/img/certificates/cert-1.jpg', category: 'Xalqaro', certType: 'IELTS' },
-    { studentName: 'KRISTINA KHAFIZOVA', overallScore: '8.0', listening: '8.5', reading: '8.0', writing: '7.5', speaking: '8.5', imageUrl: '/img/certificates/cert-2.jpg', category: 'Xalqaro', certType: 'IELTS' },
-    { studentName: 'SHAHZODBEK RAXIMOV', overallScore: 'C1', listening: '72', reading: '68', writing: '65', speaking: '70', imageUrl: '/img/certificates/cert-1.jpg', category: 'Xalqaro', certType: 'Multilevel' },
-    { studentName: 'MADINABONU MIRZAYEVA', overallScore: 'A+', listening: '-', reading: '-', writing: '-', speaking: '-', imageUrl: '/img/certificates/cert-2.jpg', category: 'Milliy', certType: 'Milliy' }
-  ];
+  // ⚠️ NAMUNA (soxta) SERTIFIKATLAR YO'Q. Ilgari bu yerda 4 ta o'ylab topilgan o'quvchi
+  // (ism, ball, boshqa odamning sertifikat surati) qattiq kodlangan va sahifa ochilishi
+  // bilan AYNAN shular chizilardi — ya'ni CMS'ga hech narsa kiritilmagan markaz ommaviy
+  // saytda to'qib chiqarilgan natijalarni ko'rsatib turardi. Endi ro'yxat bo'sh boshlanadi
+  // va FAQAT `GET /api/public/landing-data` javobi bilan to'ladi.
+  var allCertificates = [];
 
-  var allCertificates = defaultCertificates;
+  // Yuklanish holati: 'loading' | 'ready' | 'error'.
+  // Sabab: uch holat UCHTA xil xabar talab qiladi va ular ARALASHMASLIGI kerak —
+  //   loading — javob hali kelmagan (bir zumga "topilmadi" chaqnab ketmasin);
+  //   ready   — javob keldi (bo'sh bo'lsa "hali joylanmagan", filtr bo'sh bo'lsa "topilmadi");
+  //   error   — so'rov yiqildi. Bu holat ATAYIN bo'sh holatdan ajratilgan: tarmoq xatosini
+  //             "sertifikat yo'q" deb ko'rsatish foydalanuvchini chalg'itardi.
+  var loadState = 'loading';
+
   var currentFilter = 'all';
   var currentSearch = '';
   var currentLeadNote = 'Sertifikatlar sahifasidan';
@@ -93,15 +96,37 @@
 
   // ===================== SERTIFIKAT MODALI =====================
 
+  // Qiymat yo'q bo'lsa "—". ⚠️ Ilgari `overallScore` uchun '8.5' zaxira turardi — ball
+  // kiritilmagan sertifikat SOXTA natija bilan ochilardi.
+  function dashIfEmpty(v) {
+    return (v === null || v === undefined || v === '') ? '—' : String(v);
+  }
+
   function openResultModal(c) {
     if (resultModalStudentName) resultModalStudentName.textContent = c.studentName || 'O\'QUVCHI';
-    if (resultModalOverall) resultModalOverall.textContent = c.overallScore || '8.5';
-    if (resultModalListening) resultModalListening.textContent = c.listening || '-';
-    if (resultModalReading) resultModalReading.textContent = c.reading || '-';
-    if (resultModalWriting) resultModalWriting.textContent = c.writing || '-';
-    if (resultModalSpeaking) resultModalSpeaking.textContent = c.speaking || '-';
-    if (resultModalImg) resultModalImg.src = c.imageUrl || '/img/certificates/cert-1.jpg';
-    if (resultModalCategory) resultModalCategory.textContent = (c.certType || 'SERTIFIKAT') + ' (' + (c.category || 'Xalqaro') + ')';
+    if (resultModalOverall) resultModalOverall.textContent = dashIfEmpty(c.overallScore);
+    if (resultModalListening) resultModalListening.textContent = dashIfEmpty(c.listening);
+    if (resultModalReading) resultModalReading.textContent = dashIfEmpty(c.reading);
+    if (resultModalWriting) resultModalWriting.textContent = dashIfEmpty(c.writing);
+    if (resultModalSpeaking) resultModalSpeaking.textContent = dashIfEmpty(c.speaking);
+    // ⚠️ Rasm bo'lmasa BOSHQA o'quvchining sertifikat surati ko'rsatilmaydi — `<img>` butunlay
+    // yashiriladi (bo'sh `src` da brauzer "singan rasm" belgisini chizardi).
+    if (resultModalImg) {
+      if (c.imageUrl) {
+        resultModalImg.src = c.imageUrl;
+        resultModalImg.style.display = '';
+      } else {
+        resultModalImg.removeAttribute('src');
+        resultModalImg.style.display = 'none';
+      }
+    }
+    if (resultModalCategory) {
+      // Tur ham, toifa ham bo'lmasa qavs ichida uydirma "Xalqaro" yozilmaydi.
+      var parts = [];
+      if (c.certType) parts.push(String(c.certType));
+      if (c.category) parts.push('(' + String(c.category) + ')');
+      resultModalCategory.textContent = parts.length ? parts.join(' ') : 'SERTIFIKAT';
+    }
     showBackdrop(resultModalBackdrop);
   }
   function closeResultModal() { hideBackdrop(resultModalBackdrop); }
@@ -160,39 +185,90 @@
     return false;
   }
 
+  // Bo'sh/yuklanish/xato holatlari uchun bitta joy — matnlar ro'yxat bilan aralashmasin.
+  function stateHtml(title, sub) {
+    return '<div style="grid-column:1/-1; text-align:center; padding:60px 0; color:var(--muted); font-size:16px;">' +
+             '<div style="font-weight:700; color:#e5e7eb; margin-bottom:6px;">' + escapeHtml(title) + '</div>' +
+             (sub ? '<div style="font-size:14px;">' + escapeHtml(sub) + '</div>' : '') +
+           '</div>';
+  }
+
   function renderGrid() {
     if (!certsGrid) return;
     certsGrid.innerHTML = '';
+
+    // 1) Javob hali kelmagan — "topilmadi" YOZILMAYDI (aks holda sahifa ochilishida bir zumga
+    //    "Sertifikatlar topilmadi" chaqnab, keyin ro'yxat paydo bo'lardi).
+    if (loadState === 'loading') {
+      certsGrid.innerHTML = stateHtml('Sertifikatlar yuklanmoqda...', '');
+      return;
+    }
+
+    // 2) So'rov yiqildi — bu BO'SH holat EMAS. Jimgina "topilmadi" desak, foydalanuvchi
+    //    markazda sertifikat yo'q deb o'ylardi.
+    if (loadState === 'error') {
+      certsGrid.innerHTML = stateHtml(
+        'Sertifikatlarni yuklab bo\'lmadi',
+        'Internet aloqasini tekshirib, sahifani yangilang.');
+      return;
+    }
+
+    // 3) CMS'da umuman yozuv yo'q — filtr/qidiruvga bog'liq bo'lmagan bo'sh holat.
+    if (allCertificates.length === 0) {
+      certsGrid.innerHTML = stateHtml(
+        'Hozircha sertifikatlar joylanmagan',
+        'Tez orada o\'quvchilarimizning natijalari shu yerda e\'lon qilinadi.');
+      return;
+    }
 
     var list = allCertificates.filter(function(c) {
       return matchesFilter(c) && matchesSearch(c);
     });
 
+    // 4) Ma'lumot BOR, lekin filtr/qidiruvga mos kelmadi — foydalanuvchi nima qilishini bilsin.
     if (list.length === 0) {
-      certsGrid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:60px 0; color:var(--muted); font-size:16px;">Sertifikatlar topilmadi.</div>';
+      certsGrid.innerHTML = stateHtml(
+        'Mos sertifikatlar topilmadi',
+        'Qidiruv so\'rovini yoki toifani o\'zgartirib ko\'ring.');
       return;
     }
 
     list.forEach(function(c) {
       var card = document.createElement('div');
       card.className = 'result-card';
+
+      // ⚠️ Rasm YO'Q bo'lsa boshqa o'quvchining sertifikati (ilgari '/img/certificates/cert-1.jpg')
+      // qo'yilmaydi — rasm bloki umuman chizilmaydi.
+      var imgHtml = c.imageUrl
+        ? '<div class="result-cert-img-wrap">' +
+            '<img src="' + escapeHtml(c.imageUrl) + '" alt="' + escapeHtml(c.studentName || 'Sertifikat') + '" loading="lazy">' +
+          '</div>'
+        : '';
+
+      // ⚠️ Ball/tur YO'Q bo'lsa uydirma '8.5' / 'OVERALL' yozilmaydi — quti chizilmaydi.
+      var overallHtml = (c.overallScore || c.certType)
+        ? '<div class="result-overall-box">' +
+            '<span class="result-overall-label">' + escapeHtml(c.certType || '') + '</span>' +
+            '<span class="result-overall-score">' + escapeHtml(c.overallScore || '') + '</span>' +
+          '</div>'
+        : '';
+
+      // Bo'lim ballari: birortasi ham bo'lmasa qator umuman chizilmaydi (to'rtta "-" dan ko'ra
+      // hech narsa ko'rsatmagan tushunarliroq).
+      var rowsHtml = '';
+      [['List:', c.listening], ['Read:', c.reading], ['Writ:', c.writing], ['Spea:', c.speaking]].forEach(function(pair) {
+        if (pair[1] === null || pair[1] === undefined || pair[1] === '') return;
+        rowsHtml += '<div class="result-breakdown-row"><span>' + pair[0] + '</span> <span>' + escapeHtml(pair[1]) + '</span></div>';
+      });
+      var breakdownHtml = rowsHtml ? '<div class="result-breakdown">' + rowsHtml + '</div>' : '';
+
       // ⚠️ Har bir CMS qiymati escape qilinadi: matnda "<" bo'lsa kartochka markup'i buzilardi.
       card.innerHTML =
-        '<div class="result-cert-img-wrap">' +
-          '<img src="' + escapeHtml(c.imageUrl || '/img/certificates/cert-1.jpg') + '" alt="' + escapeHtml(c.studentName || 'Sertifikat') + '" loading="lazy">' +
-        '</div>' +
+        imgHtml +
         '<div class="result-student-name">' + (escapeHtml(c.studentName) || 'O\'QUVCHI') + '</div>' +
         '<div class="result-card-bottom">' +
-          '<div class="result-overall-box">' +
-            '<span class="result-overall-label">' + (escapeHtml(c.certType) || 'OVERALL') + '</span>' +
-            '<span class="result-overall-score">' + (escapeHtml(c.overallScore) || '8.5') + '</span>' +
-          '</div>' +
-          '<div class="result-breakdown">' +
-            '<div class="result-breakdown-row"><span>List:</span> <span>' + (escapeHtml(c.listening) || '-') + '</span></div>' +
-            '<div class="result-breakdown-row"><span>Read:</span> <span>' + (escapeHtml(c.reading) || '-') + '</span></div>' +
-            '<div class="result-breakdown-row"><span>Writ:</span> <span>' + (escapeHtml(c.writing) || '-') + '</span></div>' +
-            '<div class="result-breakdown-row"><span>Spea:</span> <span>' + (escapeHtml(c.speaking) || '-') + '</span></div>' +
-          '</div>' +
+          overallHtml +
+          breakdownHtml +
         '</div>';
 
       card.style.cursor = 'pointer';
@@ -217,18 +293,25 @@
     });
   }
 
-  // Avval zaxira ro'yxat chiziladi — tarmoq sekin bo'lsa ham sahifa bo'sh turmasin.
+  // Avval YUKLANISH holati chiziladi (soxta zaxira ro'yxat emas) — sahifa bo'sh turmasin,
+  // lekin hech kimning nomi va bali o'ylab topilmasin.
   renderGrid();
 
   fetch('/api/public/landing-data').then(function(res) {
-    if (!res.ok) return null;
+    // ⚠️ `!res.ok` — bu XATO, "sertifikat yo'q" emas. Ilgari u `null` ga aylantirilib jimgina
+    // yutilardi va ekranda soxta zaxira ro'yxat qolib ketardi.
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     return res.json();
   }).then(function(data) {
-    if (data && data.certificates && data.certificates.length > 0) {
-      allCertificates = data.certificates;
-      renderGrid();
-    }
-  }).catch(function() {});
+    // Bo'sh massiv — TO'LIQ HUQUQLI javob: ro'yxat bo'shatiladi va "hali joylanmagan"
+    // holati ko'rsatiladi (ilgari `length > 0` sharti tufayli eski/soxta ro'yxat qolardi).
+    allCertificates = (data && data.certificates) ? data.certificates : [];
+    loadState = 'ready';
+    renderGrid();
+  }).catch(function() {
+    loadState = 'error';
+    renderGrid();
+  });
 
   // Footerdagi yil — qo'lda yozilgan sana eskirib qolmasin.
   var certYear = document.getElementById('certYear');

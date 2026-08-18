@@ -258,6 +258,9 @@
   function openTeacherModal(t) {
     if (!t) return;
     currentTeacherName = t.fullName || '';
+    // Surat bo'lmasa NEYTRAL ikonka qo'yiladi — bu hech kimning shaxsiy surati emas, ya'ni
+    // "boshqa odamning rasmi zaxira sifatida ishlatilmasin" qoidasini buzmaydi. Modal tuzilishi
+    // suratsiz chizilmagani uchun (rasm — kartochkaning asosiy qismi) bu yerda zaxira SAQLANDI.
     if (teacherModalPhoto) teacherModalPhoto.src = t.photoUrl || '/img/icons/icon-teacher.png';
     if (teacherModalBadge) {
       teacherModalBadge.textContent = t.badge || '';
@@ -311,16 +314,34 @@
 
   var currentCertInfo = '';
 
+  // Ko'rsatiladigan qiymat YO'Q bo'lsa "—" chiziladi. ⚠️ Ilgari bu yerda uydirma ballar
+  // ('8.5', '9.0', '7.5', '8.0') zaxira sifatida turardi — ya'ni CMS'da ball kiritilmagan
+  // sertifikat ochilsa modal SOXTA natija ko'rsatardi. Ommaviy saytda bu — to'qib chiqarilgan
+  // ma'lumot, shuning uchun har qanday zaxira bal olib tashlandi.
+  function dashIfEmpty(v) {
+    return (v === null || v === undefined || v === '') ? '—' : String(v);
+  }
+
   function openResultModal(certData) {
     currentCertInfo = (certData.studentName || certData.title || '') + (certData.overall ? ' (' + certData.overall + ')' : '');
-    if (resultModalImg) resultModalImg.src = certData.imageUrl || '/img/certificates/cert-1.jpg';
+    // Rasm bo'lmasa BOSHQA o'quvchining sertifikat surati qo'yilmaydi — `<img>` butunlay
+    // yashiriladi (bo'sh `src` bilan brauzer "singan rasm" belgisini chizardi).
+    if (resultModalImg) {
+      if (certData.imageUrl) {
+        resultModalImg.src = certData.imageUrl;
+        resultModalImg.style.display = '';
+      } else {
+        resultModalImg.removeAttribute('src');
+        resultModalImg.style.display = 'none';
+      }
+    }
     if (resultModalStudentName) resultModalStudentName.textContent = certData.studentName || certData.title || 'O\'QUVCHI SERTIFIKATI';
-    if (resultModalCategory) resultModalCategory.textContent = certData.category || 'IELTS SERTIFIKATI';
-    if (resultModalOverall) resultModalOverall.textContent = certData.overall || '8.5';
-    if (resultModalListening) resultModalListening.textContent = certData.listening || '9.0';
-    if (resultModalReading) resultModalReading.textContent = certData.reading || '8.5';
-    if (resultModalWriting) resultModalWriting.textContent = certData.writing || '7.5';
-    if (resultModalSpeaking) resultModalSpeaking.textContent = certData.speaking || '8.0';
+    if (resultModalCategory) resultModalCategory.textContent = certData.category || 'SERTIFIKAT';
+    if (resultModalOverall) resultModalOverall.textContent = dashIfEmpty(certData.overall);
+    if (resultModalListening) resultModalListening.textContent = dashIfEmpty(certData.listening);
+    if (resultModalReading) resultModalReading.textContent = dashIfEmpty(certData.reading);
+    if (resultModalWriting) resultModalWriting.textContent = dashIfEmpty(certData.writing);
+    if (resultModalSpeaking) resultModalSpeaking.textContent = dashIfEmpty(certData.speaking);
 
     if (resultModalBackdrop) {
       resultModalBackdrop.classList.add('show');
@@ -625,20 +646,6 @@
     }
   })();
 
-  // Add click handlers to static result cards
-  var staticResultCards = document.querySelectorAll('.result-card');
-  staticResultCards.forEach(function(card) {
-    card.addEventListener('click', function() {
-      var nameEl = card.querySelector('.result-student-name');
-      var scoreEl = card.querySelector('.result-overall-score');
-      var imgEl = card.querySelector('.result-cert-img-wrap img');
-      openResultModal({
-        studentName: nameEl ? nameEl.textContent : '',
-        overall: scoreEl ? scoreEl.textContent : '8.5',
-      });
-    });
-  });
-
   function normalizeMapUrl(url) {
     if (!url) return '';
     var u = url.trim();
@@ -748,15 +755,13 @@
       renderMap(data.mapUrl);
     }
 
-    // Render Teachers
-    if (data.teachers && data.teachers.length > 0) {
-      renderTeachers(data.teachers);
-    }
-
-    // Render Certificates
-    if (data.certificates && data.certificates.length > 0) {
-      renderCertificates(data.certificates);
-    }
+    // O'QITUVCHILAR va SERTIFIKATLAR — fikrlar bo'limi kabi SHARTSIZ chaqiriladi.
+    // ⚠️ Ilgari bu yerda `length > 0` sharti turardi: ro'yxat bo'sh bo'lsa render UMUMAN
+    // chaqirilmas va HTML'dagi statik SOXTA kartochkalar ekranda qolib ketardi. Endi statik
+    // markup ham yo'q, "bo'sh bo'lsa bo'limni yashir" qarorini esa funksiyalarning O'ZI
+    // qabul qiladi (bitta joyda, ikki xil bo'lib ketmasin).
+    renderTeachers(data.teachers);
+    renderCertificates(data.certificates);
 
     // FAQ — ilgari renderFaqs() yozilgan, lekin HECH QAYERDA chaqirilmagan edi: admin CMS'da
     // savol qo'shsa ham saytda hech narsa o'zgarmasdi. Ro'yxat bo'sh bo'lsa HTML'dagi statik
@@ -833,29 +838,82 @@
     }
   }
 
+  // ------------------------------------------------- BO'LIM KO'RINISHI (yagona joy)
+  //
+  // Bo'lim ma'lumot BO'LMASA butunlay yashiriladi: bo'sh sarlavha va bo'sh karusel saytda
+  // "ishlamayapti" degan taassurot qoldiradi. Yashirilgan bo'limga olib boradigan nav
+  // havolasi ham berkitiladi — aks holda menyudagi tugma hech qayerga olib bormasdi
+  // (brauzer sahifani joyida qoldiradi va foydalanuvchi "havola singan" deb o'ylaydi).
+  function setSectionVisible(sectionId, visible) {
+    var section = document.getElementById(sectionId);
+    if (section) section.style.display = visible ? '' : 'none';
+
+    var link = document.querySelector('#navLinks a[href="#' + sectionId + '"]');
+    if (link) {
+      // Havolaning O'ZI emas, uni o'rab turgan <li> yashiriladi — aks holda ro'yxatda
+      // bo'sh katak (gap) qolib ketardi.
+      var item = link.parentNode && link.parentNode.tagName === 'LI' ? link.parentNode : link;
+      item.style.display = visible ? '' : 'none';
+    }
+  }
+
+  // Ism va familiyaning bosh harflari — surat bo'lmaganda ishlatiladigan zaxira
+  // (fikrlar bo'limidagi `initialsOf` bilan bir xil qoida; funksiya quyiroqda e'lon qilingan,
+  // `function` deklaratsiyasi hoist bo'lgani uchun bu yerdan chaqirish xavfsiz).
+
   function renderTeachers(teachersList) {
     var track = document.getElementById('teacherTrack');
     if (!track) return;
+
+    var items = teachersList || [];
     track.innerHTML = '';
 
-    teachersList.forEach(function(t) {
+    // BO'SH RO'YXAT — bo'lim BUTUNLAY yashiriladi (soxta kartochkalar endi HTML'da ham yo'q).
+    if (items.length === 0) {
+      if (teacherAutoTimer) { clearInterval(teacherAutoTimer); teacherAutoTimer = null; }
+      setSectionVisible('teachers', false);
+      return;
+    }
+
+    items.forEach(function(t) {
       var slide = document.createElement('div');
       slide.className = 'teacher-slide';
       slide.style.cursor = 'pointer';
 
-      var badgeHtml = t.badge ? '<span class="teacher-badge">' + escapeHtml(t.badge) + '</span>' : '';
-      var photoSrc = escapeHtml(t.photoUrl || '/img/teachers/teacher-1.jpg');
-      var bioText = escapeHtml(t.shortBio || t.fullBio || '');
+      // ⚠️ KLASS NOMLARI landing.html dagi CSS bilan AYNAN mos: `.teacher-photo-bg`,
+      // `.teacher-top-badge`, `.teacher-card-overlay`, `.teacher-card-name`, ... Ilgari bu yerda
+      // statik soxta markupdan ko'chirilgan `.teacher-avatar-wrap` / `.teacher-name` ishlatilar,
+      // ular uchun esa CSS UMUMAN YO'Q edi — kartochka uslubsiz chiqardi.
+      var badgeHtml = t.badge ? '<span class="teacher-top-badge">' + escapeHtml(t.badge) + '</span>' : '';
+
+      // ⚠️ Surat YO'Q bo'lsa BOSHQA o'qituvchining rasmi (ilgari '/img/teachers/teacher-1.jpg')
+      // qo'yilmaydi — bu ochiq saytda begona odamni bizning ustozimiz sifatida ko'rsatish edi.
+      // O'rniga fikrlar bo'limidagi naqsh: ism bosh harflari.
+      var photoHtml = t.photoUrl
+        ? '<img class="teacher-photo-bg" src="' + escapeHtml(t.photoUrl) + '" alt="' + escapeHtml(t.fullName) + '" loading="lazy">'
+        : '<div class="teacher-photo-bg teacher-photo-initials" aria-hidden="true">' + escapeHtml(initialsOf(t.fullName)) + '</div>';
+
+      // Qisqa ma'lumot bo'lmasa pastki qator umuman chizilmaydi — bo'sh "Ma'lumot" yorlig'i
+      // ostida quruq joy qolmasin.
+      var bioText = t.shortBio || t.fullBio || '';
+      var metaHtml = bioText
+        ? '<div class="teacher-card-meta">' +
+            '<div class="teacher-meta-item">' +
+              '<span class="teacher-meta-label">Ma\'lumot</span>' +
+              '<span class="teacher-meta-val">Batafsil ko\'rish →</span>' +
+            '</div>' +
+          '</div>'
+        : '';
 
       slide.innerHTML =
         '<div class="teacher-card">' +
-          '<div class="teacher-avatar-wrap">' +
-            '<img src="' + photoSrc + '" alt="' + escapeHtml(t.fullName) + '" loading="lazy">' +
-            badgeHtml +
+          photoHtml +
+          badgeHtml +
+          '<div class="teacher-card-overlay">' +
+            '<div class="teacher-card-name">' + escapeHtml(t.fullName) + '</div>' +
+            '<div class="teacher-card-subject">' + escapeHtml(t.subject || '') + '</div>' +
+            metaHtml +
           '</div>' +
-          '<h3 class="teacher-name">' + escapeHtml(t.fullName) + '</h3>' +
-          '<div class="teacher-subject">' + escapeHtml(t.subject || '') + '</div>' +
-          '<p class="teacher-bio">' + bioText + '</p>' +
         '</div>';
 
       slide.addEventListener('click', function() {
@@ -865,45 +923,34 @@
       track.appendChild(slide);
     });
 
+    setSectionVisible('teachers', true);
     initTeacherCarousel();
   }
 
-  var currentCertificatesList = [];
-  var activeCertFilter = 'all';
-
+  // ------------------------------------------------- SERTIFIKATLAR (landing karuseli)
+  //
+  // ⚠️ KATEGORIYA FILTRI (Barchasi / Xalqaro / Milliy) landingda YO'Q — u faqat
+  // `/sertifikatlar` sahifasida. Bu yerda hamma sertifikat karuselda birin-ketin
+  // aylanaveradi, ya'ni ziyoratchi tugma bosmasdan hammasini ko'radi. Shu sabab ilgarigi
+  // filtr holati + qayta chizish juftligi o'rniga bitta oddiy
+  // `renderCertificates(list)` qoldi (server allaqachon faqat `isActive` larni va
+  // `order` bo'yicha saralab qaytaradi — bu yerda qayta filtrlash SHART EMAS).
   function renderCertificates(certList) {
-    currentCertificatesList = certList || [];
-    filterAndDrawCertificates();
-
-    var filterBtns = document.querySelectorAll('.result-filter-btn');
-    filterBtns.forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        filterBtns.forEach(function(b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        activeCertFilter = btn.getAttribute('data-filter') || 'all';
-        filterAndDrawCertificates();
-      });
-    });
-  }
-
-  function filterAndDrawCertificates() {
     var track = document.getElementById('resultsTrack');
     if (!track) return;
+
+    var items = certList || [];
     track.innerHTML = '';
 
-    var filtered = currentCertificatesList.filter(function(c) {
-      if (activeCertFilter === 'all') return true;
-      return (c.category || '').toLowerCase() === activeCertFilter.toLowerCase();
-    });
-
-    if (filtered.length === 0) {
+    // BO'SH RO'YXAT — butun "Bizning natijalarimiz" bo'limi yashiriladi.
+    if (items.length === 0) {
       if (resultsAutoTimer) { clearInterval(resultsAutoTimer); resultsAutoTimer = null; }
       track.style.transform = 'translateX(0)';
-      track.innerHTML = '<div style="color:var(--muted);padding:40px;text-align:center;width:100%;font-weight:600;">Ushbu bo\'limda hali sertifikatlar mavjud emas.</div>';
+      setSectionVisible('results', false);
       return;
     }
 
-    filtered.forEach(function(c) {
+    items.forEach(function(c) {
       var slide = document.createElement('div');
       slide.className = 'result-slide';
       slide.style.cursor = 'pointer';
@@ -921,17 +968,28 @@
         scoreSectionHtml = '<div style="font-size:13px;color:#f5a623;font-weight:700;margin-top:8px;">' + escapeHtml(c.resultNote) + '</div>';
       }
 
+      // ⚠️ Sertifikat surati YO'Q bo'lsa BOSHQA o'quvchining sertifikati (ilgari
+      // '/img/certificates/cert-1.jpg') ko'rsatilmaydi — rasm bloki umuman chizilmaydi.
+      var imgHtml = c.imageUrl
+        ? '<div class="result-cert-img-wrap">' +
+            '<img src="' + escapeHtml(c.imageUrl) + '" alt="' + escapeHtml(c.title || c.studentName) + '" loading="lazy">' +
+          '</div>'
+        : '';
+
+      // Ball/tur YO'Q bo'lsa uydirma '8.5' / 'OVERALL' yozilmaydi — quti umuman chizilmaydi.
+      var overallHtml = (c.overallScore || c.certType)
+        ? '<div class="result-overall-box">' +
+            '<span class="result-overall-label">' + escapeHtml(c.certType || '') + '</span>' +
+            '<span class="result-overall-score">' + escapeHtml(c.overallScore || '') + '</span>' +
+          '</div>'
+        : '';
+
       slide.innerHTML =
         '<div class="result-card">' +
-          '<div class="result-cert-img-wrap">' +
-            '<img src="' + escapeHtml(c.imageUrl || '/img/certificates/cert-1.jpg') + '" alt="' + escapeHtml(c.title || c.studentName) + '" loading="lazy">' +
-          '</div>' +
+          imgHtml +
           '<div class="result-student-name">' + escapeHtml(c.studentName || c.title) + '</div>' +
           '<div class="result-card-bottom">' +
-            '<div class="result-overall-box">' +
-              '<span class="result-overall-label">' + escapeHtml(c.certType || 'OVERALL') + '</span>' +
-              '<span class="result-overall-score">' + escapeHtml(c.overallScore || '8.5') + '</span>' +
-            '</div>' +
+            overallHtml +
             scoreSectionHtml +
           '</div>' +
         '</div>';
@@ -939,19 +997,20 @@
       slide.addEventListener('click', function() {
         openResultModal({
           studentName: c.studentName || c.title,
-          overall: c.overallScore || '8.5',
-          category: c.category || 'XALQARO SERTIFIKAT',
-          listening: c.listening || '—',
-          reading: c.reading || '—',
-          writing: c.writing || '—',
-          speaking: c.speaking || '—',
-          imageUrl: c.imageUrl || '/img/certificates/cert-1.jpg'
+          overall: c.overallScore || '',
+          category: c.category || '',
+          listening: c.listening || '',
+          reading: c.reading || '',
+          writing: c.writing || '',
+          speaking: c.speaking || '',
+          imageUrl: c.imageUrl || ''
         });
       });
 
       track.appendChild(slide);
     });
 
+    setSectionVisible('results', true);
     initResultsCarousel();
   }
 

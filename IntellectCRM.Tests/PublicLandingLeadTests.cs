@@ -320,4 +320,109 @@ public class PublicLandingLeadTests
         Assert.Contains("DefaultYoutubeUrl", src);
         Assert.Contains("youtubeUrl = NormalizeUrl(meta?.YoutubeUrl, DefaultYoutubeUrl)", src);
     }
+
+    // ===================== 11) LANDING CMS — o'qituvchi/sertifikat ZAXIRASI YO'Q =====================
+    //
+    // Ommaviy javobda (`GET /api/public/landing-data`) o'qituvchilar va sertifikatlar uchun
+    // SOXTA namuna qaytarilmaydi: bazada yo'q bo'lsa BO'SH massiv. Sabab: markaz nomidan
+    // to'qib chiqarilgan o'qituvchi ismi yoki begona odamning "IELTS 8.5" sertifikatini
+    // ommaviy saytda ko'rsatish — yolg'on da'vo. Bo'lim ko'rinishini klient hal qiladi.
+
+    /// <summary>Controller AYNAN shu so'rovni bajaradi (faol + Order bo'yicha).</summary>
+    private static async Task<List<LandingTeacher>> PublicTeachersAsync(IntellectCRM.Infrastructure.Data.AppDbContext db) =>
+        await db.LandingTeachers.Where(t => t.IsActive).OrderBy(t => t.Order).ToListAsync();
+
+    private static async Task<List<LandingCertificate>> PublicCertificatesAsync(IntellectCRM.Infrastructure.Data.AppDbContext db) =>
+        await db.LandingCertificates.Where(c => c.IsActive).OrderBy(c => c.Order).ToListAsync();
+
+    [Fact]
+    public async Task Bazada_oqituvchi_yoq_bolsa_royxat_BOSH_qaytadi()
+    {
+        using var t = TestDb.Sqlite();
+        var db = t.Context;
+
+        Assert.Empty(await PublicTeachersAsync(db));
+    }
+
+    [Fact]
+    public async Task Bazada_sertifikat_yoq_bolsa_royxat_BOSH_qaytadi()
+    {
+        using var t = TestDb.Sqlite();
+        var db = t.Context;
+
+        Assert.Empty(await PublicCertificatesAsync(db));
+    }
+
+    [Fact]
+    public async Task Faol_oqituvchilar_Order_boyicha_qaytadi_va_ochirilgani_qaytmaydi()
+    {
+        using var t = TestDb.Sqlite();
+        var db = t.Context;
+        // Tartib ATAYIN teskari kiritiladi — javob Order bo'yicha kelishi kerak.
+        db.LandingTeachers.Add(new LandingTeacher { FullName = "Ikkinchi", Order = 2, IsActive = true });
+        db.LandingTeachers.Add(new LandingTeacher { FullName = "Birinchi", Order = 1, IsActive = true });
+        db.LandingTeachers.Add(new LandingTeacher { FullName = "Yashirilgan", Order = 0, IsActive = false });
+        await db.SaveChangesAsync();
+
+        var list = await PublicTeachersAsync(db);
+
+        Assert.Equal(new[] { "Birinchi", "Ikkinchi" }, list.Select(x => x.FullName).ToArray());
+        // IsActive=false bo'lgani javobga TUSHMAYDI (u Order bo'yicha birinchi bo'lsa ham).
+        Assert.DoesNotContain(list, x => x.FullName == "Yashirilgan");
+    }
+
+    [Fact]
+    public async Task Faol_sertifikatlar_Order_boyicha_qaytadi_va_ochirilgani_qaytmaydi()
+    {
+        using var t = TestDb.Sqlite();
+        var db = t.Context;
+        db.LandingCertificates.Add(new LandingCertificate { Title = "Ikkinchi", Order = 2, IsActive = true });
+        db.LandingCertificates.Add(new LandingCertificate { Title = "Birinchi", Order = 1, IsActive = true });
+        db.LandingCertificates.Add(new LandingCertificate { Title = "Yashirilgan", Order = 0, IsActive = false });
+        await db.SaveChangesAsync();
+
+        var list = await PublicCertificatesAsync(db);
+
+        Assert.Equal(new[] { "Birinchi", "Ikkinchi" }, list.Select(x => x.Title).ToArray());
+        Assert.DoesNotContain(list, x => x.Title == "Yashirilgan");
+    }
+
+    // ===================== 12) DARVOZA: zaxira kodi kodga QAYTMASIN =====================
+
+    [Fact]
+    public void Ommaviy_javobda_oqituvchi_va_sertifikat_zaxirasi_YOQ()
+    {
+        var src = LandingCms;
+
+        // Metodlarning O'ZI ham, chaqiruvi ham qolmasligi kerak.
+        Assert.DoesNotContain("GetDefaultTeachers", src);
+        Assert.DoesNotContain("GetDefaultCertificates", src);
+
+        // Soxta yozuvlarning izlari (hech qachon bazaga yozilmagan "t1"/"c1" IDlar va
+        // `/img/...` rasm manzillari) ham qolmasin.
+        Assert.DoesNotContain("/img/teachers/", src);
+        Assert.DoesNotContain("/img/certificates/", src);
+        Assert.DoesNotContain("Id = \"t1\"", src);
+        Assert.DoesNotContain("Id = \"c1\"", src);
+
+        // Ommaviy endpoint tanasida `teachers`/`certificates` uchun "bo'sh bo'lsa to'ldir"
+        // sharti qolmagan.
+        var start = src.IndexOf("public async Task<IActionResult> GetPublicLandingData()", StringComparison.Ordinal);
+        Assert.True(start > 0, "GetPublicLandingData topilmadi");
+        var end = src.IndexOf("// ==================== ADMIN MAP & SOCIALS", start, StringComparison.Ordinal);
+        var body = src[start..end];
+        Assert.DoesNotContain("teachers.Count == 0", body);
+        Assert.DoesNotContain("certificates.Count == 0", body);
+    }
+
+    [Fact]
+    public void FAQ_zaxirasi_ATAYIN_qoladi()
+    {
+        var src = LandingCms;
+
+        // landing.html da FAQ uchun statik markup zaxira sifatida turibdi — bu zaxira
+        // ATAYIN saqlanadi (u markaz haqidagi umumiy javoblar, shaxsiy da'vo emas).
+        Assert.Contains("private static List<LandingFaq> GetDefaultFaqs()", src);
+        Assert.Contains("faqs = GetDefaultFaqs();", src);
+    }
 }

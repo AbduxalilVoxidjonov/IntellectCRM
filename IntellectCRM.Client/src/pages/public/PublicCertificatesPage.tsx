@@ -40,6 +40,9 @@ export interface PublicCertItem {
 export function PublicCertificatesPage() {
   const [certs, setCerts] = useState<PublicCertItem[]>([])
   const [loading, setLoading] = useState(true)
+  // ⚠️ Xato holati BO'SH holatdan ATAYIN ajratilgan: so'rov yiqilganda "sertifikat topilmadi"
+  // deyish foydalanuvchini chalg'itardi (markazda sertifikat yo'q deb tushunardi).
+  const [loadError, setLoadError] = useState(false)
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [selectedImg, setSelectedImg] = useState<string | null>(null)
@@ -61,14 +64,18 @@ export function PublicCertificatesPage() {
     api
       .get('/public/landing-data')
       .then((res) => {
-        if (res.data?.certificates) {
-          setCerts(res.data.certificates)
-        }
+        // Bo'sh massiv — TO'LIQ HUQUQLI javob (CMS'ga hali sertifikat kiritilmagan), shuning
+        // uchun `if (res.data?.certificates)` sharti olib tashlandi: u bo'sh ro'yxatni ham,
+        // maydon umuman kelmagan holatni ham bir xil "e'tiborsiz" qoldirardi.
+        setCerts(Array.isArray(res.data?.certificates) ? res.data.certificates : [])
         if (res.data?.socials) {
           setSocials(res.data.socials)
         }
       })
-      .catch((err) => console.error('Failed to load certificates:', err))
+      .catch((err) => {
+        console.error('Failed to load certificates:', err)
+        setLoadError(true)
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -80,11 +87,14 @@ export function PublicCertificatesPage() {
   ]
 
   const filteredCerts = certs.filter((item) => {
+    // ⚠️ Maydonlar `|| ''` bilan himoyalangan: CMS'da to'ldirilmagan qiymat javobda `null`
+    // bo'lib kelsa `.toLowerCase()` butun sahifani yiqitardi (oq ekran).
+    const q = search.toLowerCase()
     const matchesSearch =
-      item.studentName.toLowerCase().includes(search.toLowerCase()) ||
-      item.title.toLowerCase().includes(search.toLowerCase()) ||
-      item.certType.toLowerCase().includes(search.toLowerCase()) ||
-      item.overallScore.toLowerCase().includes(search.toLowerCase())
+      (item.studentName || '').toLowerCase().includes(q) ||
+      (item.title || '').toLowerCase().includes(q) ||
+      (item.certType || '').toLowerCase().includes(q) ||
+      String(item.overallScore ?? '').toLowerCase().includes(q)
 
     if (!matchesSearch) return false
 
@@ -212,11 +222,27 @@ export function PublicCertificatesPage() {
                 <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
                 <p>Sertifikatlar yuklanmoqda...</p>
               </div>
+            ) : loadError ? (
+              /* XATO — bo'sh holatdan alohida: tarmoq muammosini "sertifikat yo'q" deb
+                 ko'rsatish markaz haqida noto'g'ri taassurot qoldirardi. */
+              <div className="py-20 text-center text-gray-400 bg-gray-900/40 rounded-3xl border border-white/5 max-w-xl mx-auto">
+                <Award className="w-12 h-12 mx-auto text-gray-600 mb-3" />
+                <h3 className="text-lg font-bold text-white mb-1">Sertifikatlarni yuklab bo'lmadi</h3>
+                <p className="text-sm text-gray-500">Internet aloqasini tekshirib, sahifani yangilang.</p>
+              </div>
+            ) : certs.length === 0 ? (
+              /* CMS'da umuman yozuv yo'q — bu qidiruv natijasi EMAS, shuning uchun matn ham
+                 boshqacha ("qidiruvni o'zgartiring" deyish bu yerda ma'nosiz bo'lardi). */
+              <div className="py-20 text-center text-gray-400 bg-gray-900/40 rounded-3xl border border-white/5 max-w-xl mx-auto">
+                <Award className="w-12 h-12 mx-auto text-gray-600 mb-3" />
+                <h3 className="text-lg font-bold text-white mb-1">Hozircha sertifikatlar joylanmagan</h3>
+                <p className="text-sm text-gray-500">Tez orada o'quvchilarimizning natijalari shu yerda e'lon qilinadi.</p>
+              </div>
             ) : filteredCerts.length === 0 ? (
               <div className="py-20 text-center text-gray-400 bg-gray-900/40 rounded-3xl border border-white/5 max-w-xl mx-auto">
                 <Award className="w-12 h-12 mx-auto text-gray-600 mb-3" />
                 <h3 className="text-lg font-bold text-white mb-1">Mos sertifikatlar topilmadi</h3>
-                <p className="text-sm text-gray-500">Qidiruv so'rovini ozroq o'zgartirib ko'ring.</p>
+                <p className="text-sm text-gray-500">Qidiruv so'rovini yoki toifani o'zgartirib ko'ring.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -233,17 +259,31 @@ export function PublicCertificatesPage() {
                         setSelectedCert(cert)
                       }}
                     >
-                      <img
-                        src={cert.imageUrl || '/placeholder.png'}
-                        alt={cert.studentName}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
+                      {/* ⚠️ `/placeholder.png` fayli loyihada UMUMAN yo'q edi — surati yo'q
+                          sertifikatda 404 va "singan rasm" belgisi chiqardi. Boshqa o'quvchining
+                          sertifikat surati esa zaxira sifatida ishlatilmaydi, shuning uchun
+                          neytral belgi ko'rsatiladi. */}
+                      {cert.imageUrl ? (
+                        <img
+                          src={cert.imageUrl}
+                          alt={cert.studentName}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                          <Award className="w-12 h-12 text-gray-700" />
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent opacity-80" />
 
                       {/* Badge Top Right */}
-                      <span className="absolute top-3 right-3 px-3 py-1 bg-blue-600/90 backdrop-blur text-white text-xs font-black rounded-lg shadow-lg border border-blue-400/30">
-                        {cert.certType} — {cert.overallScore}
-                      </span>
+                      {/* Tur ham, ball ham bo'lmasa nishon UMUMAN chizilmaydi — aks holda
+                          kartochkada yolg'iz "—" belgisi osilib qolardi. */}
+                      {(cert.certType || cert.overallScore) && (
+                        <span className="absolute top-3 right-3 px-3 py-1 bg-blue-600/90 backdrop-blur text-white text-xs font-black rounded-lg shadow-lg border border-blue-400/30">
+                          {[cert.certType, cert.overallScore].filter(Boolean).join(' — ')}
+                        </span>
+                      )}
 
                       {/* View Hover Overlay */}
                       <div className="absolute inset-0 bg-blue-600/20 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -315,11 +355,13 @@ export function PublicCertificatesPage() {
         </section>
       </main>
 
-      {/* LIGHTBOX MODAL */}
-      {selectedImg && (
+      {/* LIGHTBOX MODAL
+          ⚠️ Ochilish sharti `selectedCert` (rasm EMAS): surati yo'q sertifikatda "Ko'rish"
+          tugmasi ilgari jimgina hech narsa qilmasdi. */}
+      {selectedCert && (
         <div
           className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setSelectedImg(null)}
+          onClick={() => { setSelectedImg(null); setSelectedCert(null) }}
         >
           <div
             className="relative max-w-4xl w-full bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
@@ -328,19 +370,26 @@ export function PublicCertificatesPage() {
             <div className="p-4 bg-gray-950 flex items-center justify-between border-b border-white/10">
               <div>
                 <h4 className="font-bold text-white text-base">
-                  {selectedCert?.studentName} — {selectedCert?.certType} {selectedCert?.overallScore}
+                  {[selectedCert?.studentName, [selectedCert?.certType, selectedCert?.overallScore].filter(Boolean).join(' ')]
+                    .filter(Boolean)
+                    .join(' — ')}
                 </h4>
                 <p className="text-xs text-gray-400">{selectedCert?.title}</p>
               </div>
               <button
-                onClick={() => setSelectedImg(null)}
+                onClick={() => { setSelectedImg(null); setSelectedCert(null) }}
                 className="p-2 text-gray-400 hover:text-white rounded-lg bg-white/5 hover:bg-white/10"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-2 max-h-[80vh] overflow-auto flex items-center justify-center bg-black">
-              <img src={selectedImg} alt="Certificate" className="max-w-full max-h-[75vh] object-contain rounded-lg" />
+              {selectedImg ? (
+                <img src={selectedImg} alt="Certificate" className="max-w-full max-h-[75vh] object-contain rounded-lg" />
+              ) : (
+                /* Surat biriktirilmagan — boshqa o'quvchining sertifikati ko'rsatilmaydi. */
+                <div className="py-16 text-center text-gray-500 text-sm">Sertifikat surati biriktirilmagan.</div>
+              )}
             </div>
           </div>
         </div>

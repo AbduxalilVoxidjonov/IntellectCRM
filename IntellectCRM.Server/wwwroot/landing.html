@@ -658,6 +658,19 @@
   .teacher-play-icon {
     display: none !important;
   }
+  /* Surat YO'Q bo'lgan ustoz uchun zaxira: ism bosh harflari.
+     ⚠️ ATAYIN boshqa o'qituvchining rasmi qo'yilmaydi — ochiq saytda begona odamni bizning
+     ustozimiz sifatida ko'rsatish to'qib chiqarilgan ma'lumot bo'lardi (fikrlar bo'limidagi
+     `.testimonial-initials` bilan bir xil naqsh). */
+  .teacher-photo-initials {
+    display: grid;
+    place-items: center;
+    background: var(--grad);
+    color: #ffffff;
+    font-size: 64px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
   .teacher-card-name {
     font-size: 18px;
     font-weight: 800;
@@ -1061,14 +1074,6 @@
     min-height: 380px !important;
   }
 
-  /* Natijalar filtri — "Bizning natijalarimiz" bo'limi uchun.
-     landing.js dagi renderCertificates() `.result-filter-btn` ni izlaydi; markup bo'lmagani
-     uchun filtr o'lik edi. Uslub sertifikatlar sahifasidagi .filter-tab bilan bir xil. */
-  .result-filters{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:-24px auto 36px}
-  .result-filter-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--muted);padding:10px 22px;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;transition:all .25s ease;font-family:inherit}
-  .result-filter-btn:hover{background:rgba(255,255,255,.1);color:#fff}
-  .result-filter-btn.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 6px 20px rgba(47,128,237,.35)}
-
   /* Hover effektlari — ilgari inline onmouseover/onmouseout bilan qilingan edi, prod CSP
      (script-src 'self') inline handlerlarni bloklaydi, ya'ni serverda ular umuman ishlamasdi.
      Inline style ustidan yozish uchun !important SHART. */
@@ -1440,8 +1445,15 @@
   </div>
 </section>
 
-<!-- O'QITUVCHILAR -->
-<section id="teachers">
+<!-- O'QITUVCHILAR
+     Manba: "Sozlamalar → Landing boshqaruvi → O'qituvchilar" tabi → GET /api/public/landing-data.
+
+     ⚠️ STATIK (namuna) kartochkalar ATAYIN yo'q — fikrlar bo'limidagi bilan bir xil naqsh.
+     Ilgari bu yerda 4 ta soxta ustoz (ism, surat, bio) qattiq kodlangan edi va landing.js
+     ro'yxat BO'SH bo'lsa renderTeachers() ni umuman chaqirmasdi — natijada CMS'ga hech kim
+     kiritilmagan markazda saytda TO'QIB CHIQARILGAN o'qituvchilar turardi.
+     Shu sabab bo'lim boshidan yopiq va uni FAQAT landing.js dagi renderTeachers() ochadi. -->
+<section id="teachers" style="display:none">
   <div class="container">
     <div class="section-title-wrap">
       <h2 class="section-title">Bizning o'qituvchilarimiz</h2>
@@ -1449,77 +1461,7 @@
     </div>
 
     <div class="teachers-carousel-wrapper">
-      <div class="teachers-track" id="teacherTrack">
-        
-        <div class="teacher-slide">
-          <div class="teacher-card">
-            <div class="teacher-avatar-wrap">
-              <img src="/img/teachers/teacher-1.jpg" alt="Muhabbatxon Ubaydullayeva" loading="lazy">
-              <span class="teacher-badge">IELTS 8.5+</span>
-            </div>
-            <h3 class="teacher-name">Muhabbatxon Ubaydullayeva</h3>
-            <div class="teacher-subject">Bosh Ingliz tili va IELTS Ustozisi</div>
-            <p class="teacher-bio">CELTA sertifikati sohibasi. Oliy toifali pedagogik tajribaga ega bo'lib, 500+ o'quvchilari IELTS 7.0+ natijalarni qo'lga kiritgan.</p>
-            <div class="teacher-tags">
-              <span class="teacher-tag">CELTA</span>
-              <span class="teacher-tag">IELTS 8.5</span>
-              <span class="teacher-tag">Oliy toifa</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="teacher-slide">
-          <div class="teacher-card">
-            <div class="teacher-avatar-wrap">
-              <img src="/img/teachers/teacher-2.jpg" alt="Abdumutal Abdujabborov" loading="lazy">
-              <span class="teacher-badge">SAT 1500+</span>
-            </div>
-            <h3 class="teacher-name">Abdumutal Abdujabborov</h3>
-            <div class="teacher-subject">Matematika & SAT Eksperti</div>
-            <p class="teacher-bio">Mantiqiy fikrlash hamda abituriyentlarni DTM va SAT Math imtihonlariga 100% natija bilan tayyorlovchi tajribali mutaxassis.</p>
-            <div class="teacher-tags">
-              <span class="teacher-tag">SAT Math</span>
-              <span class="teacher-tag">DTM 100%</span>
-              <span class="teacher-tag">10+ yil tajriba</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="teacher-slide">
-          <div class="teacher-card">
-            <div class="teacher-avatar-wrap">
-              <img src="/img/teachers/teacher-3.jpg" alt="Rustamjon Nuriddinov" loading="lazy">
-              <span class="teacher-badge">Fizika Eksperti</span>
-            </div>
-            <h3 class="teacher-name">Rustamjon Nuriddinov</h3>
-            <div class="teacher-subject">Fizika va Oliy Ta'lim Tayyorgarligi</div>
-            <p class="teacher-bio">Chuqurlashtirilgan fizika metodikasi, amaliy va nazariy darslar o'tkazish bo'yicha ko'plab grant talabalari ustozi.</p>
-            <div class="teacher-tags">
-              <span class="teacher-tag">Oliy Fizika</span>
-              <span class="teacher-tag">DTM Tayyorlov</span>
-              <span class="teacher-tag">Grant Natija</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="teacher-slide">
-          <div class="teacher-card">
-            <div class="teacher-avatar-wrap">
-              <img src="/img/teachers/teacher-4.jpg" alt="Nurjaxon Abduazizova" loading="lazy">
-              <span class="teacher-badge">Milliy Sertifikat A+</span>
-            </div>
-            <h3 class="teacher-name">Nurjaxon Abduazizova</h3>
-            <div class="teacher-subject">Ona tili va Adabiyot Mutaxassisi</div>
-            <p class="teacher-bio">Ona tili va adabiyot fanidan DTM testlari va Milliy Sertifikat A+ natijalariga yo'naltirilgan intensiv metodika muallifi.</p>
-            <div class="teacher-tags">
-              <span class="teacher-tag">Milliy Sertifikat</span>
-              <span class="teacher-tag">Grammatika</span>
-              <span class="teacher-tag">Adabiyot Tahlili</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
+      <div class="teachers-track" id="teacherTrack"></div>
 
       <div class="carousel-controls">
         <button type="button" class="carousel-btn" id="prevTeacher" aria-label="Oldingi ustoz">‹</button>
@@ -1530,68 +1472,25 @@
   </div>
 </section>
 
-<!-- BIZNING NATIJALARIMIZ -->
-<section id="results">
+<!-- BIZNING NATIJALARIMIZ
+     Manba: "Sozlamalar → Landing boshqaruvi → Sertifikatlar" tabi → GET /api/public/landing-data.
+
+     ⚠️ STATIK (namuna) sertifikat kartochkalari ATAYIN yo'q: ilgari bu yerda 2 ta soxta o'quvchi
+     ismi va boshqa odamning sertifikat surati qattiq kodlangan edi. Bo'lim boshidan yopiq va uni
+     FAQAT landing.js dagi renderCertificates() ochadi.
+
+     ⚠️ KATEGORIYA FILTRI (Barchasi / Xalqaro / Milliy) bu yerda YO'Q — u faqat `/sertifikatlar`
+     sahifasida. Landingda hamma sertifikat karuselda birin-ketin aylanaveradi, ya'ni ziyoratchi
+     tugma bosmasdan hammasini ko'radi. -->
+<section id="results" style="display:none">
   <div class="container">
     <div class="section-title-wrap">
       <h2 class="section-title">BIZNING NATIJALARIMIZ!</h2>
       <p class="section-desc">O'quvchilarimiz doimiy ravishda yuqori natijali IELTS sertifikatlarini qo'lga kiritib o'z keshbeklarini qabul qilib olishadi.</p>
     </div>
 
-    <!-- Filtr tugmalari: klass va data-filter qiymatlari landing.js dagi
-         renderCertificates()/filterAndDrawCertificates() bilan AYNAN mos bo'lishi shart. -->
-    <div class="result-filters">
-      <button type="button" class="result-filter-btn active" data-filter="all">🏆 Barchasi</button>
-      <button type="button" class="result-filter-btn" data-filter="Xalqaro">🌐 Xalqaro sertifikatlar</button>
-      <button type="button" class="result-filter-btn" data-filter="Milliy">🇺🇿 Milliy sertifikatlar</button>
-    </div>
-
     <div class="results-carousel-wrapper">
-      <div class="results-track" id="resultsTrack">
-        
-        <div class="result-slide">
-          <div class="result-card">
-            <div class="result-cert-img-wrap">
-              <img src="/img/certificates/cert-1.jpg" alt="IELTS 8.5 Certificate" loading="lazy">
-            </div>
-            <div class="result-student-name">MUKHAMMADISA MAKHMUDOV</div>
-            <div class="result-card-bottom">
-              <div class="result-overall-box">
-                <span class="result-overall-label">OVERALL</span>
-                <span class="result-overall-score">8.5</span>
-              </div>
-              <div class="result-breakdown">
-                <div class="result-breakdown-row"><span>Listening</span> <span>9.0</span></div>
-                <div class="result-breakdown-row"><span>Reading</span> <span>8.5</span></div>
-                <div class="result-breakdown-row"><span>Writing</span> <span>7.5</span></div>
-                <div class="result-breakdown-row"><span>Speaking</span> <span>8.0</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="result-slide">
-          <div class="result-card">
-            <div class="result-cert-img-wrap">
-              <img src="/img/certificates/cert-2.jpg" alt="IELTS 8.0 Certificate" loading="lazy">
-            </div>
-            <div class="result-student-name">KRISTINA KHAFIZOVA</div>
-            <div class="result-card-bottom">
-              <div class="result-overall-box">
-                <span class="result-overall-label">OVERALL</span>
-                <span class="result-overall-score">8.0</span>
-              </div>
-              <div class="result-breakdown">
-                <div class="result-breakdown-row"><span>Listening</span> <span>8.5</span></div>
-                <div class="result-breakdown-row"><span>Reading</span> <span>8.0</span></div>
-                <div class="result-breakdown-row"><span>Writing</span> <span>7.5</span></div>
-                <div class="result-breakdown-row"><span>Speaking</span> <span>8.5</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
+      <div class="results-track" id="resultsTrack"></div>
 
       <div class="carousel-controls">
         <button type="button" class="carousel-btn" id="prevResult" aria-label="Oldingi natija">‹</button>
@@ -2085,6 +1984,6 @@
      2026-08-05 da tuzatilgan xato 13 kun prodda ko'rinib turdi). Query o'zgarsa — manzil boshqa
      resurs bo'lib hisoblanadi va kesh chetlab o'tiladi.
      ⚠️ landing.js O'ZGARTIRILGANDA bu sanani QO'LDA yangilang (deploy SKILL.md da ham eslatma bor). -->
-<script src="/landing.js?v=20260818" defer></script>
+<script src="/landing.js?v=20260818b" defer></script>
 </body>
 </html>

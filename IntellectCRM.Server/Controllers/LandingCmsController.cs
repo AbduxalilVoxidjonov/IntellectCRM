@@ -56,17 +56,14 @@ public class LandingCmsController(AppDbContext db, ILogger<LandingCmsController>
             .OrderBy(f => f.Order)
             .ToListAsync();
 
-        // Agar ma'lumotlar hali kiritilmagan bo'lsa (boshlang'ich holat), sukut bo'yicha ma'lumotlarni qaytaradi
-        if (teachers.Count == 0)
-        {
-            teachers = GetDefaultTeachers();
-        }
-
-        if (certificates.Count == 0)
-        {
-            certificates = GetDefaultCertificates();
-        }
-
+        // ⚠️ O'QITUVCHI va SERTIFIKAT uchun ZAXIRA (namuna) MA'LUMOT YO'Q — ATAYIN.
+        // Ular bazada bo'lmasa javob BO'SH massiv qaytaradi. Sabab: ommaviy saytda soxta
+        // o'qituvchi ismi yoki boshqa odamning "IELTS 8.5" sertifikati — to'qib chiqarilgan
+        // ma'lumot (markaz nomidan yolg'on da'vo). Bo'lim ko'rinishini KLIENT hal qiladi:
+        // ro'yxat bo'sh bo'lsa u bo'limni umuman chizmaydi.
+        //
+        // FAQ esa qoladi: u markaz haqidagi umumiy javoblar (narx/jadval emas), va landing
+        // sahifasida u uchun statik markup zaxira sifatida turibdi.
         if (faqs.Count == 0)
         {
             faqs = GetDefaultFaqs();
@@ -622,66 +619,11 @@ public class LandingCmsController(AppDbContext db, ILogger<LandingCmsController>
         return Ok(new { ok = true });
     }
 
-    // ==================== DEFAULT FALLBACK DATA ====================
-    // ⚠️ Rasm manzillari MUTLAQ (`/img/...`) — NISBIY emas. Sabab: landing va sertifikatlar
-    // sahifalari `MapFallback` orqali ISTALGAN yo'lda beriladi (`/sertifikatlar`, `/kurslar/`, ...).
-    // Nisbiy `img/...` esa brauzerda joriy yo'lga nisbatan hal qilinardi: `/sertifikatlar/` da u
-    // `/sertifikatlar/img/certificates/cert-1.jpg` bo'lib 404 berardi va zaxira rasm ko'rinmasdi.
-
-    private static List<LandingTeacher> GetDefaultTeachers()
-    {
-        return new List<LandingTeacher>
-        {
-            new LandingTeacher
-            {
-                Id = "t1",
-                FullName = "Muhabbatxon Ubaydullayeva",
-                Subject = "Bosh Ingliz tili va IELTS Ustozisi",
-                PhotoUrl = "/img/teachers/teacher-1.jpg",
-                Badge = "IELTS 8.5+",
-                ShortBio = "CELTA sertifikati sohibasi. Oliy toifali pedagogik tajribaga ega bo'lib, 500+ o'quvchilari IELTS 7.0+ natijalarni qo'lga kiritgan.",
-                FullBio = "Muhabbatxon Ubaydullayeva — 8 yildan ortiq tajribaga ega bo'lgan yetakchi IELTS mutaxassisi. U Cambridge CELTA xalqaro o'qituvchilik sertifikatiga ega. Darslar intensiv so'zlashuv (Speaking), akademik yozish (Writing) va eshitib tushunish ko'nikmalarini rivojlantirishga qaratilgan. Uning rahbarligida 500 dan ortiq o'quvchilar IELTS 7.0 va undan yuqori natijalarni qayd etgan.",
-                Order = 1,
-                IsActive = true
-            },
-            new LandingTeacher
-            {
-                Id = "t2",
-                FullName = "Abdumutal Abdujabborov",
-                Subject = "Matematika & SAT Eksperti",
-                PhotoUrl = "/img/teachers/teacher-2.jpg",
-                Badge = "SAT 1500+",
-                ShortBio = "Mantiqiy fikrlash hamda abituriyentlarni DTM va SAT Math imtihonlariga 100% natija bilan tayyorlovchi tajribali mutaxassis.",
-                FullBio = "Abdumutal Abdujabborov — Matematika va SAT Math bo'yicha 10+ yillik tajribaga ega oliy toifali ustoz. Uning o'quvchilari xalqaro SAT imtihonida 1500+ ball toplagan hamda O'zbekistondagi yetakchi va xorijiy universitetlarga davlat granti asosida o'qishga kirgan.",
-                Order = 2,
-                IsActive = true
-            },
-            new LandingTeacher
-            {
-                Id = "t3",
-                FullName = "Rustamjon Nuriddinov",
-                Subject = "Fizika va Oliy Ta'lim Tayyorgarligi",
-                PhotoUrl = "/img/teachers/teacher-3.jpg",
-                Badge = "Fizika Eksperti",
-                ShortBio = "Chuqurlashtirilgan fizika metodikasi, amaliy va nazariy darslar o'tkazish bo'yicha ko'plab grant talabalari ustozi.",
-                FullBio = "Rustamjon Nuriddinov — Fizika fanidan murakkab masalalarni sodda va tushunarli usulda o'rgatuvchi ekspert. DTM imtihonlari hamda fizika olimpiadalari g'oliblarini tayyorlagan.",
-                Order = 3,
-                IsActive = true
-            },
-            new LandingTeacher
-            {
-                Id = "t4",
-                FullName = "Nurjaxon Abduazizova",
-                Subject = "Ona tili va Adabiyot Mutaxassisi",
-                PhotoUrl = "/img/teachers/teacher-4.jpg",
-                Badge = "Milliy Sertifikat A+",
-                ShortBio = "Ona tili va adabiyot fanidan DTM testlari va Milliy Sertifikat A+ natijalariga yo'naltirilgan intensiv metodika muallifi.",
-                FullBio = "Nurjaxon Abduazizova — Milliy sertifikat (A, A+) hamda DTM imtihonlarida maksimal natija kafolati bilan dars beruvchi tajribali pedagog.",
-                Order = 4,
-                IsActive = true
-            }
-        };
-    }
+    // ==================== DEFAULT FALLBACK DATA (FAQAT FAQ) ====================
+    // ⚠️ Bu yerda FAQAT FAQ zaxirasi qoladi. O'qituvchilar va sertifikatlar zaxirasi ATAYIN
+    // olib tashlangan: ommaviy saytda soxta o'qituvchi/sertifikat ko'rsatish — to'qib
+    // chiqarilgan ma'lumot. Bazada yo'q bo'lsa javob bo'sh massiv qaytaradi, bo'limni
+    // ko'rsatish-ko'rsatmaslikni klient hal qiladi. Yangi zaxira namuna QO'SHMANG.
 
     private static List<LandingFaq> GetDefaultFaqs()
     {
@@ -708,59 +650,6 @@ public class LandingCmsController(AppDbContext db, ILogger<LandingCmsController>
                 Id = "f3",
                 Question = "Darslar necha kishi guruhda o'tiladi?",
                 Answer = "Har bir guruhda maksimum 12-15 nafar o'quvchi ta'lim oladi. Bu har bir o'quvchiga individual e'tibor qaratish imkonini beradi.",
-                Order = 3,
-                IsActive = true
-            }
-        };
-    }
-
-    private static List<LandingCertificate> GetDefaultCertificates()
-    {
-        return new List<LandingCertificate>
-        {
-            new LandingCertificate
-            {
-                Id = "c1",
-                Title = "IELTS 8.5",
-                StudentName = "MUKHAMMADISA MAKHMUDOV",
-                ImageUrl = "/img/certificates/cert-1.jpg",
-                Category = "Xalqaro",
-                CertType = "IELTS",
-                OverallScore = "8.5",
-                Listening = "9.0",
-                Reading = "8.5",
-                Writing = "7.5",
-                Speaking = "8.0",
-                Order = 1,
-                IsActive = true
-            },
-            new LandingCertificate
-            {
-                Id = "c2",
-                Title = "IELTS 8.0",
-                StudentName = "KRISTINA KHAFIZOVA",
-                ImageUrl = "/img/certificates/cert-2.jpg",
-                Category = "Xalqaro",
-                CertType = "IELTS",
-                OverallScore = "8.0",
-                Listening = "8.5",
-                Reading = "8.0",
-                Writing = "7.5",
-                Speaking = "8.5",
-                Order = 2,
-                IsActive = true
-            },
-            new LandingCertificate
-            {
-                Id = "c3",
-                Title = "SAT Math 800",
-                StudentName = "ASADBEK RAHIMOV",
-                ImageUrl = "/img/certificates/cert-3.jpg",
-                Category = "Milliy",
-                CertType = "SAT",
-                OverallScore = "1520",
-                Listening = "800",
-                Reading = "720",
                 Order = 3,
                 IsActive = true
             }
