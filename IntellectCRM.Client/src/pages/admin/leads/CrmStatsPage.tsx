@@ -24,6 +24,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
 import { apiErrorMessage, cn, formatMoney } from '@/lib/utils'
 import { monthShortNames } from '@/config/constants'
+import { todayIso } from '@/lib/month'
 import { ConversionFunnel } from './stats/ConversionFunnel'
 import { SourcesDonut } from './stats/SourcesDonut'
 import { ManagerPerformance } from './stats/ManagerPerformance'
@@ -31,7 +32,6 @@ import { ManagerStageMatrix } from './stats/ManagerStageMatrix'
 import { OriginTable } from '@/components/leads/OriginTable'
 import { axisTick, barCursor, CATEGORICAL, gridStroke, stageRamp, tooltipStyle } from './stats/palette'
 
-const today = () => new Date().toISOString().slice(0, 10)
 
 /**
  * Analitika xatosini foydalanuvchi tilida beradi. Backend endpointi hali tayyor bo'lmasligi
@@ -61,11 +61,27 @@ export function CrmStatsPage() {
   )
   const { data: analytics, loading: aLoading, error: aError } = useAsync(fetchAnalytics, [fetchAnalytics])
 
+  /**
+   * Tez oraliq: BUGUNNI QO'SHIB, orqaga `days` kun. Ya'ni `quick(1)` = faqat bugun.
+   *
+   * ⚠️ Sana LOKAL (`todayIso`), `toISOString()` EMAS: u UTC beradi va Toshkent vaqtida
+   * (UTC+5) yarim tundan keyin «Bugun» tugmasi KECHAGI kunni tanlab qo'yardi.
+   */
   const quick = (days: number) => {
     const start = new Date()
     start.setDate(start.getDate() - days + 1)
-    setFrom(start.toISOString().slice(0, 10))
-    setTo(today())
+    const p = (n: number) => String(n).padStart(2, '0')
+    setFrom(`${start.getFullYear()}-${p(start.getMonth() + 1)}-${p(start.getDate())}`)
+    setTo(todayIso())
+  }
+
+  /** Shu tez oraliq HOZIR tanlanganmi — segmentda qaysi biri faol ekani ko'rinib tursin. */
+  const isQuick = (days: number) => {
+    if (!from || to !== todayIso()) return false
+    const start = new Date()
+    start.setDate(start.getDate() - days + 1)
+    const p = (n: number) => String(n).padStart(2, '0')
+    return from === `${start.getFullYear()}-${p(start.getMonth() + 1)}-${p(start.getDate())}`
   }
 
   if (loading) return <Loader label="Yuklanmoqda..." />
@@ -119,18 +135,25 @@ export function CrmStatsPage() {
             onChange={(e) => setTo(e.target.value)}
           />
           <div className="tabs">
-            <button type="button" className="tab" onClick={() => quick(7)}>
-              7 kun
-            </button>
-            <button type="button" className="tab" onClick={() => quick(30)}>
-              30 kun
-            </button>
-            <button type="button" className="tab" onClick={() => quick(90)}>
-              90 kun
-            </button>
+            {/* «Bugun» — `quick(1)`: bugun ham QO'SHIB sanaladi, ya'ni from = to = bugun. */}
+            {[
+              { label: 'Bugun', days: 1 },
+              { label: '7 kun', days: 7 },
+              { label: '30 kun', days: 30 },
+              { label: '90 kun', days: 90 },
+            ].map((q) => (
+              <button
+                key={q.days}
+                type="button"
+                className={cn('tab', isQuick(q.days) && 'active')}
+                onClick={() => quick(q.days)}
+              >
+                {q.label}
+              </button>
+            ))}
             <button
               type="button"
-              className="tab"
+              className={cn('tab', !from && !to && 'active')}
               onClick={() => {
                 setFrom('')
                 setTo('')
