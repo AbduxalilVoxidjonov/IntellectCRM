@@ -75,7 +75,7 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
     /// </summary>
     [HttpGet("api/admin/students/{studentId}/certificates")]
     [Authorize]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<StudentCompletedCourseDto>>> GetStudentCertificatesAdmin(string studentId)
     {
         var certs = await db.StudentCertificates
@@ -116,7 +116,7 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
     /// <summary>Admin: o'quvchi sertifikat faylini yuklab olish.</summary>
     [HttpGet("api/admin/students/{studentId}/certificates/{id}/download")]
     [Authorize]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", ReadRequiresPerm = true)]
     public async Task<IActionResult> DownloadCertificateAdmin(string studentId, string id)
     {
         try
@@ -139,7 +139,7 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
     /// <summary>Admin: sertifikat andozalari ro'yxati.</summary>
     [HttpGet("api/admin/certificate-templates")]
     [Authorize]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<CertificateTemplateDto>>> GetTemplates()
     {
         var templates = await db.CertificateTemplates
@@ -159,7 +159,7 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
     /// <summary>Admin: kurs uchun sertifikat andozasi yaratish.</summary>
     [HttpPost("api/admin/certificate-templates")]
     [Authorize]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", ReadRequiresPerm = true)]
     public async Task<ActionResult<CertificateTemplateDto>> CreateTemplate(CreateCertificateTemplateRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.Name))
@@ -187,7 +187,7 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
     /// <summary>Admin: kurs uchun mavjud sertifikat andozasini olish.</summary>
     [HttpGet("api/admin/certificate-templates/{id}")]
     [Authorize]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", ReadRequiresPerm = true)]
     public async Task<ActionResult<CertificateTemplateDto>> GetTemplate(string id)
     {
         var tpl = await db.CertificateTemplates.FindAsync(id);
@@ -203,7 +203,7 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
     /// <summary>Admin: o'quvchiga qo'lda sertifikat yaratish (kurs id bo'yicha).</summary>
     [HttpPost("api/admin/students/{studentId}/certificates/generate")]
     [Authorize]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", ReadRequiresPerm = true)]
     public async Task<ActionResult<StudentCompletedCourseDto>> GenerateCertificateAdmin(
         string studentId, [FromBody] GenerateCertificateRequest req)
     {
@@ -239,7 +239,7 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
     /// <summary>Admin: andozani o'chirish.</summary>
     [HttpDelete("api/admin/certificate-templates/{id}")]
     [Authorize]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", ReadRequiresPerm = true)]
     public async Task<IActionResult> DeleteTemplate(string id)
     {
         var tpl = await db.CertificateTemplates.FindAsync(id);

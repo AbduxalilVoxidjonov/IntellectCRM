@@ -8,16 +8,24 @@ import type { CardTabItem } from '@/components/ui/CardTabs'
  */
 
 /**
- * O'qituvchilar bo'limi: Ro'yxati · Davomati · Hisoboti.
- * «Hisoboti» alohida ruxsat (`teacherReports`) talab qiladi — sidebar'dagi qoida bilan bir xil.
+ * O'qituvchilar bo'limi: Ro'yxati · Davomati · O'rinbosarlar · Hisoboti.
+ *
+ * ⚠️ HAR BIR card — alohida beriladigan SAHIFA (`teachers.list`, `teachers.attendance`,
+ * `teachers.substitutions`, `teacherReports`), shuning uchun ko'rinishi ham har biri uchun
+ * alohida tekshiriladi: ruxsati yo'q sahifaning cardi chiqmaydi (bosib "ruxsat yo'q" ga
+ * tushib qolmasin). Sidebar'dagi qoida bilan bir xil.
  */
-export function teacherTabs(canSeeReports: boolean): CardTabItem[] {
+export function teacherTabs(canSee: (perm: string) => boolean): CardTabItem[] {
   return [
     // `end` — `/admin/teachers/attendance` ochilganda «Ro'yxati» ham faol bo'lib qolmasin
-    { label: "Ro'yxati", to: '/admin/teachers', end: true },
-    { label: 'Davomati', to: '/admin/teachers/attendance' },
-    { label: "O'rinbosarlar", to: '/admin/teachers/substitutions' },
-    { label: 'Hisoboti', to: '/admin/teacher-reports', hidden: !canSeeReports },
+    { label: "Ro'yxati", to: '/admin/teachers', end: true, hidden: !canSee('teachers.list') },
+    { label: 'Davomati', to: '/admin/teachers/attendance', hidden: !canSee('teachers.attendance') },
+    {
+      label: "O'rinbosarlar",
+      to: '/admin/teachers/substitutions',
+      hidden: !canSee('teachers.substitutions'),
+    },
+    { label: 'Hisoboti', to: '/admin/teacher-reports', hidden: !canSee('teacherReports') },
   ]
 }
 
@@ -26,7 +34,7 @@ export function teacherTabs(canSeeReports: boolean): CardTabItem[] {
  * **Lid formalari · Lid statistikasi · Daraja testlari · Test statistikasi**.
  *
  * Ikki turdagi forma bitta bo'limda turadi, lekin RUXSATLARI har xil: lid formalari — `leads`
- * (ular lid ishlab chiqaradi), daraja testi esa tarixan `schedule` (kurs bilan bog'liq). Shu sabab
+ * (ular lid ishlab chiqaradi), daraja testi esa `schedule.levelTests` (kurs bilan bog'liq). Shu sabab
  * cardlar alohida-alohida yashiriladi — bir turi yopiq bo'lgan xodim ikkinchisini baribir ko'radi.
  *
  * ⚠️ Har turdan KEYIN uning statistikasi turadi — nomlari ham ATAYIN aniq ("Statistika" emas):

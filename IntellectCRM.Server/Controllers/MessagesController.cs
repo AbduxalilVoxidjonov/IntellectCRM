@@ -15,7 +15,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("messages")]
+[AdminPerm("messages.broadcast")]
 [Route("api/admin/messages")]
 public class MessagesController(
     AppDbContext db, ChatService chat, TelegramService telegram, FcmService fcm, EskizService eskiz,
@@ -121,6 +121,8 @@ public class MessagesController(
     }
 
     [HttpPost("chat/{className}")]
+    // Guruh CHATI — "Chats" bo'limidagi alohida sahifa (ommaviy xabar yuborishdan boshqa ish).
+    [AdminPerm("messages.chat")]
     public async Task<ActionResult<ChatMessageDto>> SendChat(string className, SendChatRequest req)
     {
         // POST'ni AdminPerm allaqachon "messages"/"messages:create" bilan darvozalaydi —

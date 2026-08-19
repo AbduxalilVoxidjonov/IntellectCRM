@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 /// "To'lov qilish" — odatdagi to'lov oynasi ochiladi.
 ///
 /// <para>NEGA ALOHIDA CONTROLLER: to'lov yozish yo'li <c>StudentsController</c> da edi va u
-/// <c>[AdminPerm("students")]</c> darvozasi ortida — ya'ni kassirga to'lov qabul qilish uchun
+/// <c>[AdminPerm("students.list")]</c> darvozasi ortida — ya'ni kassirga to'lov qabul qilish uchun
 /// o'quvchi YARATISH/TAHRIRLASH huquqini ham berish kerak bo'lardi. Kassa bo'limi shuni ajratadi:
 /// <b>faqat to'lov</b> yozadi ("kassa:create"), boshqa hech narsa. Mantiq esa NUSXALANMAGAN —
 /// ikkala yo'l ham <see cref="PaymentIntake"/> orqali o'tadi.</para>

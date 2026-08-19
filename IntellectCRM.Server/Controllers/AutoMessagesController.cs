@@ -16,7 +16,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("messages")]
+[AdminPerm("messages.broadcast")]
 [Route("api/admin/auto-messages")]
 public class AutoMessagesController(AppDbContext db) : ControllerBase
 {

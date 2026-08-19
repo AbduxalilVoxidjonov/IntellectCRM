@@ -86,8 +86,8 @@ public class SensitiveReadPermTests
     public void AiCheck_oqishi_ruxsat_talab_qiladi()
     {
         Assert.True(
-            ReadIsGated(ControllerSource("AiCheckController.cs"), "app"),
-            "AiCheckController da [AdminPerm(\"app\", ReadRequiresPerm = true)] yo'q — " +
+            ReadIsGated(ControllerSource("AiCheckController.cs"), "app.aiCheck"),
+            "AiCheckController da [AdminPerm(\"app.aiCheck\", ReadRequiresPerm = true)] yo'q — " +
             "o'quvchi ovoz yozuvlari manzilini har qanday xodim o'qiy oladi");
     }
 

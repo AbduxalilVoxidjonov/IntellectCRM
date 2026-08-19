@@ -82,7 +82,7 @@ yozilgan izohlar soni** turadi, katak bosilsa — faqat o'sha kunning izohlari. 
 ## 4. RUXSAT — `students`, lekin o'qish DARVOZALANGAN
 
 `GET /api/admin/students/notes/overview` da **metod darajasida**
-`[AdminPerm("students", ReadRequiresPerm = true)]` (sinf darajasidagi `[AdminPerm("students")]`
+`[AdminPerm("students.list", "students.notes", ReadRequiresPerm = true)]` (sinf darajasidagi `[AdminPerm("students.list")]`
 ustiga).
 
 ⚠️ Sabab: bitta o'quvchining izohlari uning profilida ko'rinadi, bu yerda esa BUTUN markazning

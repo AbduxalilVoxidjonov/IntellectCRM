@@ -33,10 +33,12 @@ export function StudentNotesThread({
   onChanged?: (count: number) => void
   autoFocus?: boolean
 }) {
-  const { can } = usePerm()
+  const { canAny } = usePerm()
   // Yozish — `students` bo'limining "qo'shish" amali (serverdagi qoida bilan bir xil):
   // faqat ko'rish ruxsati bor xodim tugmani bosib 403 olmasin.
-  const canAdd = can('students', 'create')
+  // Izoh IKKI joydan yoziladi: o'quvchi profilida (`students.list`) va "Izohlarga javoblar"
+  // sahifasida (`students.notes`) — shuning uchun ikkalasidan biri yetadi (serverda ham shunday).
+  const canAdd = canAny(['students.list', 'students.notes'], 'create')
 
   const [notes, setNotes] = useState<StudentNote[]>([])
   const [loading, setLoading] = useState(true)

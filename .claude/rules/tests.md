@@ -42,7 +42,7 @@ paths:
     `TeacherTestFormModal`): `TeacherTestsPage` va jurnal sahifasidagi "Imtihonlar" tabi
     (`TeacherGroupDetailPage`).
   Ya'ni **jurnalning ichida ham onlayn/oflayn test yaratiladi** (avval u yerdagi forma faqat
-  oflayn edi). Ruxsat: superadmin/admin cheklovsiz, xodim `classes` (`usePerm` + `[AdminPerm("classes")]`),
+  oflayn edi). Ruxsat: superadmin/admin cheklovsiz, xodim `classes.testResults` (`usePerm` + `[AdminPerm("classes.testResults")]`),
   o'qituvchi `journal` + `OwnsGroup` — hammasi bir xil `TestResultService`ga boradi.
 
 - **ONLAYN TEST (bot orqali)** (migratsiya `AddOnlineTests`): test yaratishda rejim tanlanadi —

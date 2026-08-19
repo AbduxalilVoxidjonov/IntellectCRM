@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("classes")]
+[AdminPerm("classes.testResults")]
 [Route("api/admin/test-results")]
 public class TestResultsController(
     AppDbContext db, TestCertificateService certs, TestCertificateJobs certJobs) : ControllerBase

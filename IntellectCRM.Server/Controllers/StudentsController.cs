@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
-[AdminPerm("students")]
+[AdminPerm("students.list")]
 [Route("api/admin/students")]
 public class StudentsController(AppDbContext db, AuditService audit, IConfiguration config, AutoMessageService autoMsg) : ControllerBase
 {
@@ -40,7 +40,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// </summary>
     private void RedactDocs(IEnumerable<Student> students)
     {
-        if (AdminPermAttribute.HasSectionAccess(User, "students")) return;
+        if (AdminPermAttribute.HasSectionAccess(User, "students.list")) return;
         foreach (var s in students)
         {
             s.BirthCertificateUrl = null;
@@ -813,7 +813,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// va nima deb yozilgan). O'quvchilar bo'limidagi alohida sahifa shu endpointdan to'ladi.
     ///
     /// <para>⚠️ <c>ReadRequiresPerm = true</c> — METOD darajasida, sinf darajasidagi
-    /// <c>[AdminPerm("students")]</c> ustiga. Sabab: bitta o'quvchining izohlari uning profilida
+    /// <c>[AdminPerm("students.list")]</c> ustiga. Sabab: bitta o'quvchining izohlari uning profilida
     /// ko'rinadi, bu yerda esa BUTUN markazning izohlari BIR ro'yxatda — ichida ota-ona bilan
     /// suhbat, to'lov kelishuvi, sog'liq kabi shaxsiy eslatmalar bo'ladi. Bunday jamlanma
     /// "bo'limlararo o'qish" uchun kerak emas (uploads-security.md dagi bir xil mantiq).</para>
@@ -822,7 +822,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// <param name="from">Izoh yozilgan sana "yyyy-MM-dd" dan.</param>
     /// <param name="to">Izoh yozilgan sana "yyyy-MM-dd" gacha (kun oxirigacha — server o'zi cho'zadi).</param>
     [HttpGet("notes/overview")]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", "students.notes", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<StudentNoteOverviewDto>>> NotesOverview(
         [FromQuery] string? q, [FromQuery] string? from, [FromQuery] string? to,
         [FromQuery] int limit = StudentNoteService.DefaultLimit, CancellationToken ct = default) =>
@@ -833,7 +833,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// Tanlangan davrga BOG'LIQ EMAS — bitta kun tanlanganda ham oy to'liq ko'rinib tursin.
     /// </summary>
     [HttpGet("notes/days")]
-    [AdminPerm("students", ReadRequiresPerm = true)]
+    [AdminPerm("students.list", "students.notes", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<StudentNoteDayDto>>> NoteDays(
         [FromQuery] string? month, CancellationToken ct = default) =>
         await StudentNoteService.DaysAsync(db, month, ct);
@@ -857,6 +857,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
     /// <summary>O'quvchiga yangi izoh qo'shish (yozgan xodim va vaqti bilan saqlanadi).</summary>
     [HttpPost("{id}/notes")]
+    // Izoh IKKI sahifadan yoziladi: o'quvchi PROFILI va "Izohlarga javoblar" ro'yxati —
+    // shuning uchun ikkala sahifa kaliti ham qabul qilinadi (bo'lim ruxsati esa ikkalasini
+    // ham qamrab oladi, ya'ni eski xodimlar uchun hech narsa o'zgarmaydi).
+    [AdminPerm("students.list", "students.notes")]
     public async Task<ActionResult<StudentNoteDto>> AddNote(string id, AddStudentNoteRequest req)
     {
         var text = (req.Text ?? "").Trim();
@@ -881,6 +885,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// Muallif va yozilgan vaqt O'ZGARMAYDI; <c>EditedAt</c> yoziladi va ro'yxatda "(tahrirlangan)"
     /// bo'lib ko'rinadi (izoh — tarix, jimgina qayta yozilmasin).</summary>
     [HttpPut("notes/{noteId}")]
+    // Izoh IKKI sahifadan yoziladi: o'quvchi PROFILI va "Izohlarga javoblar" ro'yxati —
+    // shuning uchun ikkala sahifa kaliti ham qabul qilinadi (bo'lim ruxsati esa ikkalasini
+    // ham qamrab oladi, ya'ni eski xodimlar uchun hech narsa o'zgarmaydi).
+    [AdminPerm("students.list", "students.notes")]
     public async Task<ActionResult<StudentNoteDto>> EditNote(string noteId, EditStudentNoteRequest req)
     {
         var text = (req.Text ?? "").Trim();
@@ -904,6 +912,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
     /// <summary>Izohni o'chirish — faqat muallifi yoki superadmin (tarix o'zgarmasligi uchun).</summary>
     [HttpDelete("notes/{noteId}")]
+    // Izoh IKKI sahifadan yoziladi: o'quvchi PROFILI va "Izohlarga javoblar" ro'yxati —
+    // shuning uchun ikkala sahifa kaliti ham qabul qilinadi (bo'lim ruxsati esa ikkalasini
+    // ham qamrab oladi, ya'ni eski xodimlar uchun hech narsa o'zgarmaydi).
+    [AdminPerm("students.list", "students.notes")]
     public async Task<IActionResult> DeleteNote(string noteId)
     {
         var note = await db.StudentNotes.FindAsync(noteId);
@@ -1130,7 +1142,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     [HttpGet("{id}/credentials")]
     public async Task<ActionResult<CredentialsDto>> Credentials(string id)
     {
-        if (!AdminPermAttribute.HasFullAccess(User, "students")) return Forbid();
+        if (!AdminPermAttribute.HasFullAccess(User, "students.list")) return Forbid();
         var student = await db.Students.FindAsync(id);
         if (student is null) return NotFound();
 
@@ -1175,7 +1187,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     [HttpGet("export")]
     public async Task<IActionResult> Export()
     {
-        if (!AdminPermAttribute.HasFullAccess(User, "students")) return Forbid();
+        if (!AdminPermAttribute.HasFullAccess(User, "students.list")) return Forbid();
         var students = await db.Students.Where(s => !s.IsArchived)
             .OrderBy(s => s.ClassName).ThenBy(s => s.FullName).ToListAsync();
         var userIds = students.Where(s => s.UserId != null).Select(s => s.UserId!).ToList();

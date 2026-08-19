@@ -705,7 +705,7 @@ export function StudentsPage() {
                   className="hidden"
                   onChange={handleImportFile}
                 />
-                {can('students', 'create') && (
+                {can('students.list', 'create') && (
                   <Button
                     onClick={() => {
                       setEditing(null)
@@ -1009,7 +1009,7 @@ export function StudentsPage() {
                 </Button>
               </>
             )}
-            {can('students', 'delete') && (
+            {can('students.list', 'delete') && (
               <Button
                 variant="secondary"
                 onClick={() => setArchiveReasonModal(true)}
@@ -1195,7 +1195,7 @@ export function StudentsPage() {
                             <IconBtn icon={Wallet} title="To'lov kiritish" onClick={() => setPaying(s)} />
                             <IconBtn icon={History} title="To'lov tarixi" onClick={() => setHistoryOf(s)} />
                             <IconBtn icon={Phone} title="Qo'ng'iroq qilish" onClick={() => setCallStudent(s)} />
-                            {can('students', 'edit') && (
+                            {can('students.list', 'edit') && (
                               <IconBtn
                                 icon={Pencil}
                                 title="Tahrirlash"
@@ -1205,7 +1205,7 @@ export function StudentsPage() {
                                 }}
                               />
                             )}
-                            {can('students', 'delete') && (
+                            {can('students.list', 'delete') && (
                               <IconBtn icon={Archive} title="Arxivga ko'chirish" onClick={() => handleArchive(s)} />
                             )}
                             <IconBtn
@@ -1217,10 +1217,10 @@ export function StudentsPage() {
                           </>
                         ) : (
                           <>
-                            {can('students', 'edit') && (
+                            {can('students.list', 'edit') && (
                               <IconBtn icon={RotateCcw} title="Arxivdan qaytarish" onClick={() => handleRestore(s)} />
                             )}
-                            {can('students', 'delete') && (
+                            {can('students.list', 'delete') && (
                               <IconBtn
                                 icon={Trash2}
                                 title="Butunlay o'chirish"

@@ -20,7 +20,7 @@ namespace IntellectCRM.Server.Controllers;
 // autentifikatsiyasiz berilgani uchun manzilni olgan xodim yozuvni abadiy tinglay oladi. Shu sabab
 // GET uchun ham `app` bo'limi ruxsati (biror amali) talab qilinadi — bu "Ilova" navigatsiyasidagi
 // talab bilan bir xil (nav: perm 'app').
-[AdminPerm("app", ReadRequiresPerm = true)]
+[AdminPerm("app.aiCheck", ReadRequiresPerm = true)]
 [Route("api/admin/ai-check")]
 public class AiCheckController(AppDbContext db) : ControllerBase
 {

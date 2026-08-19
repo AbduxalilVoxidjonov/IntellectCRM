@@ -69,7 +69,7 @@ export function TeacherReportsPage() {
   return (
     <div>
       {/* Bu sahifaga faqat `teacherReports` ruxsati bilan kiriladi — card har doim ko'rinadi */}
-      <CardTabs items={teacherTabs(true)} className="mb-5" />
+      <CardTabs items={teacherTabs(() => true)} className="mb-5" />
       <PageHeader
         title="O'qituvchilar hisoboti"
         sub={`Dars o'tilishi, baho, mavzu, uy vazifa faolligi va o'quvchi konversiyasi — ${monthLabel}`}

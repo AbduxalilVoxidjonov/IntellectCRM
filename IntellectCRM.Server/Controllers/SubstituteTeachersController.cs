@@ -19,7 +19,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("teachers", ReadRequiresPerm = true)]
+[AdminPerm("teachers.substitutions", ReadRequiresPerm = true)]
 [Route("api/admin/substitute-teachers")]
 public class SubstituteTeachersController(AppDbContext db, AuditService audit) : ControllerBase
 {

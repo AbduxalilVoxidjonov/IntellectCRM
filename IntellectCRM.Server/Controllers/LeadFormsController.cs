@@ -23,7 +23,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("leads", ReadRequiresPerm = true)]
+[AdminPerm("leads.forms", ReadRequiresPerm = true)]
 [Route("api/admin/lead-forms")]
 public class LeadFormsController(
     AppDbContext db, AuditService audit, DataCache dataCache, IConfiguration config) : ControllerBase

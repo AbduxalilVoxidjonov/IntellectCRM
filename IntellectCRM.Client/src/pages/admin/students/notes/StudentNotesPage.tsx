@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { apiErrorMessage, cn, formatDate, formatDateTime } from '@/lib/utils'
+import { usePerm } from '@/lib/permissions'
 
 /**
  * Tanlangan DAVR — bir vaqtda faqat BITTASI bo'ladi.
@@ -37,11 +38,13 @@ type Period =
  * <p>Qatorni bosish — o'quvchining butun izoh tarixi va o'sha yerdan QO'SHIMCHA izoh yozish
  * (`StudentNotesThread` — profildagi bilan AYNAN bir xil komponent).</p>
  *
- * <p>Ruxsat: `students` (marshrutda `RequirePerm`, serverda esa
+ * <p>Ruxsat: `students.notes` (marshrutda `RequirePerm`, serverda esa
  * `[AdminPerm("students", ReadRequiresPerm = true)]` — butun markazning izohlari bir joyda
  * bo'lgani uchun o'qish ham darvozalangan).</p>
  */
 export function StudentNotesPage() {
+  const { can } = usePerm()
+  const canOpenProfile = can('students.list', 'view')
   const [rows, setRows] = useState<StudentNoteOverviewRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -299,12 +302,16 @@ export function StudentNotesPage() {
               {open.authors.length > 0 && (
                 <span className="text-slate-500">· Yozganlar: {open.authors.join(', ')}</span>
               )}
-              <Link
-                to={`/admin/students/${open.studentId}`}
-                className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline"
-              >
-                <User className="h-4 w-4" /> Profilga o'tish
-              </Link>
+              {/* Profil — ALOHIDA sahifa (`students.list`). Faqat shu ro'yxatga ruxsati bor
+                  xodimga havola KO'RSATILMAYDI: bosib "ruxsatingiz yo'q" ga tushib qolmasin. */}
+              {canOpenProfile && (
+                <Link
+                  to={`/admin/students/${open.studentId}`}
+                  className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline"
+                >
+                  <User className="h-4 w-4" /> Profilga o'tish
+                </Link>
+              )}
             </div>
 
             {/* Profildagi bilan AYNAN bir xil komponent — qoida ikki joyda ayri ketmaydi. */}

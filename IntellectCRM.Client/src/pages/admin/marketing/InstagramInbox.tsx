@@ -47,7 +47,7 @@ function stampOf(iso: string): string {
  */
 export function InstagramInbox() {
   const { can } = usePerm()
-  const canEdit = can('marketing', 'edit')
+  const canEdit = can('marketing.inbox', 'edit')
   const [params, setParams] = useSearchParams()
 
   const [items, setItems] = useState<IgConversation[]>([])

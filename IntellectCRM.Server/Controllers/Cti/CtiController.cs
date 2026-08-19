@@ -14,11 +14,11 @@ namespace IntellectCRM.Server.Controllers.Cti;
 /// CTI (Local Call) OPERATOR API — admin panel (React) uchun. Agentlarni boshqaradi, tarixni
 /// ko'radi, click-to-call qiladi VA agent telefonining SIM-kartasidan ixtiyoriy SMS yuboradi
 /// (ikkalasi ham WebSocket, oflaynda FCM+poll). Ruxsat: <see cref="AdminPermAttribute"/>
-/// "calls" (Call Center bilan bir bo'lim).
+/// "calls.local" (Call Center bo'limining "Local Call" sahifasi).
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("calls")]
+[AdminPerm("calls.local")]
 [Route("api/cti")]
 public class CtiController(
     AppDbContext db, CtiConnectionManager conn, FcmService fcm, CtiSmsService ctiSms,

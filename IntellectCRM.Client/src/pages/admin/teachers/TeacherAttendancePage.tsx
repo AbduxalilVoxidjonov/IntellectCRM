@@ -53,7 +53,7 @@ export function TeacherAttendancePage() {
   const { can } = usePerm()
   return (
     <div>
-      <CardTabs items={teacherTabs(can('teacherReports', 'view'))} className="mb-5" />
+      <CardTabs items={teacherTabs((p) => can(p, 'view'))} className="mb-5" />
       <PageHeader
         title="O'qituvchilar davomati"
         sub="Turniket/FaceID qurilmasidan avtomatik yuklanadi. Kunlik holat — kim keldi, soat nechada, kechikdimi."

@@ -38,7 +38,7 @@ export function TestDetailPage() {
   const { groupId = '', testId = '' } = useParams()
   const navigate = useNavigate()
   const { can } = usePerm()
-  const editable = can('classes', 'edit')
+  const editable = can('classes.testResults', 'edit')
 
   const [detail, setDetail] = useState<TestResultDetail | null>(null)
   const [loading, setLoading] = useState(true)

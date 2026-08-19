@@ -28,6 +28,11 @@ Foydalanuvchi texnik turni (`EntityType`) emas, **bo'limni** ko'radi. Xarita —
 Bo'lim kalitlari `adminPermissions` kalitlari bilan bir xil (`students`, `classes`, `finance`, ...);
 xaritada yo'q tur `other` ("Boshqa") bo'limiga tushadi — ya'ni **hech qachon yo'qolmaydi**.
 
+⚠️ Audit bo'limlari ATAYIN **BO'LIM darajasida** qoladi — ruxsatlarda sahifa kalitlari paydo
+bo'lgan bo'lsa ham (`students.turnstile` va h.k., `.claude/rules/permissions.md`). Sabab: tarixni
+o'qiyotgan odam "qaysi bo'limda nima o'zgardi" deb qaraydi, `audit` ruxsati esa baribir BUTUN
+tarixni ochadi — chiplarni sahifalarga bo'lish ro'yxatni maydalab, foyda bermasdi.
+
 ⚠️ **TUR NOMLARI ALDAMCHI** — xarita nom bo'yicha emas, "qaysi bo'lim sahifasida ko'rinishi kerak"
 bo'yicha tuzilgan:
 

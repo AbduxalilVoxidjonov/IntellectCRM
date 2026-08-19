@@ -31,7 +31,7 @@ import { SubmissionsTable } from './FormEditorPage'
 export function FormStatsPage() {
   const navigate = useNavigate()
   const { can } = usePerm()
-  const canTests = can('schedule', 'view')
+  const canTests = can('schedule.levelTests', 'view')
   const [stats, setStats] = useState<LeadFormStats | null>(null)
   const [subs, setSubs] = useState<LeadFormSubmission[] | null>(null)
   const [loading, setLoading] = useState(true)

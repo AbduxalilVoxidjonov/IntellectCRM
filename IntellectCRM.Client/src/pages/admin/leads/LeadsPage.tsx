@@ -265,7 +265,7 @@ export function LeadsPage() {
             <Button variant="secondary" onClick={() => setBulkSmsOpen(true)}>
               <MessageSquare className="h-4 w-4" /> SMS yuborish
             </Button>
-            {can('leads', 'create') && (
+            {can('leads.list', 'create') && (
               <Button
                 onClick={() => {
                   setEditingLead(null)
@@ -466,8 +466,8 @@ export function LeadsPage() {
       <LeadDetailModal
         lead={detailLead}
         schoolName={detailLead?.schoolId ? schoolNames.get(detailLead.schoolId) : undefined}
-        canEdit={can('leads', 'edit')}
-        canDelete={can('leads', 'delete')}
+        canEdit={can('leads.list', 'edit')}
+        canDelete={can('leads.list', 'delete')}
         onClose={() => setDetailLead(null)}
         onEdit={handleLeadEdit}
         onDelete={handleLeadDelete}

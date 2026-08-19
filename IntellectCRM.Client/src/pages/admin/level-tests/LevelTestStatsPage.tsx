@@ -33,7 +33,9 @@ export function LevelTestStatsPage() {
   const navigate = useNavigate()
   const { can } = usePerm()
   // "Formalar" bo'limining ikkinchi turi — lid formalari `leads` ruxsatida.
-  const canForms = can('leads', 'view')
+  const canForms = can('leads.forms', 'view')
+  // «Lidni ochish» — LIDLAR sahifasiga o'tadi, ya'ni card ruxsati emas, `leads.list` kerak.
+  const canOpenLead = can('leads.list', 'view')
   const [stats, setStats] = useState<LevelTestOverallStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -353,12 +355,12 @@ export function LevelTestStatsPage() {
                           <td className="px-3 py-2 text-right">
                             {/*
                               Lid o'chirilgan bo'lsa ochadigan narsa yo'q.
-                              Tugma `canForms` (= `leads:view`) bilan ham darvozalangan: bu sahifa
-                              `schedule` ruxsatida ochiladi, lidlar bo'limi esa `leads` da — faqat
-                              `schedule` bor xodim tugmani bosib "ruxsatingiz yo'q" sahifasiga
-                              tushardi. Ruxsat bo'lmasa "—" ko'rsatiladi.
+                              Tugma `leads.list` ruxsati bilan ham darvozalangan: bu sahifa
+                              `schedule.levelTests` ruxsatida ochiladi, lidlar ro'yxati esa
+                              `leads.list` da — faqat daraja testi ruxsati bor xodim tugmani bosib
+                              "ruxsatingiz yo'q" sahifasiga tushardi. Ruxsat bo'lmasa "—".
                             */}
-                            {r.isDeleted || !r.leadId || !canForms ? (
+                            {r.isDeleted || !r.leadId || !canOpenLead ? (
                               <span className="text-slate-300">—</span>
                             ) : (
                               <button

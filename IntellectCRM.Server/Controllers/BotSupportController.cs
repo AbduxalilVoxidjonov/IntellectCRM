@@ -11,7 +11,7 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
-[AdminPerm("messages")]
+[AdminPerm("messages.support")]
 [Route("api/admin/messages/support")]
 public class BotSupportController(AppDbContext db, TelegramService telegram) : ControllerBase
 {

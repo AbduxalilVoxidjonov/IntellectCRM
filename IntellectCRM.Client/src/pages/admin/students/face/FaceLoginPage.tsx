@@ -25,7 +25,7 @@ type Tab = 'checks' | 'devices' | 'settings'
  */
 export function FaceLoginPage() {
   const { can } = usePerm()
-  const canEdit = can('students', 'edit')
+  const canEdit = can('students.face', 'edit')
   const [tab, setTab] = useState<Tab>('checks')
   const [pending, setPending] = useState({ count: 0, atLimit: false })
 

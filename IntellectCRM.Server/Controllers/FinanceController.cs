@@ -10,7 +10,7 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
-[AdminPerm("finance")]
+[AdminPerm("finance.main")]
 [Route("api/admin/finance")]
 public class FinanceController(AppDbContext db, AuditService audit, AutoMessageService autoMsg) : ControllerBase
 {
@@ -775,7 +775,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
      * o'qituvchiga maosh to'lovi orqali beriladi. Bu yerdagi endpointlar FAQAT O'QISH uchun;
      * bonus BERISH/bekor qilish "O'quvchilar → Bonus hisoboti" (RetentionBonusController) da qoladi.
      *
-     * RUXSAT: sinfdagi [AdminPerm("finance")] yetadi — GET xodim uchun ochiq (loyiha qoidasi).
+     * RUXSAT: sinfdagi [AdminPerm("finance.main")] yetadi — GET xodim uchun ochiq (loyiha qoidasi).
      * Kassirlar hisobotidagi kabi qattiqroq CanSeeCashiers() gate KERAK EMAS: bonus qaydi
      * kassirlar tushumi kabi maxfiy emas.
      */

@@ -11,7 +11,7 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
-[AdminPerm("teachers")]
+[AdminPerm("teachers.list")]
 [Route("api/admin/teachers")]
 public class TeachersController(AppDbContext db, AuditService audit, IConfiguration config) : ControllerBase
 {
@@ -363,7 +363,7 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
     [HttpGet("{id}/credentials")]
     public async Task<ActionResult<CredentialsDto>> Credentials(string id)
     {
-        if (!AdminPermAttribute.HasFullAccess(User, "teachers")) return Forbid();
+        if (!AdminPermAttribute.HasFullAccess(User, "teachers.list")) return Forbid();
         var teacher = await db.Teachers.FindAsync(id);
         if (teacher is null) return NotFound();
 
@@ -412,7 +412,7 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
     [HttpGet("export")]
     public async Task<IActionResult> Export()
     {
-        if (!AdminPermAttribute.HasFullAccess(User, "teachers")) return Forbid();
+        if (!AdminPermAttribute.HasFullAccess(User, "teachers.list")) return Forbid();
         var teachers = await db.Teachers.Where(t => !t.IsArchived)
             .OrderBy(t => t.FullName).ToListAsync();
         var userIds = teachers.Where(t => t.UserId != null).Select(t => t.UserId!).ToList();

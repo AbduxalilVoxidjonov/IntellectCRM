@@ -950,7 +950,7 @@ public class SubstituteTeacherTests
         var manba = File.ReadAllText(Path.Combine(
             RepoRoot(), "IntellectCRM.Server", "Controllers", "SubstituteTeachersController.cs"));
 
-        Assert.Matches(new System.Text.RegularExpressions.Regex(@"\[AdminPerm\(\s*""teachers""[^\]]*\bReadRequiresPerm\s*=\s*true\b[^\]]*\)\]"), manba);
+        Assert.Matches(new System.Text.RegularExpressions.Regex(@"\[AdminPerm\(\s*""teachers\.substitutions""[^\]]*\bReadRequiresPerm\s*=\s*true\b[^\]]*\)\]"), manba);
 
         // Maosh maydonlari haqiqatan javobda bormi (darvoza SABABI yo'qolsa test qizarsin).
         Assert.NotNull(typeof(SubstituteTeacherAssignmentDto).GetProperty("EstimatedSalary"));

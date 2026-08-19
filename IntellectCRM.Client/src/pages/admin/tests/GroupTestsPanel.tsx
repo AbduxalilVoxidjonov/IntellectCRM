@@ -96,7 +96,7 @@ export function GroupTestsPanel({
 
   return (
     <div className="space-y-3">
-      {can('classes', 'create') && (
+      {can('classes.testResults', 'create') && (
         <div className="flex justify-end">
           <Button onClick={() => { setEditing(null); setFormOpen(true) }}>
             <Plus className="h-4 w-4" /> Yangi test
@@ -203,7 +203,7 @@ export function GroupTestsPanel({
                   </div>
                 </button>
                 <div className="flex shrink-0 items-center gap-1">
-                  {can('classes', 'edit') && (
+                  {can('classes.testResults', 'edit') && (
                     <button
                       type="button"
                       onClick={() => { setEditing(t); setFormOpen(true) }}
@@ -213,7 +213,7 @@ export function GroupTestsPanel({
                       <Pencil className="h-4 w-4" />
                     </button>
                   )}
-                  {can('classes', 'delete') && (
+                  {can('classes.testResults', 'delete') && (
                     <button
                       type="button"
                       onClick={() => setDeleting(t)}

@@ -15,7 +15,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("settings")]
+[AdminPerm("settings.archive")]
 [Route("api/admin/archive")]
 public class ArchiveController(AppDbContext db) : ControllerBase
 {

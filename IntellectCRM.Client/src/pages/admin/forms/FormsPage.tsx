@@ -32,7 +32,7 @@ export function formUrl(slug: string) {
 export function FormsPage() {
   const navigate = useNavigate()
   const { can } = usePerm()
-  const canTests = can('schedule', 'view')
+  const canTests = can('schedule.levelTests', 'view')
   const [forms, setForms] = useState<LeadFormListItem[]>([])
   const [sources, setSources] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -128,7 +128,7 @@ export function FormsPage() {
         title="Lid formalari"
         sub="Har bir ijtimoiy tarmoq uchun alohida forma yarating — havola qayerga qo'yilganiga qarab lid manbasi o'zi aniqlanadi"
         actions={
-          can('leads', 'create') && (
+          can('leads.forms', 'create') && (
             <Button onClick={() => setCreating(true)}>
               <Plus className="h-4 w-4" /> Yangi forma
             </Button>
@@ -146,7 +146,7 @@ export function FormsPage() {
               Hali forma yo'q. Masalan «Instagram — bepul sinov darsi» formasini yarating va
               havolasini Instagram profilingizga qo'ying.
             </p>
-            {can('leads', 'create') && (
+            {can('leads.forms', 'create') && (
               <Button onClick={() => setCreating(true)}>
                 <Plus className="h-4 w-4" /> Yangi forma
               </Button>
@@ -219,7 +219,7 @@ export function FormsPage() {
                 <Button variant="secondary" className="flex-1" onClick={() => navigate(`/admin/forms/${f.id}`)}>
                   <Pencil className="h-4 w-4" /> Tahrirlash
                 </Button>
-                {can('leads', 'create') && (
+                {can('leads.forms', 'create') && (
                   <button
                     type="button"
                     onClick={() => handleDuplicate(f)}
@@ -229,7 +229,7 @@ export function FormsPage() {
                     <Files className="h-4 w-4" />
                   </button>
                 )}
-                {can('leads', 'delete') && (
+                {can('leads.forms', 'delete') && (
                   <button
                     type="button"
                     onClick={() => handleDelete(f)}

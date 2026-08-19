@@ -15,7 +15,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("schedule")]
+[AdminPerm("schedule.grading")]
 [Route("api/admin/grading")]
 public class GradingController(AppDbContext db, DataCache dataCache) : ControllerBase
 {

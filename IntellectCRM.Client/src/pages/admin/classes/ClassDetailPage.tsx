@@ -165,7 +165,7 @@ export function ClassDetailPage() {
   const [tab, setTab] = useState<Tab>('jurnal')
   /** "Oylik to'lov yig'ilishi" tabi — moliya ruxsati bor xodimga (o'qituvchiga KO'RINMAYDI:
    *  hisobot endpointi ham "finance" ruxsatini talab qiladi). */
-  const canSeePayments = user?.role !== 'teacher' && can('finance', 'view')
+  const canSeePayments = user?.role !== 'teacher' && can('finance.main', 'view')
   const [grading, setGrading] = useState<GradingBoard | null>(null)
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   // ---- Reyting — ko'p-oylik filtr ----
@@ -728,7 +728,7 @@ export function ClassDetailPage() {
                   </div>
                   <DropdownMenu
                     items={[
-                      ...(can('classes', 'create')
+                      ...(can('classes.list', 'create')
                         ? [{
                             label: 'Yangi talaba qo\'shish', icon: UserPlus,
                             onClick: () => setMembersOpen(true),
@@ -738,11 +738,11 @@ export function ClassDetailPage() {
                         label: smsLoading ? 'Yuklanmoqda...' : 'SMS jo\'natish', icon: MessageSquare,
                         onClick: openGroupSms,
                       },
-                      ...(can('classes', 'edit')
+                      ...(can('classes.list', 'edit')
                         ? [{ label: 'Guruhni tahrirlash', icon: Pencil, onClick: () => setEditOpen(true) }]
                         : []),
                       // Tugatish/yopish — faqat FAOL guruhda (arxivdagi guruh allaqachon yopilgan).
-                      ...(user?.role === 'superadmin' && can('classes', 'delete') && !group?.isArchived
+                      ...(user?.role === 'superadmin' && can('classes.list', 'delete') && !group?.isArchived
                         ? [
                             { label: 'Tugatish (sertifikat bilan)', icon: Trophy, onClick: openCompleteModal },
                             { label: 'Guruhni yopish', icon: Archive, onClick: () => setShowCloseModal(true) },
@@ -830,7 +830,7 @@ export function ClassDetailPage() {
                               key={m.studentId}
                               m={m}
                               back={memberBack}
-                              canManage={can('classes', 'create')}
+                              canManage={can('classes.list', 'create')}
                               onActivate={() => { openRoster(m); setRosterReason('activate') }}
                               onFreeze={() => { openRoster(m); setRosterReason('freeze') }}
                               onReturn={() => { openRoster(m); setRosterReason('return') }}
@@ -850,7 +850,7 @@ export function ClassDetailPage() {
                                   key={m.studentId}
                                   m={m}
                                   back={memberBack}
-                                  canManage={can('classes', 'create')}
+                                  canManage={can('classes.list', 'create')}
                                   onActivate={() => { openRoster(m); setRosterReason('activate') }}
                                   onFreeze={() => { openRoster(m); setRosterReason('freeze') }}
                                   onReturn={() => { openRoster(m); setRosterReason('return') }}

@@ -10,7 +10,7 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
-[AdminPerm("schedule")]
+[AdminPerm("schedule.courses")]
 [Route("api/admin/subjects")]
 public class SubjectsController(AppDbContext db, AuditService audit) : ControllerBase
 {

@@ -76,7 +76,9 @@ const rowKey = (r: RetentionRow) => `${r.studentId}:${r.courseId}`
 
 export function RetentionBonusPage() {
   const { can } = usePerm()
-  const canEdit = can('finance', 'edit')
+  // Bonus — MOLIYA bo'limining sahifasi (pul beradigan amal), menyudagi joyi esa
+  // o'quvchilar bilan. `finance` (butun bo'lim) ruxsati ham merosi bilan shu yerga yetadi.
+  const canEdit = can('finance.bonus', 'edit')
 
   const [report, setReport] = useState<RetentionReport | null>(null)
   const [loading, setLoading] = useState(true)

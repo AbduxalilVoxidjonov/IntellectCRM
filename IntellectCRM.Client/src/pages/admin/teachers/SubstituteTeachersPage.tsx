@@ -71,11 +71,10 @@ function rowStatusOf(a: SubstituteTeacherAssignment, today: string): RowStatus {
 
 export function SubstituteTeachersPage() {
   const { can } = usePerm()
-  const canSeeReports = can('teacherReports', 'view')
   // Ruxsat DARVOZASI: ilgari tugmalar hammaga ko'rinardi va xodim formani to'liq to'ldirib
   // bo'lgach oxirida bo'sh 403 olardi. Endi TeachersPage bilan bir xil kalitlar.
-  const canCreate = can('teachers', 'create')
-  const canEdit = can('teachers', 'edit')
+  const canCreate = can('teachers.substitutions', 'create')
+  const canEdit = can('teachers.substitutions', 'edit')
 
   // Bugungi sana — bir marta hisoblanadi. `toISOString()` UTC beradi (Toshkent UTC+5, ya'ni
   // 1-sentabr ertalab "avgust" chiqib qolardi), shuning uchun `lib/month.ts` yagona manba.
@@ -391,7 +390,7 @@ export function SubstituteTeachersPage() {
         }
       />
 
-      <CardTabs items={teacherTabs(canSeeReports)} />
+      <CardTabs items={teacherTabs((p) => can(p, 'view'))} />
 
       {refsError && (
         <Card className="border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-700">

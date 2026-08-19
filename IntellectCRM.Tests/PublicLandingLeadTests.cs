@@ -269,7 +269,7 @@ public class PublicLandingLeadTests
             Assert.StartsWith("[AdminPerm(", m.Groups[2].Value);
 
         // Ruxsat kaliti nav (`/admin/landing`) va marshrut darvozasi bilan bir xil.
-        Assert.Contains("private const string SectionPerm = \"settings\";", src);
+        Assert.Contains("private const string SectionPerm = \"settings.landing\";", src);
 
         // Ommaviy endpoint ANONIM bo'lib qoladi.
         Assert.Matches(

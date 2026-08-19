@@ -10,7 +10,7 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
-[AdminPerm("leads")]
+[AdminPerm("leads.list")]
 [Route("api/admin/leads")]
 public class LeadsController(AppDbContext db, AuditService audit, TelegramService telegram, AutoMessageService autoMsg) : ControllerBase
 {

@@ -62,9 +62,9 @@ export function CertificateTemplatesPage() {
   const [rowBusy, setRowBusy] = useState('')
   const [copied, setCopied] = useState('')
 
-  const canCreate = can('classes', 'create')
-  const canEdit = can('classes', 'edit')
-  const canDelete = can('classes', 'delete')
+  const canCreate = can('classes.testResults', 'create')
+  const canEdit = can('classes.testResults', 'edit')
+  const canDelete = can('classes.testResults', 'delete')
 
   useEffect(() => {
     let active = true

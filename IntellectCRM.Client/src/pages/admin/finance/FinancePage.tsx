@@ -498,7 +498,7 @@ export function FinancePage() {
             <Button variant="secondary" onClick={handleAccrue}>
               <Calculator className="h-4 w-4" /> Oylik to'lovni hisoblash
             </Button>
-            {can('finance', 'create') && (
+            {can('finance.main', 'create') && (
               <Button
                 onClick={() => {
                   setEditing(null)
@@ -726,7 +726,7 @@ export function FinancePage() {
                                   <History className="h-4 w-4" />
                                 </button>
                               )}
-                              {can('finance', 'edit') && (
+                              {can('finance.main', 'edit') && (
                                 <button
                                   type="button"
                                   title="Tahrirlash"
@@ -739,7 +739,7 @@ export function FinancePage() {
                                   <Pencil className="h-4 w-4" />
                                 </button>
                               )}
-                              {can('finance', 'delete') && (
+                              {can('finance.main', 'delete') && (
                                 <button
                                   type="button"
                                   title="O'chirish"
@@ -1136,7 +1136,7 @@ export function FinancePage() {
                                   <History className="h-4 w-4" />
                                 </button>
                               )}
-                              {isSuper && can('finance', 'edit') && (
+                              {isSuper && can('finance.main', 'edit') && (
                                 <button
                                   type="button"
                                   title="Tahrirlash (balans va oylik hisob moslanadi)"
@@ -1146,7 +1146,7 @@ export function FinancePage() {
                                   <Pencil className="h-4 w-4" />
                                 </button>
                               )}
-                              {isSuper && can('finance', 'delete') && (p.refunded ?? 0) < p.amount && (
+                              {isSuper && can('finance.main', 'delete') && (p.refunded ?? 0) < p.amount && (
                                 <button
                                   type="button"
                                   title="Pul qaytarish (vozvrat)"
@@ -1156,7 +1156,7 @@ export function FinancePage() {
                                   <Undo2 className="h-4 w-4" />
                                 </button>
                               )}
-                              {can('finance', 'delete') && (
+                              {can('finance.main', 'delete') && (
                                 <button
                                   type="button"
                                   title="O'chirish (balans tiklanadi)"

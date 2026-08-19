@@ -7,7 +7,7 @@ import { FormsPage } from './FormsPage'
  * «FORMALAR» bo'limining KIRISH nuqtasi (`/admin/forms`).
  *
  * <p>Bo'lim ichida ikki turdagi forma bor va ularning ruxsatlari HAR XIL: lid formalari —
- * `leads`, daraja testlari — `schedule`. Menyudagi band ikkalasidan biri bo'lsa ko'rinadi
+ * `leads.forms`, daraja testlari — `schedule.levelTests`. Menyudagi band ikkalasidan biri bo'lsa ko'rinadi
  * (`permAny`), ya'ni faqat `schedule` ruxsati bor xodim ham shu manzilga keladi. Agar bu yerda
  * yalang `RequirePerm perm="leads"` tursa, u xodim "ruxsatingiz yo'q" kartasiga tushib qolar va
  * o'ziga OCHIQ bo'lgan daraja testlariga menyudan o'ta olmasdi (cardlar ham shu sahifa ichida).</p>
@@ -17,10 +17,10 @@ import { FormsPage } from './FormsPage'
  */
 export function FormsEntry() {
   const { can } = usePerm()
-  if (!can('leads', 'view') && can('schedule', 'view'))
+  if (!can('leads.forms', 'view') && can('schedule.levelTests', 'view'))
     return <Navigate to="/admin/level-tests" replace />
   return (
-    <RequirePerm perm="leads">
+    <RequirePerm perm="leads.forms">
       <FormsPage />
     </RequirePerm>
   )

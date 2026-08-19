@@ -15,7 +15,7 @@ import { RetentionBonusPage } from '@/pages/admin/students/RetentionBonusPage'
 import { StudentDetailPage } from '@/pages/admin/students/StudentDetailPage'
 import { StudentTurnstilePage } from '@/pages/admin/students/StudentTurnstilePage'
 import { StudentAbsencePage } from '@/pages/admin/students/StudentAbsencePage'
-import { TeachersPage } from '@/pages/admin/teachers/TeachersPage'
+import { TeachersEntry } from '@/pages/admin/teachers/TeachersEntry'
 import { TeacherDetailPage } from '@/pages/admin/teachers/TeacherDetailPage'
 import { TeacherAttendancePage } from '@/pages/admin/teachers/TeacherAttendancePage'
 import { SubstituteTeachersPage } from '@/pages/admin/teachers/SubstituteTeachersPage'
@@ -74,7 +74,7 @@ import { CashierPaymentsPage } from '@/pages/admin/finance/CashierPaymentsPage'
 import { KassaPage } from '@/pages/admin/kassa/KassaPage'
 import { KassaMyPaymentsPage } from '@/pages/admin/kassa/KassaMyPaymentsPage'
 import { KassaMobileLayout } from '@/components/layout/KassaMobileLayout'
-import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
+import { SettingsEntry } from '@/pages/admin/settings/SettingsEntry'
 import { AuditLogPage } from '@/pages/admin/settings/AuditLogPage'
 import { ContactQueuePage } from '@/pages/admin/students/contacts/ContactQueuePage'
 import { StudentNotesPage } from '@/pages/admin/students/notes/StudentNotesPage'
@@ -176,88 +176,88 @@ export default function App() {
         <Route path="/admin" element={<AppLayout />}>
           <Route index element={<AdminDashboard />} />
           {/* Marketing — Instagram AI agenti */}
-          <Route path="marketing" element={<RequirePerm perm="marketing"><InstagramDashboard /></RequirePerm>} />
-          <Route path="marketing/inbox" element={<RequirePerm perm="marketing"><InstagramInbox /></RequirePerm>} />
-          <Route path="marketing/rules" element={<RequirePerm perm="marketing"><InstagramRules /></RequirePerm>} />
-          <Route path="marketing/knowledge" element={<RequirePerm perm="marketing"><InstagramKnowledge /></RequirePerm>} />
-          <Route path="marketing/analytics" element={<RequirePerm perm="marketing"><InstagramAnalytics /></RequirePerm>} />
-          <Route path="marketing/settings" element={<RequirePerm perm="marketing"><InstagramSettings /></RequirePerm>} />
-          <Route path="leads" element={<RequirePerm perm="leads"><LeadsPage /></RequirePerm>} />
-          <Route path="calls" element={<RequirePerm perm="calls"><CallCenterPage /></RequirePerm>} />
-          <Route path="calls/local" element={<RequirePerm perm="calls"><LocalCallPage /></RequirePerm>} />
-          <Route path="crm-stats" element={<RequirePerm perm="leads"><CrmStatsPage /></RequirePerm>} />
-          <Route path="students" element={<RequirePerm perm="students"><StudentsPage /></RequirePerm>} />
-          <Route path="students/turniket" element={<RequirePerm perm="students"><StudentTurnstilePage /></RequirePerm>} />
+          <Route path="marketing" element={<RequirePerm perm="marketing.dashboard"><InstagramDashboard /></RequirePerm>} />
+          <Route path="marketing/inbox" element={<RequirePerm perm="marketing.inbox"><InstagramInbox /></RequirePerm>} />
+          <Route path="marketing/rules" element={<RequirePerm perm="marketing.rules"><InstagramRules /></RequirePerm>} />
+          <Route path="marketing/knowledge" element={<RequirePerm perm="marketing.knowledge"><InstagramKnowledge /></RequirePerm>} />
+          <Route path="marketing/analytics" element={<RequirePerm perm="marketing.analytics"><InstagramAnalytics /></RequirePerm>} />
+          <Route path="marketing/settings" element={<RequirePerm perm="marketing.settings"><InstagramSettings /></RequirePerm>} />
+          <Route path="leads" element={<RequirePerm perm="leads.list"><LeadsPage /></RequirePerm>} />
+          <Route path="calls" element={<RequirePerm perm="calls.cloud"><CallCenterPage /></RequirePerm>} />
+          <Route path="calls/local" element={<RequirePerm perm="calls.local"><LocalCallPage /></RequirePerm>} />
+          <Route path="crm-stats" element={<RequirePerm perm="leads.stats"><CrmStatsPage /></RequirePerm>} />
+          <Route path="students" element={<RequirePerm perm="students.list"><StudentsPage /></RequirePerm>} />
+          <Route path="students/turniket" element={<RequirePerm perm="students.turnstile"><StudentTurnstilePage /></RequirePerm>} />
           {/* Bog'lanish kerak — O'quvchilar bo'limi ICHIDA, lekin ruxsati alohida (`contacts`). */}
           <Route path="students/boglanish" element={<RequirePerm perm="contacts"><ContactQueuePage /></RequirePerm>} />
           {/* Izohlarga javoblar — profillarga yozilgan izohlar bir ro'yxatda. */}
-          <Route path="students/izohlar" element={<RequirePerm perm="students"><StudentNotesPage /></RequirePerm>} />
-          <Route path="students/davomat" element={<RequirePerm perm="students"><StudentAbsencePage /></RequirePerm>} />
-          <Route path="students/bonus" element={<RequirePerm perm="students"><RetentionBonusPage /></RequirePerm>} />
+          <Route path="students/izohlar" element={<RequirePerm perm="students.notes"><StudentNotesPage /></RequirePerm>} />
+          <Route path="students/davomat" element={<RequirePerm perm="students.attendance"><StudentAbsencePage /></RequirePerm>} />
+          <Route path="students/bonus" element={<RequirePerm perm="finance.bonus"><RetentionBonusPage /></RequirePerm>} />
           {/* Yuz bilan kirish — `students/:id` dan OLDIN turishi shart emas (statik yo'l dinamikdan
               ustun), lekin qolgan o'quvchi sahifalari bilan bir joyda tursin. */}
-          <Route path="students/yuz" element={<RequirePerm perm="students"><FaceLoginPage /></RequirePerm>} />
-          <Route path="students/:id" element={<RequirePerm perm="students"><StudentDetailPage /></RequirePerm>} />
-          <Route path="teachers" element={<RequirePerm perm="teachers"><TeachersPage /></RequirePerm>} />
-          <Route path="teachers/substitutions" element={<RequirePerm perm="teachers"><SubstituteTeachersPage /></RequirePerm>} />
-          <Route path="teachers/:id" element={<RequirePerm perm="teachers"><TeacherDetailPage /></RequirePerm>} />
-          <Route path="teachers/attendance" element={<RequirePerm perm="teachers"><TeacherAttendancePage /></RequirePerm>} />
-          <Route path="classes" element={<RequirePerm perm="classes"><ClassesPage /></RequirePerm>} />
-          <Route path="classes/:id" element={<RequirePerm perm="classes"><ClassDetailPage /></RequirePerm>} />
-          <Route path="rooms" element={<RequirePerm perm="classes"><RoomsPage /></RequirePerm>} />
-          <Route path="rooms/utilization" element={<RequirePerm perm="classes"><RoomUtilizationPage /></RequirePerm>} />
-          <Route path="subjects" element={<RequirePerm perm="schedule"><SubjectsPage /></RequirePerm>} />
+          <Route path="students/yuz" element={<RequirePerm perm="students.face"><FaceLoginPage /></RequirePerm>} />
+          <Route path="students/:id" element={<RequirePerm perm="students.list"><StudentDetailPage /></RequirePerm>} />
+          <Route path="teachers" element={<TeachersEntry />} />
+          <Route path="teachers/substitutions" element={<RequirePerm perm="teachers.substitutions"><SubstituteTeachersPage /></RequirePerm>} />
+          <Route path="teachers/:id" element={<RequirePerm perm="teachers.list"><TeacherDetailPage /></RequirePerm>} />
+          <Route path="teachers/attendance" element={<RequirePerm perm="teachers.attendance"><TeacherAttendancePage /></RequirePerm>} />
+          <Route path="classes" element={<RequirePerm perm="classes.list"><ClassesPage /></RequirePerm>} />
+          <Route path="classes/:id" element={<RequirePerm perm="classes.list"><ClassDetailPage /></RequirePerm>} />
+          <Route path="rooms" element={<RequirePerm perm="classes.rooms"><RoomsPage /></RequirePerm>} />
+          <Route path="rooms/utilization" element={<RequirePerm perm="classes.rooms"><RoomUtilizationPage /></RequirePerm>} />
+          <Route path="subjects" element={<RequirePerm perm="schedule.courses"><SubjectsPage /></RequirePerm>} />
           {/* Kurslar analitikasi — O'quv bo'limi ichida, "Kurslar" ruxsati (`schedule`) bilan. */}
-          <Route path="subjects/analitika" element={<RequirePerm perm="schedule"><CourseAnalyticsPage /></RequirePerm>} />
-          <Route path="curricula" element={<RequirePerm perm="schedule"><CurriculaListPage /></RequirePerm>} />
-          <Route path="curricula/:curriculumId" element={<RequirePerm perm="schedule"><CurriculumModulesPage /></RequirePerm>} />
-          <Route path="curricula/:curriculumId/:moduleId" element={<RequirePerm perm="schedule"><CurriculumTopicsPage /></RequirePerm>} />
-          <Route path="curricula/:curriculumId/:moduleId/:topicId" element={<RequirePerm perm="schedule"><CurriculumLessonsPage /></RequirePerm>} />
-          <Route path="curricula/:curriculumId/:moduleId/:topicId/:lessonId" element={<RequirePerm perm="schedule"><CurriculumItemsPage /></RequirePerm>} />
-          <Route path="curricula/:curriculumId/:moduleId/:topicId/:lessonId/:itemId" element={<RequirePerm perm="schedule"><CurriculumItemEditorPage /></RequirePerm>} />
-          <Route path="reasons" element={<RequirePerm perm="settings"><ReasonsPage /></RequirePerm>} />
-          <Route path="test-results" element={<RequirePerm perm="classes"><TestResultsPage /></RequirePerm>} />
-          <Route path="test-results/certificate-templates" element={<RequirePerm perm="classes"><CertificateTemplatesPage /></RequirePerm>} />
-          <Route path="test-results/:groupId" element={<RequirePerm perm="classes"><TestGroupPage /></RequirePerm>} />
-          <Route path="test-results/:groupId/tests/:testId" element={<RequirePerm perm="classes"><TestDetailPage /></RequirePerm>} />
-          <Route path="districts" element={<RequirePerm perm="settings"><DistrictsPage /></RequirePerm>} />
-          <Route path="archive" element={<RequirePerm perm="settings"><ArchivePage /></RequirePerm>} />
-          <Route path="grading" element={<RequirePerm perm="schedule"><GradingCriteriaPage /></RequirePerm>} />
+          <Route path="subjects/analitika" element={<RequirePerm perm="schedule.analytics"><CourseAnalyticsPage /></RequirePerm>} />
+          <Route path="curricula" element={<RequirePerm perm="schedule.curricula"><CurriculaListPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId" element={<RequirePerm perm="schedule.curricula"><CurriculumModulesPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId/:moduleId" element={<RequirePerm perm="schedule.curricula"><CurriculumTopicsPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId/:moduleId/:topicId" element={<RequirePerm perm="schedule.curricula"><CurriculumLessonsPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId/:moduleId/:topicId/:lessonId" element={<RequirePerm perm="schedule.curricula"><CurriculumItemsPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId/:moduleId/:topicId/:lessonId/:itemId" element={<RequirePerm perm="schedule.curricula"><CurriculumItemEditorPage /></RequirePerm>} />
+          <Route path="reasons" element={<RequirePerm perm="settings.reasons"><ReasonsPage /></RequirePerm>} />
+          <Route path="test-results" element={<RequirePerm perm="classes.testResults"><TestResultsPage /></RequirePerm>} />
+          <Route path="test-results/certificate-templates" element={<RequirePerm perm="classes.testResults"><CertificateTemplatesPage /></RequirePerm>} />
+          <Route path="test-results/:groupId" element={<RequirePerm perm="classes.testResults"><TestGroupPage /></RequirePerm>} />
+          <Route path="test-results/:groupId/tests/:testId" element={<RequirePerm perm="classes.testResults"><TestDetailPage /></RequirePerm>} />
+          <Route path="districts" element={<RequirePerm perm="settings.districts"><DistrictsPage /></RequirePerm>} />
+          <Route path="archive" element={<RequirePerm perm="settings.archive"><ArchivePage /></RequirePerm>} />
+          <Route path="grading" element={<RequirePerm perm="schedule.grading"><GradingCriteriaPage /></RequirePerm>} />
           <Route path="books" element={<RequirePerm perm="books"><BookSalesPage /></RequirePerm>} />
           {/* Formalar — "Lid formalari" (`leads`) va "Daraja testlari" (`schedule`) bitta bo'limda.
               Ruxsatlari har xil bo'lgani uchun marshrutlar ham alohida darvozalangan. */}
           {/* `FormsEntry` — faqat `schedule` ruxsati bor xodimni daraja testlariga yo'naltiradi
               (aks holda u menyudan kelib "ruxsat yo'q" da qolib ketardi). */}
           <Route path="forms" element={<FormsEntry />} />
-          <Route path="forms/statistika" element={<RequirePerm perm="leads"><FormStatsPage /></RequirePerm>} />
-          <Route path="forms/:id" element={<RequirePerm perm="leads"><FormEditorPage /></RequirePerm>} />
-          <Route path="level-tests" element={<RequirePerm perm="schedule"><LevelTestsPage /></RequirePerm>} />
-          <Route path="level-tests/stats" element={<RequirePerm perm="schedule"><LevelTestStatsPage /></RequirePerm>} />
-          <Route path="level-tests/:id" element={<RequirePerm perm="schedule"><LevelTestEditorPage /></RequirePerm>} />
-          <Route path="support" element={<RequirePerm perm="app"><SupportPage /></RequirePerm>} />
-          <Route path="support/:id" element={<RequirePerm perm="app"><SupportDetailPage /></RequirePerm>} />
-          <Route path="ai-check" element={<RequirePerm perm="app"><AiCheckPage /></RequirePerm>} />
-          <Route path="ai-check/:studentId" element={<RequirePerm perm="app"><AiCheckStudentPage /></RequirePerm>} />
-          <Route path="messages" element={<RequirePerm perm="messages"><MessagesPage /></RequirePerm>} />
+          <Route path="forms/statistika" element={<RequirePerm perm="leads.forms"><FormStatsPage /></RequirePerm>} />
+          <Route path="forms/:id" element={<RequirePerm perm="leads.forms"><FormEditorPage /></RequirePerm>} />
+          <Route path="level-tests" element={<RequirePerm perm="schedule.levelTests"><LevelTestsPage /></RequirePerm>} />
+          <Route path="level-tests/stats" element={<RequirePerm perm="schedule.levelTests"><LevelTestStatsPage /></RequirePerm>} />
+          <Route path="level-tests/:id" element={<RequirePerm perm="schedule.levelTests"><LevelTestEditorPage /></RequirePerm>} />
+          <Route path="support" element={<RequirePerm perm="app.support"><SupportPage /></RequirePerm>} />
+          <Route path="support/:id" element={<RequirePerm perm="app.support"><SupportDetailPage /></RequirePerm>} />
+          <Route path="ai-check" element={<RequirePerm perm="app.aiCheck"><AiCheckPage /></RequirePerm>} />
+          <Route path="ai-check/:studentId" element={<RequirePerm perm="app.aiCheck"><AiCheckStudentPage /></RequirePerm>} />
+          <Route path="messages" element={<RequirePerm perm="messages.broadcast"><MessagesPage /></RequirePerm>} />
           {/* Chats — guruh chati "Xabarlar"dan ajratilgan alohida sahifa */}
-          <Route path="chats" element={<RequirePerm perm="messages"><GroupChatPage /></RequirePerm>} />
-          <Route path="support-telegram" element={<RequirePerm perm="messages"><SupportTelegramPage /></RequirePerm>} />
+          <Route path="chats" element={<RequirePerm perm="messages.chat"><GroupChatPage /></RequirePerm>} />
+          <Route path="support-telegram" element={<RequirePerm perm="messages.support"><SupportTelegramPage /></RequirePerm>} />
           <Route path="teacher-reports" element={<RequirePerm perm="teacherReports"><TeacherReportsPage /></RequirePerm>} />
           <Route path="contracts" element={<RequirePerm perm="contracts"><ContractsPage /></RequirePerm>} />
-          <Route path="locations" element={<RequirePerm perm="app"><LocationPage /></RequirePerm>} />
-          <Route path="parents" element={<RequirePerm perm="app"><ParentsPage /></RequirePerm>} />
-          <Route path="app/teachers" element={<RequirePerm perm="app"><TeacherAppPage /></RequirePerm>} />
+          <Route path="locations" element={<RequirePerm perm="app.locations"><LocationPage /></RequirePerm>} />
+          <Route path="parents" element={<RequirePerm perm="app.parents"><ParentsPage /></RequirePerm>} />
+          <Route path="app/teachers" element={<RequirePerm perm="app.teachers"><TeacherAppPage /></RequirePerm>} />
           <Route path="kassa" element={<RequirePerm perm="kassa"><KassaPage /></RequirePerm>} />
-          <Route path="finance" element={<RequirePerm perm="finance"><FinancePage /></RequirePerm>} />
+          <Route path="finance" element={<RequirePerm perm="finance.main"><FinancePage /></RequirePerm>} />
           {/* Bitta kassir qabul qilgan to'lovlar — alohida sahifa (Moliya → Kassirlar qatoridan). */}
-          <Route path="finance/cashiers/:key" element={<RequirePerm perm="finance"><CashierPaymentsPage /></RequirePerm>} />
+          <Route path="finance/cashiers/:key" element={<RequirePerm perm="finance.main"><CashierPaymentsPage /></RequirePerm>} />
           <Route path="settings" element={<Navigate to="/admin/settings/school" replace />} />
-          <Route path="landing" element={<RequirePerm perm="settings"><LandingCmsPage /></RequirePerm>} />
+          <Route path="landing" element={<RequirePerm perm="settings.landing"><LandingCmsPage /></RequirePerm>} />
           {/* O'zgarishlar tarixi — Sozlamalar ICHIDA, lekin ruxsati boshqa (`audit`). Statik
               segment `settings/:section` dinamikasidan ustun turadi (React Router reyting), ya'ni
               bu marshrut `settings/:section` dan OLDIN yozilishi shart emas, lekin qo'shni tursin. */}
           <Route path="settings/history" element={<RequirePerm perm="audit"><AuditLogPage /></RequirePerm>} />
-          <Route path="settings/:section" element={<RequirePerm perm="settings"><SettingsPage /></RequirePerm>} />
+          <Route path="settings/:section" element={<SettingsEntry />} />
           <Route path="account" element={<AccountPage />} />
 
           {/* Boshqaruv */}

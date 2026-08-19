@@ -11,7 +11,7 @@ namespace IntellectCRM.Server.Controllers;
 // bo'limi/ruxsat katalogida yo'q; "journal" kaliti bo'lsa xodimga hech qachon berib bo'lmas edi.
 [ApiController]
 [Authorize]
-[AdminPerm("classes")]
+[AdminPerm("classes.list")]
 [Route("api/admin/journal")]
 public class JournalController(AppDbContext db, FcmService fcm, AutoMessageService autoMsg) : ControllerBase
 {

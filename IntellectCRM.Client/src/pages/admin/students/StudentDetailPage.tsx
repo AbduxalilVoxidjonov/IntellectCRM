@@ -143,7 +143,7 @@ export function StudentDetailPage() {
   // uchun xodimga (staff) ochilmaydi, server ham faqat admin/superadmin'ga ruxsat beradi.
   const canWriteTeacherReviews = isBonusAllowed
   // RASM — o'quvchini tahrirlash huquqi bilan bir xil (dumaloq avatarni bosib almashtiriladi).
-  const canEditPhoto = can('students', 'edit')
+  const canEditPhoto = can('students.list', 'edit')
   // "Bog'lanish kerak" — ALOHIDA ruxsat (`contacts`), o'quvchi tahririga bog'liq emas.
   const canContact = can('contacts', 'create')
   const [contactOpen, setContactOpen] = useState(false)
@@ -674,7 +674,7 @@ export function StudentDetailPage() {
                     ? [{ label: "Bog'lanish kerak", icon: PhoneCall, onClick: () => setContactOpen(true) }]
                     : []),
                   { label: 'SMS yuborish', icon: MessageSquare, onClick: openSms },
-                  ...(can('students', 'edit')
+                  ...(can('students.list', 'edit')
                     ? [{ label: 'Tahrirlash', icon: Pencil, onClick: openEdit }]
                     : []),
                 ]}

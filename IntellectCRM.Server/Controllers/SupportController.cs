@@ -13,7 +13,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("app")]
+[AdminPerm("app.support")]
 [Route("api/admin/support")]
 public class SupportController(AppDbContext db) : ControllerBase
 {

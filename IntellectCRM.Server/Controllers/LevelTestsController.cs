@@ -11,7 +11,7 @@ namespace IntellectCRM.Server.Controllers;
 /// <summary>Daraja testi — admin CRUD + ommaviy URL + natijalar (topshiruvchilar lid bo'lib tushadi).</summary>
 [ApiController]
 [Authorize]
-[AdminPerm("schedule")]
+[AdminPerm("schedule.levelTests")]
 [Route("api/admin/level-tests")]
 public class LevelTestsController(AppDbContext db, DataCache dataCache, IConfiguration config) : ControllerBase
 {
@@ -99,7 +99,7 @@ public class LevelTestsController(AppDbContext db, DataCache dataCache, IConfigu
     /// <summary>Bu testga yuborilgan bir martalik havolalar (invite) — lid + SMS holati + ishlangani.
     /// (Lidlarning ismi/telefoni qaytadi — o'qish darvozalangan.)</summary>
     [HttpGet("{id}/invites")]
-    [AdminPerm("schedule", ReadRequiresPerm = true)]
+    [AdminPerm("schedule.levelTests", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<LevelTestInviteDto>>> Invites(string id)
     {
         var invites = await db.LevelTestInvites.AsNoTracking().Where(i => i.TestId == id)
@@ -132,7 +132,7 @@ public class LevelTestsController(AppDbContext db, DataCache dataCache, IConfigu
     /// `leads` ruxsatli xodimning ishini buzardi.</para>
     /// </summary>
     [HttpGet("overall-stats")]
-    [AdminPerm("schedule", ReadRequiresPerm = true)]
+    [AdminPerm("schedule.levelTests", ReadRequiresPerm = true)]
     public async Task<ActionResult<LevelTestOverallStatsDto>> OverallStats() =>
         await dataCache.GetOrCreateAsync(
             "level-tests:overall-stats",
@@ -149,7 +149,7 @@ public class LevelTestsController(AppDbContext db, DataCache dataCache, IConfigu
 
     /// <summary>Natijalar — testni topshirganlar (har biri CRM'da lid; ism/telefon qaytadi).</summary>
     [HttpGet("{id}/submissions")]
-    [AdminPerm("schedule", ReadRequiresPerm = true)]
+    [AdminPerm("schedule.levelTests", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<LevelTestSubmissionDto>>> Submissions(string id)
     {
         var subs = await db.LevelTestSubmissions.AsNoTracking().Where(s => s.TestId == id)
@@ -171,7 +171,7 @@ public class LevelTestsController(AppDbContext db, DataCache dataCache, IConfigu
     /// nechtasi PUL to'ladi, qaysi guruh(lar)ga qo'shilgani va o'qituvchisi (FISH).
     /// (Telefon + to'lov qaytgani uchun o'qish ham darvozalangan — `overall-stats` dagi izohga qarang.)</summary>
     [HttpGet("{id}/stats")]
-    [AdminPerm("schedule", ReadRequiresPerm = true)]
+    [AdminPerm("schedule.levelTests", ReadRequiresPerm = true)]
     public async Task<ActionResult<LevelTestStatsDto>> Stats(string id)
     {
         var subs = await db.LevelTestSubmissions.AsNoTracking().Where(s => s.TestId == id)
@@ -202,7 +202,7 @@ public class LevelTestsController(AppDbContext db, DataCache dataCache, IConfigu
     /// <c>overall-stats</c> allaqachon shu tarzda ishlab turibdi.</para>
     /// </summary>
     [HttpGet("ai-analyses")]
-    [AdminPerm("schedule", ReadRequiresPerm = true)]
+    [AdminPerm("schedule.levelTests", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<FunnelAiRecordDto>>> AiAnalyses(CancellationToken ct) =>
         await FunnelAiAnalysisService.HistoryAsync(db, FunnelAiAnalysisService.KindLevelTests, ct);
 

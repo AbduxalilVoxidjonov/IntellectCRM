@@ -25,7 +25,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("schedule")]
+[AdminPerm("schedule.analytics")]
 [Route("api/admin/course-analytics")]
 public class CourseAnalyticsController(DataCache dataCache) : ControllerBase
 {

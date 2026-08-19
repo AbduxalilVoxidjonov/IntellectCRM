@@ -53,8 +53,11 @@ export function Sidebar({ open, collapsed = false, onNavigate }: SidebarProps) {
   const role = user.role
   // Element ko'rinadi: roli mos (yoki roles yo'q) VA xodim shu bo'limni KO'RISH ruxsatiga ega
   // (yoki perm yo'q / permissions yo'q — admin). "Ko'rish" — bare "section" yoki biror "section:action".
-  // `permAny` — bir necha ruxsat bilan ishlaydigan band (masalan "Formalar": lid formalari `leads`,
-  // daraja testi `schedule`): ulardan BIRORTASI yetarli. Sahifa ichida baribir `RequirePerm` bor.
+  // `permAny` — bir necha ruxsat bilan ishlaydigan band (masalan "Formalar": lid formalari
+  // `leads.forms`, daraja testi `schedule.levelTests`): ulardan BIRORTASI yetarli. Sahifa ichida
+  // baribir `RequirePerm` bor.
+  // ⚠️ Kalit SAHIFA darajasida ham bo'ladi (`students.turnstile`): bo'lim ruxsati sahifani
+  // avtomatik ochadi, bitta sahifa ruxsati esa GURUHNI menyuda ko'rsatadi (`can` — `view`).
   const canSee = (x: { roles?: Role[]; perm?: string; permAny?: string[] }) =>
     (!x.roles || x.roles.includes(role)) &&
     (!x.perm || can(user.permissions, x.perm, 'view')) &&

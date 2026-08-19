@@ -15,7 +15,7 @@ import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
  */
 export function InstagramKnowledge() {
   const { can } = usePerm()
-  const canEdit = can('marketing', 'edit')
+  const canEdit = can('marketing.knowledge', 'edit')
 
   const [items, setItems] = useState<IgKnowledge[]>([])
   const [loading, setLoading] = useState(true)

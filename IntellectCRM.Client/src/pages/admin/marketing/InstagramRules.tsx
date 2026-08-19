@@ -35,9 +35,9 @@ const EMPTY: IgRulePayload = {
  */
 export function InstagramRules() {
   const { can } = usePerm()
-  const canCreate = can('marketing', 'create')
-  const canEdit = can('marketing', 'edit')
-  const canDelete = can('marketing', 'delete')
+  const canCreate = can('marketing.rules', 'create')
+  const canEdit = can('marketing.rules', 'edit')
+  const canDelete = can('marketing.rules', 'delete')
 
   const [rules, setRules] = useState<IgRule[]>([])
   const [loading, setLoading] = useState(true)

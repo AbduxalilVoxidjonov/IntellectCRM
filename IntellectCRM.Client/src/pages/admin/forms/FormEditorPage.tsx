@@ -40,7 +40,7 @@ export function FormEditorPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { can } = usePerm()
-  const canEdit = can('leads', 'edit')
+  const canEdit = can('leads.forms', 'edit')
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

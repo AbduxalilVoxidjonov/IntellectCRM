@@ -7,6 +7,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   can,
+  canAny,
+  pageRowActions,
+  sectionRowActions,
+  toggleSectionRow,
+  togglePageRow,
   sectionActions,
   superOrGranted,
   toggleSectionAction,
@@ -174,5 +179,101 @@ describe('toggleSectionAction — matritsadagi katakni bosish', () => {
   it('oxirgi yetishmayotgan amal qo\'shilsa yana yalang tokenga ixchamlanadi', () => {
     const before = new Set(['students:view', 'students:create', 'students:edit'])
     expect(sorted(toggleSectionAction(before, 'students', 'delete'))).toEqual(['students'])
+  })
+})
+
+// ---------------------------------------------------------------- SAHIFA (page) ruxsatlari
+
+describe('can — sahifa (page) kalitlari', () => {
+  it("BO'LIM ruxsati uning HAR BIR sahifasini ochadi (eski xodimlar buzilmasin)", () => {
+    const perms = ['students']
+    expect(can(perms, 'students.turnstile', 'view')).toBe(true)
+    expect(can(perms, 'students.turnstile', 'delete')).toBe(true)
+    expect(can(['students:edit'], 'students.face', 'edit')).toBe(true)
+    expect(can(['students:edit'], 'students.face', 'delete')).toBe(false)
+  })
+
+  it("SAHIFA ruxsati bo'limni faqat KO'RISHga ochadi, yozishga EMAS", () => {
+    const perms = ['students.turnstile']
+    // Menyudagi "O'quvchilar" guruhi ko'rinishi kerak.
+    expect(can(perms, 'students', 'view')).toBe(true)
+    // Lekin bo'lim darajasida yozish — YO'Q (turniket operatori o'quvchi yaratmasin).
+    expect(can(perms, 'students', 'create')).toBe(false)
+    expect(can(perms, 'students.list', 'create')).toBe(false)
+    // Qo'shni sahifaga ham o'tmaydi.
+    expect(can(perms, 'students.face', 'view')).toBe(false)
+  })
+
+  it('sahifa o‘z amallarini oladi', () => {
+    expect(can(['students.turnstile:edit'], 'students.turnstile', 'edit')).toBe(true)
+    expect(can(['students.turnstile:edit'], 'students.turnstile', 'view')).toBe(true)
+    expect(can(['students.turnstile:edit'], 'students.turnstile', 'delete')).toBe(false)
+  })
+
+  it("BOSHQA bo'lim sahifasi adashtirmaydi", () => {
+    expect(can(['teachers.list'], 'students.list', 'view')).toBe(false)
+    expect(can(['students-arxiv.turnstile'], 'students', 'view')).toBe(false)
+  })
+
+  it('canAny — kalitlardan birortasi yetadi', () => {
+    expect(canAny(['students.list:view'], ['students.list', 'students.notes'], 'create')).toBe(false)
+    expect(canAny(['students.list'], ['students.list', 'students.notes'], 'create')).toBe(true)
+    expect(canAny(['students.notes'], ['students.list', 'students.notes'], 'view')).toBe(true)
+    expect(canAny(['finance'], ['finance.bonus', 'audit'], 'edit')).toBe(true)
+  })
+})
+
+describe('matritsa — bo\'lim va sahifa qatorlari', () => {
+  const PAGES = ['students.list', 'students.turnstile', 'students.face']
+
+  it("bo'lim qatori yoqilsa sahifa qatorlari ham yoqilgan bo'lib ko'rinadi", () => {
+    const perms = new Set(['students'])
+    expect([...sectionRowActions(perms, 'students', PAGES)].sort()).toEqual([
+      'create',
+      'delete',
+      'edit',
+      'view',
+    ])
+    expect([...pageRowActions(perms, 'students', 'students.turnstile')].sort()).toEqual([
+      'create',
+      'delete',
+      'edit',
+      'view',
+    ])
+  })
+
+  it("bo'lim ochiq bo'lsa ham bitta sahifani OLIB TASHLASH mumkin (avtomatik yoyish)", () => {
+    let perms = new Set(['students'])
+    perms = togglePageRow(perms, 'students', 'students.turnstile', 'view', PAGES)
+    // Bo'lim tokeni sahifalarga yoyildi, turniketniki olib tashlandi.
+    expect(perms.has('students')).toBe(false)
+    expect(perms.has('students.list')).toBe(true)
+    expect(perms.has('students.face')).toBe(true)
+    expect([...perms].some((p) => p.startsWith('students.turnstile'))).toBe(false)
+    // Natija amalda ham to'g'ri:
+    const arr = [...perms]
+    expect(can(arr, 'students.list', 'edit')).toBe(true)
+    expect(can(arr, 'students.turnstile', 'view')).toBe(false)
+  })
+
+  it("hamma sahifa qayta yoqilsa — bitta bo'lim tokeniga IXCHAMLANADI", () => {
+    let perms = new Set(['students.list', 'students.face'])
+    perms = togglePageRow(perms, 'students', 'students.turnstile', 'view', PAGES)
+    // "view" bosildi, lekin qolganlari to'liq — shuning uchun to'plamlar teng emas, ixchamlanmaydi.
+    expect(perms.has('students')).toBe(false)
+    // Endi turniketni ham to'liq qilamiz:
+    for (const a of ['create', 'edit', 'delete'] as PermAction[])
+      perms = togglePageRow(perms, 'students', 'students.turnstile', a, PAGES)
+    expect(perms.has('students')).toBe(true)
+    expect([...perms].filter((p) => p.startsWith('students.'))).toEqual([])
+  })
+
+  it("bo'lim qatoridagi ko'rish o'chirilsa — sahifa tokenlari ham tozalanadi", () => {
+    let perms = new Set(['students.turnstile:edit', 'students.face'])
+    // Avval bo'limni to'liq yoqamiz, keyin ko'rishni o'chiramiz.
+    perms = toggleSectionRow(perms, 'students', 'view', PAGES)
+    expect(perms.has('students:view')).toBe(true)
+    perms = toggleSectionRow(perms, 'students', 'view', PAGES)
+    expect([...perms]).toEqual([])
   })
 })

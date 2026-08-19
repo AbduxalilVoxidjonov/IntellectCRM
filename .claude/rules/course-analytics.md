@@ -1,6 +1,6 @@
 # Kurslar analitikasi qoidalari
 
-"O'quv bo'limi → Kurslar analitikasi" (`/admin/subjects/analitika`, ruxsat `schedule`).
+"O'quv bo'limi → Kurslar analitikasi" (`/admin/subjects/analitika`, ruxsat `schedule.analytics`).
 Migratsiya KERAK EMAS — modul mavjud jadvallardan (`StudentGroup` × `Group.CourseId`) hisoblanadi.
 
 ## 1. Eng muhim qoida — "ketdi" nima?

@@ -770,7 +770,7 @@ public class FaceLoginTests
         // Javobda selfi manzillari bor — GET xodimga ochiq QOLMASLIGI kerak.
         var src = ServerSource("Controllers", "AdminFaceController.cs");
         Assert.Matches(
-            new Regex(@"\[AdminPerm\(\s*""students""[^\]]*\bReadRequiresPerm\s*=\s*true\b[^\]]*\)\]"),
+            new Regex(@"\[AdminPerm\(\s*""students\.face""[^\]]*\bReadRequiresPerm\s*=\s*true\b[^\]]*\)\]"),
             src);
     }
 

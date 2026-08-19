@@ -194,7 +194,7 @@ tekshirilsin.
 | `GET /group-lesson-dates` | Guruhning oydagi dars kunlari (modal kalendari) |
 | `GET /{id}` · `POST /` · `DELETE /{id}` | Bitta tayinlov · yaratish · bekor qilish |
 
-⚠️ **O'QISH DARVOZALANGAN:** `[AdminPerm("teachers", ReadRequiresPerm = true)]` — javobda
+⚠️ **O'QISH DARVOZALANGAN:** `[AdminPerm("teachers.substitutions", ReadRequiresPerm = true)]` — javobda
 `EstimatedSalary`/`PerLessonFee`/`EstimatedDeduction`, ya'ni MAOSH raqamlari. `AdminPerm` odatda
 GET'ni har qanday xodimga ochadi (bo'limlararo o'qish uchun); bu yerda u kassir/qabulchi ham
 o'qituvchilar maoshini ko'rishini anglatardi (`uploads-security.md`).

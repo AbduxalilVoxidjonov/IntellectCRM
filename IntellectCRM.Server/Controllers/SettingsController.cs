@@ -10,6 +10,11 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
+// ⚠️ SINF darajasidagi kalit — O'QISH uchun (GET xodimga ochiq, `HasSection` sahifa
+// ruxsatini ham hisobga oladi). YOZISH esa har bir SAHIFA kaliti bilan alohida
+// darvozalangan (metod darajasidagi `[AdminPerm]` sinfdagisini bekor qiladi), chunki bu
+// controller o'nga yaqin MUSTAQIL sozlama sahifasiga xizmat qiladi: "Zaxira nusxa" berilgan
+// xodim "Markaz ma'lumotlari"ni o'zgartira olmasin.
 [AdminPerm("settings")]
 [Route("api/admin/settings")]
 public class SettingsController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env, IConfiguration config, EskizService eskiz, AuditService audit) : ControllerBase
@@ -56,6 +61,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("school")]
+    [AdminPerm("settings.school")]
     public async Task<IActionResult> SaveSchool(SchoolInfoDto req)
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
@@ -78,6 +84,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
 
     /// <summary>Markaz logotipini yuklaydi (rasm) — barcha foydalanuvchi ko'radigan joylarda ko'rsatiladi.</summary>
     [HttpPost("logo")]
+    [AdminPerm("settings.school")]
     [RequestSizeLimit(8_000_000)]
     public async Task<ActionResult<SchoolInfoDto>> UploadLogo(IFormFile file)
     {
@@ -99,6 +106,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
 
     /// <summary>Logotipni o'chiradi.</summary>
     [HttpDelete("logo")]
+    [AdminPerm("settings.school")]
     public async Task<ActionResult<SchoolInfoDto>> DeleteLogo()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
@@ -133,6 +141,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("telegram")]
+    [AdminPerm("settings.channels")]
     public async Task<ActionResult<TelegramSettingsDto>> SaveTelegram(SaveTelegramSettingsRequest req)
     {
         if (EnvOnly(req.BotToken, AppSecrets.EnvKeys.TelegramBotToken) is { } err) return err;
@@ -193,6 +202,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPost("telegram-backup")]
+    [AdminPerm("settings.backup")]
     public async Task<ActionResult<TelegramBackupConfigDto>> SaveTelegramBackupConfig(SaveTelegramBackupConfigRequest req)
     {
         if (req.ScheduleHour is < 0 or > 23)
@@ -244,6 +254,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("firebase")]
+    [AdminPerm("settings.channels")]
     public async Task<ActionResult<FirebaseSettingsDto>> SaveFirebase(SaveFirebaseSettingsRequest req)
     {
         if (EnvOnly(req.ServiceAccountJson, AppSecrets.EnvKeys.FcmServiceAccountJson) is { } err) return err;
@@ -290,6 +301,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
             AppSecrets.EnvKeys.AzureSpeechRegion);
 
     [HttpPut("azure-speech")]
+    [AdminPerm("settings.azure-speech")]
     public ActionResult<AzureSpeechSettingsDto> SaveAzureSpeech(SaveAzureSpeechRequest req)
     {
         if (EnvOnly(req.Key, AppSecrets.EnvKeys.AzureSpeechKey) is { } keyErr) return keyErr;
@@ -308,6 +320,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
             new EnvSecretDto(AppSecrets.EnvKeys.GeminiApiKey, AppSecrets.GeminiConfigured));
 
     [HttpPut("gemini")]
+    [AdminPerm("settings.gemini")]
     public ActionResult<GeminiSettingsDto> SaveGemini(SaveGeminiRequest req)
     {
         if (EnvOnly(req.Key, AppSecrets.EnvKeys.GeminiApiKey) is { } err) return err;
@@ -325,6 +338,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("check")]
+    [AdminPerm("settings.check")]
     public async Task<ActionResult<CheckSettingsDto>> SaveCheck(CheckSettingsDto req)
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
@@ -352,6 +366,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("eskiz")]
+    [AdminPerm("settings.channels")]
     public async Task<ActionResult<EskizSettingsDto>> SaveEskiz(SaveEskizRequest req)
     {
         if (EnvOnly(req.Email, AppSecrets.EnvKeys.EskizEmail, AppSecrets.EskizEmail) is { } emailErr) return emailErr;
@@ -375,6 +390,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("local-sms")]
+    [AdminPerm("settings.channels")]
     public async Task<ActionResult<LocalSmsSettingsDto>> SaveLocalSms(SaveLocalSmsRequest req)
     {
         if (!string.IsNullOrWhiteSpace(req.DefaultAgentId)
@@ -405,6 +421,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPost("app-apk/{role}")]
+    [AdminPerm("settings.apk")]
     [RequestSizeLimit(MaxApkBytes + 2_000_000)]
     public async Task<ActionResult<AppApkSettingsDto>> UploadAppApk(string role, IFormFile file)
     {
@@ -442,6 +459,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpDelete("app-apk/{role}")]
+    [AdminPerm("settings.apk")]
     public async Task<ActionResult<AppApkSettingsDto>> DeleteAppApk(string role)
     {
         if (role is not ("student" or "teacher"))
@@ -507,6 +525,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("turnstile")]
+    [AdminPerm("settings.turnstile")]
     public async Task<ActionResult<TurnstileSettingsDto>> SaveTurnstile(SaveTurnstileSettingsRequest req)
     {
         if (EnvOnly(req.Username, AppSecrets.EnvKeys.TurnstileUsername, AppSecrets.TurnstileUsername) is { } userErr) return userErr;
@@ -545,6 +564,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("cameras")]
+    [AdminPerm("settings.cameras")]
     public async Task<ActionResult<CameraSettingsDto>> SaveCameras(SaveCameraSettingsRequest req)
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
@@ -556,6 +576,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPost("telegram-backup/test")]
+    [AdminPerm("settings.backup")]
     public async Task<ActionResult<object>> TestTelegramBackup()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
@@ -576,6 +597,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
 
     /// <summary>Backupni HOZIR yuboradi — markaz ma'lumotlari JSON qilib Telegram orqali adminga.</summary>
     [HttpPost("telegram-backup/run")]
+    [AdminPerm("settings.backup")]
     public async Task<ActionResult<object>> RunTelegramBackup()
     {
         var (ok, msg) = await BackupService.SendAsync(db, telegram);
@@ -583,6 +605,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     [HttpPut("absence-reasons")]
+    [AdminPerm("settings.reasons")]
     public async Task<IActionResult> SaveAbsenceReasons(SaveAbsenceReasonsRequest req)
     {
         // Mavjud id'larni saqlab qolamiz (jurnal yozuvlari reasonId orqali bog'langan).

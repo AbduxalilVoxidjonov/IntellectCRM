@@ -163,7 +163,9 @@ Muvaffaqiyatsiz bo'lsa — **Telegram alert**, jim yiqilmaydi.
 
 ## 8. RUXSAT — `marketing`
 
-`InstagramController`: `[AdminPerm("marketing", ReadRequiresPerm = true)]`.
+`InstagramController`: sinf darajasida `[AdminPerm("marketing", ReadRequiresPerm = true)]` (O'QISH),
+yozish esa SAHIFA kaliti bilan metod darajasida: `marketing.settings` · `marketing.inbox` ·
+`marketing.rules` · `marketing.knowledge` (qarang: `.claude/rules/permissions.md` §4.1).
 
 ⚠️ `ReadRequiresPerm = true` ATAYIN: javobda mijoz suhbatlari, ismlari va **telefonlari**
 bor. `AdminPermAttribute` da GET odatda har qanday xodimga ochiq (bo'limlararo o'qish

@@ -15,7 +15,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("app")]
+[AdminPerm("app.parents")]
 [Route("api/admin/parents")]
 public class ParentsController(AppDbContext db) : ControllerBase
 {

@@ -130,7 +130,7 @@ paths:
   ham, `KassaController` (`POST /api/admin/kassa/students/{id}/payments`) ham shu xizmatni chaqiradi
   (kvitansiya nazorati, idempotentlik, avans `EnsureCharge`, audit, avto-xabar — nusxalanmagan);
   HTTP tarjimasi `PaymentIntakeHttp.ToActionResult` (409 dublikat / 400 xato / 200 `{id}`).
-  NEGA ALOHIDA CONTROLLER: to'lov `[AdminPerm("students")]` ostida edi — kassirga to'lov uchun
+  NEGA ALOHIDA CONTROLLER: to'lov `[AdminPerm("students.list")]` ostida edi — kassirga to'lov uchun
   o'quvchi yaratish/tahrirlash huquqini ham berish kerak bo'lardi; endi "kassa" ruxsati YETADI
   (xodimga GET har doim ochiq, shuning uchun ro'yxatlar uchun yangi endpoint kerak emas).
   "Kassir" xodim shabloni (Program.cs seed) endi `kassa` ruxsatini ham beradi.

@@ -13,7 +13,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("settings")]
+[AdminPerm("settings.districts")]
 [Route("api/admin")]
 public class DistrictsController(AppDbContext db) : ControllerBase
 {

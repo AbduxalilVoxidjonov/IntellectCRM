@@ -16,7 +16,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("students")]
+[AdminPerm("students.turnstile")]
 [Route("api/admin/students/turnstile")]
 public class StudentTurnstileController(
     AppDbContext db, TurnstileService turnstile, IHubContext<LiveHub> live) : ControllerBase

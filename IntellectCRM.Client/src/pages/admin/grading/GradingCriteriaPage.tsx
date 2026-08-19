@@ -216,7 +216,7 @@ export function GradingCriteriaPage() {
         <Card
           title="Mezonlar"
           actions={
-            can('schedule', 'create') ? (
+            can('schedule.grading', 'create') ? (
               <Button onClick={openCreate}>
                 <Plus className="h-4 w-4" /> Mezon
               </Button>
@@ -265,7 +265,7 @@ export function GradingCriteriaPage() {
                           )}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                          {can('schedule', 'edit') && (
+                          {can('schedule.grading', 'edit') && (
                             <button
                               type="button"
                               title="Tahrirlash"
@@ -275,7 +275,7 @@ export function GradingCriteriaPage() {
                               <Pencil className="h-4 w-4" />
                             </button>
                           )}
-                          {can('schedule', 'delete') && (
+                          {can('schedule.grading', 'delete') && (
                             <button
                               type="button"
                               title="O'chirish"

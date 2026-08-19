@@ -104,3 +104,88 @@ public class PermissionRulesTests
         Assert.False(PermissionRules.CanWrite(null, "students", "POST"));
     }
 }
+
+/// <summary>
+/// SAHIFA (page) darajasidagi ruxsatlar — <c>"bolim.sahifa"</c>.
+///
+/// <para>Bu yerdagi xato ikki xil zarar keltiradi: (1) mavjud xodimning ruxsati YO'QOLADI
+/// (bo'lim berilgan, lekin sahifa ochilmaydi), (2) tor ruxsatli xodim BUTUN bo'limga yozadi
+/// (masalan turniket operatori o'quvchi yaratadi). Ikkalasi ham tekshiriladi.</para>
+/// </summary>
+public class PermissionRulesPageTests
+{
+    // ------------------------------------------------- PASTGA meros (backward-compat)
+
+    [Fact]
+    public void BOLIMruxsati_UningHARsahifasiniOchadi()
+    {
+        // Eng muhim qoida: eski xodimlarda faqat "students" turibdi — hech narsa buzilmasin.
+        Assert.True(PermissionRules.HasSection(["students"], "students.turnstile"));
+        Assert.True(PermissionRules.CanWrite(["students"], "students.turnstile", "POST"));
+        Assert.True(PermissionRules.CanWrite(["students:edit"], "students.turnstile", "PUT"));
+        // Amal mos kelmasa — yo'q (bo'lim ruxsati ham amal bo'yicha cheklangan).
+        Assert.False(PermissionRules.CanWrite(["students:edit"], "students.turnstile", "DELETE"));
+    }
+
+    // ------------------------------------------------- YUQORIGA: o'qish HA, yozish YO'Q
+
+    [Fact]
+    public void SAHIFAruxsati_BolimniOQISHgaOchadi()
+    {
+        // Sahifa o'z ma'lumotini bo'lim controlleridan o'qiydi — GET yopilib qolmasin.
+        Assert.True(PermissionRules.HasSection(["students.turnstile"], "students"));
+        Assert.True(PermissionRules.HasSection(["students.turnstile:edit"], "students"));
+    }
+
+    [Fact]
+    public void SAHIFAruxsati_BolimgaYOZDIRMAYDI()
+    {
+        // Turniket operatori POST /admin/students bilan o'quvchi YARATA OLMAYDI.
+        Assert.False(PermissionRules.CanWrite(["students.turnstile"], "students", "POST"));
+        Assert.False(PermissionRules.CanWrite(["students.turnstile"], "students.list", "POST"));
+        // Qo'shni sahifaga ham o'tmaydi.
+        Assert.False(PermissionRules.CanWrite(["students.turnstile"], "students.face", "PUT"));
+    }
+
+    [Fact]
+    public void SAHIFAruxsati_OZsahifasigaYOZADI()
+    {
+        Assert.True(PermissionRules.CanWrite(["students.turnstile"], "students.turnstile", "POST"));
+        Assert.True(PermissionRules.CanWrite(["students.turnstile:create"], "students.turnstile", "POST"));
+        Assert.False(PermissionRules.CanWrite(["students.turnstile:create"], "students.turnstile", "DELETE"));
+    }
+
+    // ------------------------------------------------- Adashish bo'lmasin
+
+    [Fact]
+    public void BOSHQAbolimSahifasi_ADASHTIRMAYDI()
+    {
+        Assert.False(PermissionRules.HasSection(["finance.bonus"], "students"));
+        Assert.False(PermissionRules.HasSection(["students-arxiv.turnstile"], "students"));
+        Assert.False(PermissionRules.CanWrite(["teachers.list"], "students.list", "POST"));
+    }
+
+    [Fact]
+    public void ParentOf_BolimniAjratadi()
+    {
+        Assert.Equal("students", PermissionRules.ParentOf("students.turnstile"));
+        Assert.Null(PermissionRules.ParentOf("students"));
+        Assert.Null(PermissionRules.ParentOf(""));
+        Assert.Null(PermissionRules.ParentOf(null));
+        // Ikki nuqtali kalit bo'lsa ham BIRINCHI qismi bo'lim (chuqurroq daraja qo'llanmaydi).
+        Assert.Equal("settings", PermissionRules.ParentOf("settings.azure-speech"));
+    }
+
+    // ------------------------------------------------- Nozik (TO'LIQ) ruxsat
+
+    [Fact]
+    public void HasFullSection_BOLIMdanSahifagaMerosBoladi()
+    {
+        // Parol eksporti kabi nozik amal: yalang bo'lim ham, yalang sahifa ham yetadi.
+        Assert.True(PermissionRules.HasFullSection(["students"], "students.list"));
+        Assert.True(PermissionRules.HasFullSection(["students.list"], "students.list"));
+        Assert.False(PermissionRules.HasFullSection(["students.list:edit"], "students.list"));
+        // Sahifa ruxsati BO'LIMning nozik amalini OCHMAYDI.
+        Assert.False(PermissionRules.HasFullSection(["students.list"], "students"));
+    }
+}

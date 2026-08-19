@@ -254,7 +254,7 @@ export function TeachersPage() {
 
   return (
     <div>
-      <CardTabs items={teacherTabs(can('teacherReports', 'view'))} className="mb-5" />
+      <CardTabs items={teacherTabs((p) => can(p, 'view'))} className="mb-5" />
       <PageHeader
         title="O'qituvchilar"
         sub={`Faol ${teachers.length} ta · Arxivda ${archived.length} ta`}
@@ -267,7 +267,7 @@ export function TeachersPage() {
                 <Download className="h-4 w-4" /> Login/parollar
               </Button>
             )}
-            {can('teachers', 'create') && (
+            {can('teachers.list', 'create') && (
               <Button
                 onClick={() => {
                   setEditing(null)
@@ -515,7 +515,7 @@ export function TeachersPage() {
                             <ArrowUpRight className="h-4 w-4" />
                           </Link>
                           <IconBtn icon={Eye} title="Ko'rish" onClick={() => setViewing(t)} />
-                          {!isArchived && can('teachers', 'edit') && (
+                          {!isArchived && can('teachers.list', 'edit') && (
                             <IconBtn
                               icon={Pencil}
                               title="Tahrirlash"
@@ -527,7 +527,7 @@ export function TeachersPage() {
                           )}
                           {/* Vaqtincha aktiv emas — tizimga kira olmaydi, lekin arxivlanmaydi
                               (paroli, guruhlari va tarixi joyida qoladi). */}
-                          {!isArchived && can('teachers', 'edit') &&
+                          {!isArchived && can('teachers.list', 'edit') &&
                             (t.isBlocked ? (
                               <IconBtn
                                 icon={Unlock}
@@ -544,7 +544,7 @@ export function TeachersPage() {
                                 }}
                               />
                             ))}
-                          {!isArchived && can('teachers', 'delete') && (
+                          {!isArchived && can('teachers.list', 'delete') && (
                             <IconBtn
                               icon={Archive}
                               title="Arxivga ko'chirish"
@@ -554,14 +554,14 @@ export function TeachersPage() {
                               }}
                             />
                           )}
-                          {isArchived && can('teachers', 'edit') && (
+                          {isArchived && can('teachers.list', 'edit') && (
                             <IconBtn
                               icon={RotateCcw}
                               title="Arxivdan qaytarish"
                               onClick={() => handleRestore(t)}
                             />
                           )}
-                          {isArchived && can('teachers', 'delete') && (
+                          {isArchived && can('teachers.list', 'delete') && (
                             <IconBtn
                               icon={Trash2}
                               title="Butunlay o'chirish"

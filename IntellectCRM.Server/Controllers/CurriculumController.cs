@@ -18,7 +18,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("schedule")]
+[AdminPerm("schedule.curricula")]
 [Route("api/admin/curriculum")]
 public class CurriculumController(AppDbContext db) : ControllerBase
 {

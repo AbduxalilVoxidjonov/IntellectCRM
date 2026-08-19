@@ -94,7 +94,7 @@ export function SubjectsPage() {
         title="Kurslar"
         sub={`Jami ${subjects.length} ta kurs`}
         actions={
-          can('schedule', 'create') ? (
+          can('schedule.courses', 'create') ? (
             <Button
               onClick={() => {
                 setEditing(null)
@@ -158,7 +158,7 @@ export function SubjectsPage() {
                 >
                   <ListChecks className="h-4 w-4" /> O'quv dasturlari
                 </button>
-                {can('schedule', 'edit') && (
+                {can('schedule.courses', 'edit') && (
                   <IconBtn
                     icon={Pencil}
                     title="Tahrirlash"
@@ -168,7 +168,7 @@ export function SubjectsPage() {
                     }}
                   />
                 )}
-                {can('schedule', 'delete') && (
+                {can('schedule.courses', 'delete') && (
                   <IconBtn icon={Trash2} title="O'chirish" danger onClick={() => handleDelete(s)} />
                 )}
               </div>

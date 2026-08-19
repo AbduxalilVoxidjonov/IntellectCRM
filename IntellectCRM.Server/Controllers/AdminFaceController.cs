@@ -22,7 +22,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("students", ReadRequiresPerm = true)]
+[AdminPerm("students.face", ReadRequiresPerm = true)]
 [Route("api/admin/face")]
 public class AdminFaceController(
     AppDbContext db, FaceLoginService face, AuditService audit,
@@ -81,7 +81,7 @@ public class AdminFaceController(
     ///
     /// <para>⚠️ Bu YAGONA yo'l: <c>uploads/face</c> papkasi <c>PrivateFolderFileProvider</c> da
     /// bloklangan, ya'ni manzilni bilgan odam ham faylni statik yo'ldan ololmaydi. Bu yerda esa
-    /// <c>AdminPerm("students", ReadRequiresPerm = true)</c> darvozasi ishlaydi.</para>
+    /// <c>AdminPerm("students.face", ReadRequiresPerm = true)</c> darvozasi ishlaydi.</para>
     /// </summary>
     [HttpGet("checks/{id}/image")]
     public async Task<IActionResult> CheckImage(string id, CancellationToken ct)

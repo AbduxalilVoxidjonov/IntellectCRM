@@ -11,7 +11,7 @@ public class LandingCmsController(AppDbContext db, ILogger<LandingCmsController>
 {
     /// <summary>Landing CMS "Sozlamalar" bo'limining bir qismi — nav (`/admin/landing`) va marshrut
     /// darvozasi (`RequirePerm perm="settings"`) bilan AYNAN bir xil kalit.</summary>
-    private const string SectionPerm = "settings";
+    private const string SectionPerm = "settings.landing";
 
     // ==================== SUKUT QIYMATLAR (FAQAT O'QISHDA) ====================
     // ⚠️ Bu qiymatlar BAZAGA yozilmaydi — faqat OMMAVIY javobda bo'sh maydon o'rniga qo'yiladi.

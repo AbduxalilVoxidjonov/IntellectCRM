@@ -49,7 +49,7 @@ export function MessagesPage() {
       ) : tab === 'send' ? (
         <UnifiedComposer
           classes={classes}
-          canSend={can('messages', 'create')}
+          canSend={can('messages.broadcast', 'create')}
           onConfigureAuto={(id: string) => {
             setHighlightRule(id)
             setTab('auto')
@@ -58,9 +58,9 @@ export function MessagesPage() {
       ) : tab === 'auto' ? (
         <AutoMessagesTab
           highlightRuleId={highlightRule}
-          canCreate={can('messages', 'create')}
-          canEdit={can('messages', 'edit')}
-          canDelete={can('messages', 'delete')}
+          canCreate={can('messages.broadcast', 'create')}
+          canEdit={can('messages.broadcast', 'edit')}
+          canDelete={can('messages.broadcast', 'delete')}
         />
       ) : (
         <HistoryTab />

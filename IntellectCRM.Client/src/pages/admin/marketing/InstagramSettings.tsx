@@ -23,7 +23,7 @@ import {
  */
 export function InstagramSettings() {
   const { can } = usePerm()
-  const canEdit = can('marketing', 'edit')
+  const canEdit = can('marketing.settings', 'edit')
   const [params, setParams] = useSearchParams()
 
   const [status, setStatus] = useState<IgStatus | null>(null)

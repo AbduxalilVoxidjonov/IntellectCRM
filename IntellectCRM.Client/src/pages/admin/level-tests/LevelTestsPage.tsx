@@ -25,7 +25,7 @@ export function LevelTestsPage() {
   const navigate = useNavigate()
   const { can } = usePerm()
   // "Formalar" bo'limining ikkinchi turi — lid formalari `leads` ruxsatida.
-  const canForms = can('leads', 'view')
+  const canForms = can('leads.forms', 'view')
   const [tests, setTests] = useState<LevelTestListItem[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)

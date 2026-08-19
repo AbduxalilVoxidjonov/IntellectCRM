@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using IntellectCRM.Domain;
 using IntellectCRM.Application.Services;
@@ -19,6 +20,12 @@ namespace IntellectCRM.Server.Controllers;
 ///     = faqat shu amal.</item>
 ///   <item>Boshqa rollar (teacher/student/parent) — taqiqlanadi.</item>
 /// </list>
+/// <para><b>SAHIFA (page) kalitlari:</b> darvozaga bo'lim kaliti (<c>"students"</c>) ham, bitta
+/// sahifa kaliti (<c>"students.turnstile"</c>) ham qo'yilishi mumkin. Bo'lim ruxsati o'z
+/// sahifalarini avtomatik qamrab oladi (PASTGA meros) — ya'ni eski xodim ruxsatlari o'zgarmaydi.
+/// Aksincha emas: bitta sahifaga ruxsati bor xodim bo'limning boshqa endpointlariga YOZA olmaydi.
+/// Batafsil: <see cref="PermissionRules"/> va <c>.claude/rules/permissions.md</c>.</para>
+///
 /// Ruxsat claim'lari tokenga yozilmaydi — ular HAR so'rovda DB'dan (Program.cs OnTokenValidated)
 /// yuklanadi. Shuning uchun superadmin xodim ruxsatini o'zgartirsa, xodim qayta login qilmasdan
 /// darrov yangi ruxsat bilan ishlaydi.
@@ -27,12 +34,19 @@ namespace IntellectCRM.Server.Controllers;
 /// ichida ochiq/o'quvchi/admin marshrutlari aralash bo'lganda kerak bo'ladi
 /// (<c>CertificatesController</c>).</remarks>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public sealed class AdminPermAttribute(string perm) : Attribute, IAuthorizationFilter
+public sealed class AdminPermAttribute(params string[] perms) : Attribute, IAuthorizationFilter
 {
     /// <summary>Staff ruxsatlari shu turdagi claim sifatida principal'ga qo'shiladi.</summary>
     public const string ClaimType = "perm";
 
-    private readonly string _perm = perm;
+    /// <summary>
+    /// Qabul qilinadigan ruxsat kalitlari — bo'lim (<c>"students"</c>) yoki SAHIFA
+    /// (<c>"students.turnstile"</c>). Bir nechtasi berilsa — BIRORTASI yetadi (<c>permAny</c>).
+    ///
+    /// <para>Bir nechtasi kerak bo'ladigan joy: bitta endpoint ikki sahifadan ishlatiladi
+    /// (masalan o'quvchi izohlari — profil sahifasida ham, "Izohlarga javoblar" sahifasida ham).</para>
+    /// </summary>
+    private readonly string[] _perms = perms.Length > 0 ? perms : [""];
 
     /// <summary>
     /// <b>O'QISH ham shu bo'lim ruxsatini talab qiladimi.</b> Standart holat <c>false</c> — GET
@@ -52,6 +66,11 @@ public sealed class AdminPermAttribute(string perm) : Attribute, IAuthorizationF
 
     public void OnAuthorization(AuthorizationFilterContext context)
     {
+        // METOD darajasidagi atribut SINF darajasidagisini bekor qiladi ("eng yaqini yutadi").
+        // ASP.NET Core ikkala filtrni ham ishga tushiradi, ya'ni bu tekshiruvsiz metodga
+        // torroq/boshqa kalit qo'yib bo'lmasdi: sinfdagi keng kalit baribir talab qilinardi.
+        if (IsOverriddenAtMethod(context)) return;
+
         var user = context.HttpContext.User;
         if (user.Identity?.IsAuthenticated != true) { context.Result = new UnauthorizedResult(); return; }
 
@@ -67,14 +86,43 @@ public sealed class AdminPermAttribute(string perm) : Attribute, IAuthorizationF
         if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method))
         {
             if (!ReadRequiresPerm) return;
-            if (!HasSectionAccess(user, _perm)) context.Result = new ForbidResult();
+            if (!_perms.Any(p => HasSectionAccess(user, p))) context.Result = new ForbidResult();
             return;
         }
 
         // Yozish amali: yalang "section" (TO'LIQ) YOKI aniq "section:amal".
         // Qoidaning O'ZI `PermissionRules` da (Application) — u yerda testlanadi.
-        if (!PermissionRules.CanWrite(PermValues(user), _perm, method)) context.Result = new ForbidResult();
+        var claims = PermValues(user).ToList();
+        if (!_perms.Any(p => PermissionRules.CanWrite(claims, p, method))) context.Result = new ForbidResult();
     }
+
+    /// <summary>
+    /// Shu atribut SINF darajasida turibdi-yu, AMAL (metod) ustida ham <see cref="AdminPermAttribute"/>
+    /// bormi — bor bo'lsa sinfdagisi o'tkazib yuboriladi (metoddagisi yagona darvoza bo'ladi).
+    ///
+    /// <para>⚠️ Solishtiruv QIYMAT bo'yicha, nusxa (reference) bo'yicha EMAS: .NET
+    /// <c>GetCustomAttributes</c> ning HAR chaqiruvida atributning YANGI nusxasini yasaydi, ya'ni
+    /// <c>ReferenceEquals</c> hech qachon mos kelmasdi va metoddagi atribut ham o'zini "bekor
+    /// qilingan" deb hisoblab, darvoza BUTUNLAY ochilib ketardi.</para>
+    ///
+    /// <para>Mantiq: metodda o'z atributi bo'lsa va MENING kalitlarim o'sha metod atributiniki
+    /// bilan mos kelmasa-yu, SINF atributiniki bilan mos kelsa — demak men sinfdagi (kengroq)
+    /// atributman va o'tkazib yuborilishim kerak.</para>
+    /// </summary>
+    private bool IsOverriddenAtMethod(AuthorizationFilterContext context)
+    {
+        if (context.ActionDescriptor is not ControllerActionDescriptor d) return false;
+        var onMethod = d.MethodInfo.GetCustomAttributes(typeof(AdminPermAttribute), inherit: true)
+            .Cast<AdminPermAttribute>().ToList();
+        if (onMethod.Count == 0) return false;                 // metodda atribut yo'q — o'zim ishlayman
+        if (onMethod.Any(SameGate)) return false;              // men aynan o'sha metod atributiman
+        return d.ControllerTypeInfo.GetCustomAttributes(typeof(AdminPermAttribute), inherit: true)
+            .Cast<AdminPermAttribute>().Any(SameGate);         // men sinfdagiman — chetlab o'taman
+    }
+
+    /// <summary>Ikki atribut AYNAN bir xil darvozami (kalitlar + o'qish rejimi).</summary>
+    private bool SameGate(AdminPermAttribute other) =>
+        other.ReadRequiresPerm == ReadRequiresPerm && other._perms.SequenceEqual(_perms);
 
     /// <summary>
     /// Shu bo'limda ISHLAYDIMI — ya'ni bo'lim ruxsatining birortasi (yalang <c>section</c> yoki

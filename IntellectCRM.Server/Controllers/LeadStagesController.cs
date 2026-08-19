@@ -9,7 +9,7 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
-[AdminPerm("leads")]
+[AdminPerm("leads.list")]
 [Route("api/admin/lead-stages")]
 public class LeadStagesController(AppDbContext db) : ControllerBase
 {

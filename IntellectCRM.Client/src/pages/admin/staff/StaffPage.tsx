@@ -13,9 +13,15 @@ import {
   setStaffRole,
   type CreateStaffWithTemplatePayload,
 } from '@/api/services/staff'
-import { adminPermissions } from '@/config/constants'
+import { adminPermissions, permPagesOf } from '@/config/constants'
 import { useAuth } from '@/context/auth-context'
-import { toggleSectionAction, sectionActions, type PermAction } from '@/lib/permissions'
+import {
+  toggleSectionRow,
+  togglePageRow,
+  sectionActions,
+  sectionRowActions,
+  type PermAction,
+} from '@/lib/permissions'
 import { PermMatrix } from '@/components/staff/PermMatrix'
 import { apiErrorMessage, cn, randomPassword } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -171,10 +177,29 @@ export function StaffPage() {
       .catch((e) => alert(e?.response?.data?.message ?? "O'chirib bo'lmadi"))
   }
 
-  const toggleAction = (staffId: string, section: string, action: PermAction) =>
+  /** BO'LIM qatori — bo'limning barcha sahifalari uchun. */
+  const toggleSection = (staffId: string, section: string, action: PermAction) =>
     setDraft((d) => ({
       ...d,
-      [staffId]: toggleSectionAction(d[staffId] ?? new Set<string>(), section, action),
+      [staffId]: toggleSectionRow(
+        d[staffId] ?? new Set<string>(),
+        section,
+        action,
+        permPagesOf(section),
+      ),
+    }))
+
+  /** SAHIFA qatori — faqat shu sahifa (bo'lim tokeni kerak bo'lsa sahifalarga yoyiladi). */
+  const togglePage = (staffId: string, section: string, page: string, action: PermAction) =>
+    setDraft((d) => ({
+      ...d,
+      [staffId]: togglePageRow(
+        d[staffId] ?? new Set<string>(),
+        section,
+        page,
+        action,
+        permPagesOf(section),
+      ),
     }))
 
   const dirty = (s: Staff) => {
@@ -313,7 +338,11 @@ export function StaffPage() {
                       Har bo'lim uchun ruxsat: <b>Ko'rish</b> (ochadi), <b>Qo'shish</b>, <b>Tahrir</b>,
                       <b> O'chirish</b>. Ko'rishsiz bo'lim yashiriladi; yozish uchun ko'rish avtomatik yoqiladi.
                     </p>
-                    <PermMatrix perms={cur} onToggle={(section, action) => toggleAction(s.id, section, action)} />
+                    <PermMatrix
+                      perms={cur}
+                      onToggleSection={(section, action) => toggleSection(s.id, section, action)}
+                      onTogglePage={(section, page, action) => togglePage(s.id, section, page, action)}
+                    />
                     <div className="mt-3 flex justify-end">
                       <Button
                         onClick={() => savePerms(s)}
@@ -328,22 +357,34 @@ export function StaffPage() {
                     {s.permissions.length === 0 ? (
                       <span className="text-xs text-slate-400">Ruxsatlar belgilanmagan</span>
                     ) : (
-                      adminPermissions
-                        .filter((p) => sectionActions(new Set(s.permissions), p.key).size > 0)
-                        .map((p) => {
-                          const acts = sectionActions(new Set(s.permissions), p.key)
-                          const full = acts.size === 4
-                          return (
+                      // Bo'lim ochiq bo'lsa BITTA chip (sahifalari uning ichida), aks holda
+                      // ochiq sahifalar alohida chip bo'lib chiqadi — "nima berilgan" aniq ko'rinsin.
+                      adminPermissions.flatMap((p) => {
+                        const own = new Set(s.permissions)
+                        const secActs = sectionRowActions(own, p.key, permPagesOf(p.key))
+                        if (secActs.size > 0)
+                          return [
                             <Badge key={p.key} tone="violet">
                               {p.label}
-                              {!full && (
-                                <span className="ml-1 opacity-70">
-                                  ({[...acts].length} amal)
-                                </span>
+                              {secActs.size !== 4 && (
+                                <span className="ml-1 opacity-70">({secActs.size} amal)</span>
                               )}
-                            </Badge>
-                          )
-                        })
+                            </Badge>,
+                          ]
+                        return (p.pages ?? [])
+                          .filter((pg) => sectionActions(own, pg.key).size > 0)
+                          .map((pg) => {
+                            const acts = sectionActions(own, pg.key)
+                            return (
+                              <Badge key={pg.key} tone="violet">
+                                {p.label} → {pg.label}
+                                {acts.size !== 4 && (
+                                  <span className="ml-1 opacity-70">({acts.size} amal)</span>
+                                )}
+                              </Badge>
+                            )
+                          })
+                      })
                     )}
                   </div>
                 )}
@@ -455,8 +496,13 @@ export function StaffPage() {
                 </label>
                 <PermMatrix
                   perms={createPerms}
-                  onToggle={(section, action) =>
-                    setCreatePerms((s) => toggleSectionAction(s, section, action))
+                  onToggleSection={(section, action) =>
+                    setCreatePerms((s) => toggleSectionRow(s, section, action, permPagesOf(section)))
+                  }
+                  onTogglePage={(section, page, action) =>
+                    setCreatePerms((s) =>
+                      togglePageRow(s, section, page, action, permPagesOf(section)),
+                    )
                   }
                 />
               </div>

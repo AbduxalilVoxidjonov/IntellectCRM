@@ -57,7 +57,7 @@ qaytadi). Shu sabab menyu bandiga `permAny: ['leads','schedule']` qo'shildi — 
 BIRORTASI** bo'lsa band ko'rinadi, ichkarida esa har bir card va marshrut o'z ruxsati bilan
 darvozalangan. Yagona `perm` qo'yilsa faqat bitta ruxsati bor xodim bo'limni umuman ko'rmasdi.
 
-⚠️ `/admin/forms` marshrutida yalang `RequirePerm` EMAS, **`FormsEntry`** turadi: `leads` yo'q-u
+⚠️ `/admin/forms` marshrutida yalang `RequirePerm` EMAS, **`FormsEntry`** turadi: `leads.forms` yo'q-u
 `schedule` bor xodim darhol `/admin/level-tests` ga yo'naltiriladi. Aks holda u menyudan kelib
 "ruxsatingiz yo'q" kartasiga tushar va o'ziga OCHIQ bo'lgan daraja testlariga o'ta olmasdi —
 cardlar ham o'sha yopiq sahifaning ichida.
@@ -268,7 +268,7 @@ kartasi. Daraja testi statistikasida ham AYNAN shu ustunlar bor.
 ## 6.6. TEST STATISTIKASI — daraja testlari voronkasi (alohida card)
 
 `GET /api/admin/level-tests/overall-stats` → `LevelTestService.BuildOverallStatsAsync(IAppDbContext)`,
-sahifa `pages/admin/level-tests/LevelTestStatsPage.tsx` (`/admin/level-tests/stats`, ruxsat `schedule`).
+sahifa `pages/admin/level-tests/LevelTestStatsPage.tsx` (`/admin/level-tests/stats`, ruxsat `schedule.levelTests`).
 
 ⚠️ **NEGA ALOHIDA SAHIFA:** ilgari bu raqamlar faqat HAR BIR TESTNING ICHIDA edi (test →
 "Statistika" tabi), ya'ni "qaysi test ko'proq o'quvchi keltirdi" degan savolga javob olish uchun
@@ -334,7 +334,7 @@ turlar ro'yxatida — aks holda guruh qayta nomlansa yoki o'qituvchi almashsa sa
 daqiqagacha ESKI nom** turib qolardi (TTL tugagunicha).
 
 **RUXSAT — o'qish ham darvozalangan.** `LevelTestsController` sinf darajasida `[AdminPerm(
-"schedule")]`, lekin to'rtta endpoint METOD darajasida `[AdminPerm("schedule", ReadRequiresPerm =
+"schedule.levelTests")]`, lekin to'rtta endpoint METOD darajasida `[AdminPerm("schedule.levelTests", ReadRequiresPerm =
 true)]` oladi: **`overall-stats`, `{id}/stats`, `{id}/submissions`, `{id}/invites`**. Sabab:
 javobda abituriyentlarning TELEFONLARI, endi esa TO'LOV summalari ham bor, odatda
 `AdminPermAttribute` GET'ni har qanday xodimga ochadi (bo'limlararo o'qish uchun).
@@ -417,7 +417,7 @@ sanoqqa kirmaydi — §6 dagi `Funnel` bilan AYNAN bir xil qoida):
 | `GET /api/public/form/{slug}` | Ommaviy forma (+ `Views`) |
 | `POST /api/public/form/{slug}/submit` | Ariza (`public-lead` rate-limit) |
 
-Admin controller `[AdminPerm("leads", ReadRequiresPerm = true)]` — javobda abituriyentlarning
+Admin controller `[AdminPerm("leads.forms", ReadRequiresPerm = true)]` — javobda abituriyentlarning
 telefon raqamlari bor, shuning uchun GET ham darvozalangan (odatdagi bo'limlararo o'qish
 istisnosi bu yerda ochiq qolmaydi).
 

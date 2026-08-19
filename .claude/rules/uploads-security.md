@@ -104,13 +104,13 @@ javob berib bo'lmaydi. Buni yoqish — alohida ish.
 - ⚠️ `CertificatesController` da ilgari admin marshrutlarida **yalang `[Authorize]`** turardi —
   ya'ni istalgan o'quvchi/ota-ona begona o'quvchining sertifikat faylini yuklab olardi, sertifikat
   yaratardi va shablonlarni o'chira olardi. Endi har bir admin amalida
-  `[AdminPerm("students", ReadRequiresPerm = true)]`. Controllerda ochiq/o'quvchi/admin marshrutlari
+  `[AdminPerm("students.list", ReadRequiresPerm = true)]`. Controllerda ochiq/o'quvchi/admin marshrutlari
   aralash bo'lgani uchun atribut **metod darajasida** qo'yilgan.
 
 ### Yuz bilan kirish selfilari — `uploads/face/`
 - Fayl statik yo'ldan **berilmaydi** (`PrivateFolderFileProvider`), faqat
   `GET /api/admin/face/checks/{id}/image` va `GET /api/admin/face/profile/{studentId}/image`
-  (`[AdminPerm("students", ReadRequiresPerm = true)]`). DTO'lardagi `imageUrl`/`sampleUrl`
+  (`[AdminPerm("students.face", ReadRequiresPerm = true)]`). DTO'lardagi `imageUrl`/`sampleUrl`
   aynan shu API yo'lini qaytaradi — `/uploads/...` manzili **hech qachon** javobga tushmaydi.
 - ⚠️ `Uploads:PublicCertificates=true` favqulodda kaliti bu papkaga **TA'SIR QILMAYDI**: u faqat
   sertifikatlarni ochadi. Biometrik suratni "vaqtincha ochib qo'yish" varianti yo'q.
@@ -129,7 +129,7 @@ sabab ikkita vosita bor:
    - `AiCheckController` — o'quvchi ovoz yozuvi `AudioUrl`
 2. **Javobni tozalash** — bo'limlararo o'qish HAQIQATAN kerak bo'lgan joyda
    (`StudentsController`: moliya/qabul o'quvchilar ro'yxatini o'qishi kerak). U yerda
-   `RedactDocs` `students` ruxsati yo'q xodimga `BirthCertificateUrl` (surat) va
+   `RedactDocs` `students.list` ruxsati yo'q xodimga `BirthCertificateUrl` (surat) va
    `ParentPassportUrl` (passport skani) manzillarini **bermaydi**; ism/telefon/balans qoladi.
    UI'da surat o'rniga bosh harflar chiqadi — ish buzilmaydi.
    DIQQAT: tozalanadigan endpointlar `AsNoTracking` bo'lishi SHART — aks holda bo'shatilgan

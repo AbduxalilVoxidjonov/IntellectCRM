@@ -74,7 +74,7 @@ const TERMINAL: CallStatus[] = ['completed', 'no_answer', 'busy', 'failed']
 
 export function CallCenterPage() {
   const { can } = usePerm()
-  const canCall = can('calls', 'create')
+  const canCall = can('calls.cloud', 'create')
   const [tab, setTab] = useState<'dial' | 'history'>('dial')
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [provider, setProvider] = useState('')

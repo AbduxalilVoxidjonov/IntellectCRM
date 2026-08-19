@@ -16,7 +16,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("settings")]
+[AdminPerm("settings.reasons")]
 [Route("api/admin/lead-sources")]
 public class LeadSourcesController(AppDbContext db) : ControllerBase
 {

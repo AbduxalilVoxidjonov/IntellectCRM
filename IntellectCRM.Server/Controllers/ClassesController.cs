@@ -10,7 +10,7 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Authorize]
-[AdminPerm("classes")]
+[AdminPerm("classes.list")]
 [Route("api/admin/classes")]
 public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc, RoomConflictService roomConflict, AutoMessageService autoMsg, IConfiguration config) : ControllerBase
 {

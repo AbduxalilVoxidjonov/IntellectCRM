@@ -822,7 +822,7 @@ public class FaceSecurityTests
         Assert.Contains("/api/admin/face/checks/", src);
         // O'qish darvozasi joyida qolgan (javobda biometrik surat endpointlari bor).
         Assert.Matches(
-            new Regex(@"\[AdminPerm\(\s*""students""[^\]]*\bReadRequiresPerm\s*=\s*true\b[^\]]*\)\]"), src);
+            new Regex(@"\[AdminPerm\(\s*""students\.face""[^\]]*\bReadRequiresPerm\s*=\s*true\b[^\]]*\)\]"), src);
     }
 
     /// <summary>Selfi `uploads` ning O'ZIGA emas, `uploads/face/` ga yozilishi kerak.</summary>

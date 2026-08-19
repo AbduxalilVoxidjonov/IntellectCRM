@@ -364,7 +364,7 @@ export function ClassesPage() {
                 <BookOpenCheck className="h-4 w-4" /> Jurnal boshqaruvi
               </Button>
             )}
-            {!showArchived && can('classes', 'create') && (
+            {!showArchived && can('classes.list', 'create') && (
               <Button
                 onClick={() => {
                   setEditing(null)
@@ -491,7 +491,7 @@ export function ClassesPage() {
             items={archived}
             onUnarchive={handleUnarchive}
             onDelete={handleDelete}
-            canDelete={can('classes', 'delete')}
+            canDelete={can('classes.list', 'delete')}
           />
         </Card>
       ) : classes.length === 0 ? (
@@ -600,7 +600,7 @@ export function ClassesPage() {
                       <td onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-0.5">
                           <IconBtn icon={Users} title="A'zolar" onClick={() => setMembersOf(c)} />
-                          {can('classes', 'edit') && (
+                          {can('classes.list', 'edit') && (
                             <IconBtn
                               icon={Pencil}
                               title="Tahrirlash"
@@ -612,7 +612,7 @@ export function ClassesPage() {
                           )}
                           {/* Vaqtincha bloklash — guruh o'qituvchi ilovasida ko'rinmay qoladi
                               (arxivlash EMAS: o'quvchi/a'zolik/hisob tegilmaydi). */}
-                          {can('classes', 'edit') &&
+                          {can('classes.list', 'edit') &&
                             (c.isBlocked ? (
                               <IconBtn
                                 icon={Unlock}
@@ -629,10 +629,10 @@ export function ClassesPage() {
                                 }}
                               />
                             ))}
-                          {can('classes', 'delete') && (
+                          {can('classes.list', 'delete') && (
                             <IconBtn icon={Archive} title="Arxivlash" onClick={() => handleArchive(c)} />
                           )}
-                          {can('classes', 'delete') && (
+                          {can('classes.list', 'delete') && (
                             <IconBtn icon={Trash2} title="O'chirish" danger onClick={() => handleDelete(c)} />
                           )}
                         </div>
@@ -779,7 +779,7 @@ export function ClassesPage() {
                   >
                     <Users className="h-4 w-4" /> A'zolar
                   </Button>
-                  {can('classes', 'edit') && (
+                  {can('classes.list', 'edit') && (
                     <Button
                       variant="secondary"
                       className="flex-1"
@@ -791,7 +791,7 @@ export function ClassesPage() {
                       <Pencil className="h-4 w-4" /> Tahrirlash
                     </Button>
                   )}
-                  {can('classes', 'edit') &&
+                  {can('classes.list', 'edit') &&
                     (c.isBlocked ? (
                       <Button
                         variant="secondary"
@@ -814,7 +814,7 @@ export function ClassesPage() {
                         <Lock className="h-4 w-4" />
                       </Button>
                     ))}
-                  {can('classes', 'delete') && (
+                  {can('classes.list', 'delete') && (
                     <Button
                       variant="secondary"
                       title="Arxivlash (o'quvchilari bilan)"
@@ -824,7 +824,7 @@ export function ClassesPage() {
                       <Archive className="h-4 w-4" />
                     </Button>
                   )}
-                  {can('classes', 'delete') && (
+                  {can('classes.list', 'delete') && (
                     <Button
                       variant="secondary"
                       title="O'chirish"

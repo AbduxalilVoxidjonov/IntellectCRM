@@ -129,7 +129,7 @@ export function CommandPalette() {
 
     const teachers = ownerOf('/admin/teachers')
     if (teachers && seen.has('/admin/teachers'))
-      addTabs(teacherTabs(canSee({ perm: 'teacherReports' })), "O'qituvchilar", teachers.icon)
+      addTabs(teacherTabs((perm) => canSee({ perm })), "O'qituvchilar", teachers.icon)
 
     const rooms = ownerOf('/admin/rooms')
     if (rooms && seen.has('/admin/rooms')) addTabs(roomTabs, 'Xonalar', rooms.icon)
@@ -140,7 +140,7 @@ export function CommandPalette() {
     const forms = ownerOf('/admin/forms')
     if (forms && seen.has('/admin/forms'))
       addTabs(
-        formTabs(canSee({ perm: 'leads' }), canSee({ perm: 'schedule' })),
+        formTabs(canSee({ perm: 'leads.forms' }), canSee({ perm: 'schedule.levelTests' })),
         'Formalar',
         forms.icon,
       )

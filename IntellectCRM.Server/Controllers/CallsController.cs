@@ -17,7 +17,7 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("calls")]
+[AdminPerm("calls.cloud")]
 [Route("api/admin/calls")]
 public class CallsController(
     AppDbContext db, MoiZvonkiService moizvonki,

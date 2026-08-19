@@ -22,7 +22,10 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("finance")]
+// Bonus — MOLIYA bo'limining "Bonus hisoboti" sahifasi (menyuda o'quvchilar bilan tursa ham).
+// ⚠️ ATAYIN `students.*` EMAS: bu pul beradigan amal, o'quvchilar bo'limi ruxsati bilan
+// ochilib ketmasin. `finance` (butun bo'lim) merosi bilan bu yerga baribir yetadi.
+[AdminPerm("finance.bonus")]
 [Route("api/admin/retention-bonus")]
 public class RetentionBonusController(AppDbContext db, AuditService audit) : ControllerBase
 {

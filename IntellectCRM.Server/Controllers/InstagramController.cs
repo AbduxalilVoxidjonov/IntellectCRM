@@ -32,6 +32,9 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
+// ⚠️ SINF darajasi — O'QISH uchun (`ReadRequiresPerm`: javobda mijozlar bilan yozishmalar bor,
+// bo'limlararo o'qishga ochib bo'lmaydi). YOZISH esa SAHIFA kaliti bilan alohida: "Inbox"
+// berilgan xodim "Javob qoidalari"ni yoki ulanish sozlamalarini o'zgartira olmasin.
 [AdminPerm("marketing", ReadRequiresPerm = true)]
 [Route("api/admin/instagram")]
 public class InstagramController(
@@ -134,6 +137,7 @@ public class InstagramController(
     }
 
     [HttpPut("settings")]
+    [AdminPerm("marketing.settings")]
     public async Task<ActionResult<IgSettingsDto>> SaveSettings(IgSettingsDto payload, CancellationToken ct)
     {
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
@@ -214,6 +218,7 @@ public class InstagramController(
     /// faqat <c>IsActive=false</c> va token TOZALANADI (uzilgan akkauntning tokeni bazada
     /// qolib ketmasin).</summary>
     [HttpPost("disconnect")]
+    [AdminPerm("marketing.settings")]
     public async Task<IActionResult> Disconnect(CancellationToken ct)
     {
         var accounts = await db.IgAccounts.Where(a => a.IsActive).ToListAsync(ct);
@@ -237,6 +242,7 @@ public class InstagramController(
     /// <remarks>Javob — to'liq <see cref="IgStatusDto"/> (`GET /status` bilan bir xil):
     /// sahifa yangilangan "N kun qoldi" ni darhol ko'rsatadi.</remarks>
     [HttpPost("refresh-token")]
+    [AdminPerm("marketing.settings")]
     public async Task<IActionResult> RefreshToken(CancellationToken ct)
     {
         var acc = await db.IgAccounts.FirstOrDefaultAsync(a => a.IsActive, ct);
@@ -359,6 +365,7 @@ public class InstagramController(
     /// lentaga bo'sh qator tushib qolardi.
     /// </remarks>
     [HttpPost("conversations/{id}/reply")]
+    [AdminPerm("marketing.inbox")]
     public async Task<IActionResult> Reply(string id, IgReplyPayload payload, CancellationToken ct)
     {
         var text = (payload.Text ?? "").Trim();
@@ -425,16 +432,19 @@ public class InstagramController(
 
     /// <summary>Suhbatni operator O'ZIGA oladi — bot bu suhbatda umuman javob bermaydi.</summary>
     [HttpPost("conversations/{id}/takeover")]
+    [AdminPerm("marketing.inbox")]
     public Task<IActionResult> Takeover(string id, CancellationToken ct) =>
         SetStatusAsync(id, IgConst.StatusOperator, "operator o'z zimmasiga oldi (bot jim)", ct);
 
     /// <summary>Suhbatni botga qaytarish — pauza ham bekor qilinadi.</summary>
     [HttpPost("conversations/{id}/release")]
+    [AdminPerm("marketing.inbox")]
     public Task<IActionResult> Release(string id, CancellationToken ct) =>
         SetStatusAsync(id, IgConst.StatusBot, "botga qaytarildi", ct);
 
     /// <summary>Suhbatni yopish (hal bo'ldi).</summary>
     [HttpPost("conversations/{id}/close")]
+    [AdminPerm("marketing.inbox")]
     public Task<IActionResult> Close(string id, CancellationToken ct) =>
         SetStatusAsync(id, IgConst.StatusClosed, "yopildi", ct);
 
@@ -461,6 +471,7 @@ public class InstagramController(
     /// <summary>"O'qildi" belgisi. Audit YOZILMAYDI — bu ko'rish amali, ma'lumot o'zgarmaydi
     /// va har suhbat ochilganda tarixni ko'chki bilan to'ldirardi.</summary>
     [HttpPost("conversations/{id}/read")]
+    [AdminPerm("marketing.inbox")]
     public async Task<IActionResult> MarkRead(string id, CancellationToken ct)
     {
         var c = await db.IgConversations.FirstOrDefaultAsync(x => x.Id == id, ct);
@@ -483,6 +494,7 @@ public class InstagramController(
     /// Ism/telefon berilmasa ular suhbatning o'zidan olinadi.
     /// </remarks>
     [HttpPost("conversations/{id}/create-lead")]
+    [AdminPerm("marketing.inbox")]
     public async Task<IActionResult> CreateLead(string id, [FromBody] IgCreateLeadPayload? body, CancellationToken ct)
     {
         var payload = body ?? new IgCreateLeadPayload(null, null, null, null);
@@ -564,6 +576,7 @@ public class InstagramController(
             .ToListAsync(ct);
 
     [HttpPost("rules")]
+    [AdminPerm("marketing.rules")]
     public async Task<ActionResult<IgRuleDto>> CreateRule(IgRulePayload payload, CancellationToken ct)
     {
         var err = ValidateRule(payload);
@@ -588,6 +601,7 @@ public class InstagramController(
     }
 
     [HttpPut("rules/{id}")]
+    [AdminPerm("marketing.rules")]
     public async Task<ActionResult<IgRuleDto>> UpdateRule(string id, IgRulePayload payload, CancellationToken ct)
     {
         var err = ValidateRule(payload);
@@ -612,6 +626,7 @@ public class InstagramController(
     }
 
     [HttpDelete("rules/{id}")]
+    [AdminPerm("marketing.rules")]
     public async Task<IActionResult> DeleteRule(string id, CancellationToken ct)
     {
         var rule = await db.IgAutoRules.FirstOrDefaultAsync(r => r.Id == id, ct);
@@ -665,6 +680,7 @@ public class InstagramController(
     /// Ro'yxatda yo'q bo'laklar O'CHIRILADI (ekranda ko'rinib turgan holat = saqlangan holat).
     /// </summary>
     [HttpPut("knowledge")]
+    [AdminPerm("marketing.knowledge")]
     public async Task<ActionResult<List<IgKnowledgeDto>>> SaveKnowledge(IgKnowledgeBulkPayload payload, CancellationToken ct)
     {
         var items = payload.Items ?? new List<IgKnowledgeItemPayload>();
@@ -710,6 +726,7 @@ public class InstagramController(
     /// (bilim bazasi to'g'ri yozilganini, tilni va lid bahosini tekshirish uchun).
     /// </summary>
     [HttpPost("test-agent")]
+    [AdminPerm("marketing.knowledge")]
     public async Task<ActionResult<IgTestAgentDto>> TestAgent(IgTestAgentPayload payload, CancellationToken ct)
     {
         var message = (payload.Message ?? "").Trim();
@@ -763,6 +780,7 @@ public class InstagramController(
     /// shuning uchun oldindan ogohlantiramiz.</para>
     /// </summary>
     [HttpPost("simulate")]
+    [AdminPerm("marketing.knowledge")]
     public async Task<IActionResult> Simulate(IgSimulatePayload payload, CancellationToken ct)
     {
         var text = (payload.Text ?? "").Trim();

@@ -112,7 +112,7 @@ export function TeacherDetailPage() {
   const { can } = usePerm()
   const canSeeAudit = can('audit', 'view')
   // Rasm — o'quvchi sahifasidagi bilan AYNAN bir xil oqim: avatarni bosish → kamera/fayl.
-  const canEditPhoto = can('teachers', 'edit')
+  const canEditPhoto = can('teachers.list', 'edit')
   const [photoOpen, setPhotoOpen] = useState(false)
   const canSeeReviews = user?.role === 'admin' || user?.role === 'superadmin'
 

@@ -15,7 +15,7 @@ namespace IntellectCRM.Server.Controllers;
 // Guruhlarni boshqaradigan xodim xona qo'sha olmas edi (frontend/backend ruxsat kaliti mos kelmasdi).
 [ApiController]
 [Authorize]
-[AdminPerm("classes")]
+[AdminPerm("classes.rooms")]
 [Route("api/admin/rooms")]
 public class RoomsController(AppDbContext db, IntellectCRM.Application.Services.RoomUtilizationService utilization) : ControllerBase
 {

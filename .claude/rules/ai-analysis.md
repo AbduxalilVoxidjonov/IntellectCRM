@@ -42,12 +42,12 @@ paths:
      `AiAnalysisController` (`api/admin/ai-analysis/center`). KIRISH: superadmin yoki "ai" ruxsatli
      xodim (oddiy admin KO'RMAYDI). Bosh sahifadagi `CenterAiAnalysisCard`.
   2. **O'quvchi** — `StudentsController` (`{id}/ai-analysis`, `{id}/ai-analyses`), ma'lumot manbai
-     `StudentProfileBuilder`. Ruxsat: `AdminPerm("students")`. UI: `AiAnalysisModal`/`AiAnalysisView`.
+     `StudentProfileBuilder`. Ruxsat: `AdminPerm("students.list")`. UI: `AiAnalysisModal`/`AiAnalysisView`.
   3. **O'QITUVCHI** — `TeacherAiAnalysisService` + `TeacherSnapshotBuilder`, `TeachersController`
-     (`{id}/ai-snapshot`, `{id}/ai-analyses`, `{id}/ai-analysis`). Ruxsat: `AdminPerm("teachers")`.
+     (`{id}/ai-snapshot`, `{id}/ai-analyses`, `{id}/ai-analysis`). Ruxsat: `AdminPerm("teachers.list")`.
      UI: o'qituvchi profilidagi **"AI tahlil"** tabi (`TeacherAiPanel`).
   4. **GURUH** — `GroupAiAnalysisService` + `GroupSnapshotBuilder`, `ClassesController`
-     (`{id}/ai-snapshot`, `{id}/ai-analyses`, `{id}/ai-analysis`). Ruxsat: `AdminPerm("classes")`.
+     (`{id}/ai-snapshot`, `{id}/ai-analyses`, `{id}/ai-analysis`). Ruxsat: `AdminPerm("classes.list")`.
      UI: guruh sahifasidagi **"AI tahlil"** tabi (`GroupAiPanel`).
   5. **VORONKA** (lid formalari · daraja testlari) — `FunnelAiAnalysisService`, entity
      `FunnelAiAnalysis` (migratsiya `AddFunnelAiAnalysis`, indeks `(Kind, Date)`).
@@ -98,8 +98,8 @@ paths:
     qolgan tahlillar (o'quvchi/o'qituvchi/guruh) o'z BO'LIM ruxsatida — voronka tahlili ham shu
     ikkinchi qoidada (`leads` / `schedule`), chunki u ko'rsatadigan raqamlar o'sha sahifada
     allaqachon ochiq. O'qish darvozalangan: `LeadFormsController` sinf darajasida
-    `[AdminPerm("leads", ReadRequiresPerm = true)]`, `LevelTestsController` da esa GET **metod
-    darajasida** `[AdminPerm("schedule", ReadRequiresPerm = true)]` (saqlangan tahlil ichida
+    `[AdminPerm("leads.forms", ReadRequiresPerm = true)]`, `LevelTestsController` da esa GET **metod
+    darajasida** `[AdminPerm("schedule.levelTests", ReadRequiresPerm = true)]` (saqlangan tahlil ichida
     o'sha voronka raqamlari va tushum turadi).
     ⚠️ **YARATISH — bo'limning "create" amali** (server `PermissionRules.CanWrite`), UI'da ham
     tugma shu bilan darvozalangan: faqat KO'RISH ruxsati bor xodim tahlilni O'QIYDI, lekin
