@@ -754,21 +754,79 @@ public record LeadFunnelStageDto(
 public record LeadSourceSliceDto(string Source, string Label, int Count, int Pct);
 
 /// <summary>
-/// Menejer qatori: <c>Moves</c> — bosqich o'zgartirishlar soni, <c>Leads</c> — nechta HAR XIL lidga
-/// tegilgani, <c>Won</c> — shu menejer o'quvchiga aylantirgan lidlar soni.
+/// Menejer BOSQICH kesmasi — «kim qaysi bosqichgacha olib bordi» jadvalining bitta katagi:
+/// shu menejer NECHTA takrorsiz lidni AYNAN shu bosqichga olib kelgan.
+///
+/// <para>Lid kiritish (<c>created</c>) ham hisobga olinadi — lidni birinchi ustunga QO'YISH ham
+/// uni o'sha bosqichga olib kelish demak.</para>
+///
+/// <para>⚠️ Bir lidni ikki menejer surgan bo'lsa, HAR BIRI o'zi ko'chirgan bosqich uchun sanaladi —
+/// bu takror EMAS, savol "kim nima qildi". Pul (<c>Revenue</c>) esa faqat AYLANTIRGANga
+/// yoziladi, ya'ni tushum hech qachon ikki marta sanalmaydi.</para>
+/// </summary>
+public record LeadManagerStageDto(string StageId, int Reached);
+
+/// <summary>
+/// Menejer (sotuvchi) qatori — sotuv bo'limining KPI jadvali.
+///
+/// <list type="bullet">
+///   <item><c>Moves</c> — bosqich o'zgartirishlar soni (faollik);</item>
+///   <item><c>Leads</c> — nechta HAR XIL lid bilan ishlagani (kiritgan yoki ko'chirgan);</item>
+///   <item><c>Created</c> — shundan nechtasini O'ZI kiritgan;</item>
+///   <item><c>Won</c> — o'quvchiga aylantirgan lidlar soni;</item>
+///   <item><c>Paid</c> — shulardan nechtasi haqiqatan PUL to'lagan;</item>
+///   <item><c>Revenue</c> — shu lidlar keltirgan SOF tushum (to'lov − vozvrat);</item>
+///   <item><c>Stages</c> — bosqichlar kesimi (<see cref="LeadManagerStageDto"/>).</item>
+/// </list>
+///
+/// <para><b>NEGA <c>Paid</c> va <c>Revenue</c> aynan AYLANTIRGANga yoziladi:</b> lid bir marta
+/// aylantiriladi, ya'ni pul bitta menejerga tegishli bo'ladi va jamlaganda haqiqiy tushumdan
+/// oshib ketmaydi. "Kim yordam berdi" savoliga esa <c>Stages</c> javob beradi.</para>
 ///
 /// <para><b>HALOLLIK:</b> bu kesim <c>LeadEvent.ActorUserId</c> ga tayanadi — u eski yozuvlarda
 /// YO'Q, shuning uchun ro'yxat faqat tarix yozila boshlagandan keyingi ishni ko'rsatadi.</para>
 /// </summary>
-public record LeadManagerRowDto(string UserId, string Name, int Moves, int Leads, int Won);
+public record LeadManagerRowDto(
+    string UserId, string Name,
+    int Moves, int Leads, int Won,
+    int Created, int Paid, decimal Revenue,
+    List<LeadManagerStageDto> Stages);
 
-/// <summary>CRM voronka analitikasi. <c>From</c>/<c>To</c> — so'ralgan davr (bo'sh = cheklanmagan).</summary>
+/// <summary>
+/// Lid KANALI kesmasi — «lidlar qayerdan keladi va qaysi kanal haqiqatan SOTADI».
+/// <c>Key</c> — <see cref="IntellectCRM.Application.Services.LeadOrigins"/> kaliti.
+/// <para><c>ConversionRate</c> — o'quvchiga aylanganlar ulushi, <c>PayRate</c> — PUL to'laganlar
+/// ulushi (sotuvning haqiqiy o'lchovi: "o'quvchi bo'ldi" hali pul degani emas).</para>
+/// </summary>
+public record LeadOriginRowDto(
+    string Key, string Label,
+    int Leads, int Converted, int Paid, decimal Revenue,
+    int ConversionRate, int PayRate);
+
+/// <summary>
+/// «BUTUN CRM MANZARASI» — markazdagi BARCHA lidlar (qo'lda kiritilgani ham).
+///
+/// <para>"Formalar" bo'limidagi ikkala statistika ham (lid formalari va daraja testi) faqat O'Z
+/// kanalini sanaydi; bu blok esa ularni butun manzara ichiga qo'yadi. Hisob-kitob —
+/// <see cref="IntellectCRM.Application.Services.LeadCrmOverview"/> (ikkala sahifa uchun YAGONA).</para>
+/// </summary>
+public record CrmOverviewDto(
+    int Leads, int Converted, int Paid, decimal Revenue,
+    List<LeadOriginRowDto> Origins, List<LeadStageCountDto> ByStage);
+
+/// <summary>
+/// CRM voronka + SOTUV analitikasi. <c>From</c>/<c>To</c> — so'ralgan davr (bo'sh = cheklanmagan).
+/// <para><c>Paid</c>/<c>Revenue</c> — davrdagi lidlardan haqiqatan pul to'laganlar soni va sof
+/// tushumi; <c>PayRate</c> — sotuv konversiyasi (to'lagan / jami lid).</para>
+/// </summary>
 public record LeadAnalyticsDto(
     string From, string To,
     int Total, int Converted, int ConversionRate,
+    int Paid, decimal Revenue, int PayRate,
     List<LeadFunnelStageDto> Funnel,
     List<LeadSourceSliceDto> Sources,
-    List<LeadManagerRowDto> Managers);
+    List<LeadManagerRowDto> Managers,
+    List<LeadOriginRowDto> Origins);
 
 /* ---------- Lead stages ---------- */
 public record StagePayload(string Title, string Color);
@@ -2146,12 +2204,24 @@ public record LeadFormSourceDto(
 /// </summary>
 public record LeadStageCountDto(string Stage, string Color, int Leads);
 
-/// <summary>Formalar UMUMIY statistikasi (barcha formalar bo'yicha).</summary>
+/// <summary>
+/// Formalar UMUMIY statistikasi (barcha formalar bo'yicha) + <b>BUTUN CRM manzarasi</b>.
+///
+/// <para>⚠️ Ikki xil "jami" bor va ular ATAYIN ajratilgan:</para>
+/// <list type="bullet">
+///   <item><c>Submissions</c>/<c>Converted</c>/<c>Paid</c>/<c>Revenue</c> — FAQAT formalardan
+///   kelganlar (sahifaning asosiy mavzusi);</item>
+///   <item><c>Overview</c> — CRM'dagi BARCHA lidlar (qo'lda kiritilgan, daraja testi, Instagram
+///   ham). Busiz sahifadagi sonlar "markazning hamma lidi" deb o'qilib, noto'g'ri xulosaga olib
+///   kelardi. Daraja testi statistikasida ham AYNAN shu blok bor.</item>
+/// </list>
+/// </summary>
 public record LeadFormStatsDto(
     int Forms, int ActiveForms, int Views, int Submissions, int NewLeads, int Converted, int ActiveStudents,
     int Paid, decimal Revenue,
     List<LeadFormStatRowDto> ByForm, List<LeadFormSourceDto> BySource,
-    List<LeadFormRefDto> ByRef, List<LeadStageCountDto> ByStage, List<DayCountDto> Daily);
+    List<LeadFormRefDto> ByRef, List<LeadStageCountDto> ByStage, List<DayCountDto> Daily,
+    CrmOverviewDto Overview);
 
 // ---- Ommaviy (anonim) ----
 
@@ -2517,7 +2587,9 @@ public record LevelTestOverallStatsDto(
     /// <summary>JAMI topshiruvchilar soni. <c>Rows</c> ko'pi bilan
     /// <c>LevelTestService.MaxRows</c> ta (eng yangilari) — sahifa cheklovni ochiq yozadi.</summary>
     int RowsTotal,
-    List<LevelTestOverallRowDto> Rows);
+    List<LevelTestOverallRowDto> Rows,
+    /// <summary>BUTUN CRM manzarasi — lid formalari statistikasidagi bilan AYNAN bir xil blok.</summary>
+    CrmOverviewDto? Overview = null);
 public record LevelCountDto(string Level, int Count);
 /// <summary>Bitta test bo'yicha voronka qatori (lid formalaridagi <see cref="LeadFormStatRowDto"/> ning
 /// daraja testi uchun ko'rinishi: "ochildi" o'rniga HAVOLA yuborilgani/ishlangani).</summary>

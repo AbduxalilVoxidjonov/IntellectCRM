@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { AlertTriangle, Users, UserCheck, Percent } from 'lucide-react'
+import { AlertTriangle, Users, UserCheck, Percent, Wallet, HandCoins } from 'lucide-react'
 import { getCrmStats, getLeadAnalytics } from '@/api/services/leads'
 import { useAsync } from '@/hooks/useAsync'
 import { Card } from '@/components/ui/Card'
@@ -22,11 +22,13 @@ import { Input } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
-import { apiErrorMessage, cn } from '@/lib/utils'
+import { apiErrorMessage, cn, formatMoney } from '@/lib/utils'
 import { monthShortNames } from '@/config/constants'
 import { ConversionFunnel } from './stats/ConversionFunnel'
 import { SourcesDonut } from './stats/SourcesDonut'
 import { ManagerPerformance } from './stats/ManagerPerformance'
+import { ManagerStageMatrix } from './stats/ManagerStageMatrix'
+import { OriginTable } from '@/components/leads/OriginTable'
 import { axisTick, barCursor, CATEGORICAL, gridStroke, stageRamp, tooltipStyle } from './stats/palette'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -177,6 +179,28 @@ export function CrmStatsPage() {
             iconColor="text-emerald-600"
             hint={kpiHint}
           />
+          {/* SOTUV: "o'quvchi bo'ldi" hali PUL degani emas — sotuv bo'limining haqiqiy o'lchovi
+              aynan shu ikkitasi. Ular faqat davr analitikasi yuklanganda to'ladi. */}
+          <StatCard
+            label="To'lov qildi"
+            value={(analytics?.paid ?? 0).toLocaleString()}
+            icon={HandCoins}
+            iconBg="bg-teal-50"
+            iconColor="text-teal-600"
+            hint={analytics ? `${analytics.payRate}% sotuv konversiyasi` : kpiHint}
+          />
+          <StatCard
+            label="Tushum"
+            value={analytics && analytics.revenue > 0 ? formatMoney(analytics.revenue) : '—'}
+            icon={Wallet}
+            iconBg="bg-teal-50"
+            iconColor="text-teal-600"
+            hint={
+              analytics && analytics.paid > 0
+                ? `O'rtacha chek ${formatMoney(analytics.revenue / analytics.paid)} so'm`
+                : "Aylantirilganlardan hali to'lov yo'q"
+            }
+          />
         </div>
       </div>
 
@@ -205,6 +229,15 @@ export function CrmStatsPage() {
               <SourcesDonut sources={analytics.sources} />
             </div>
             <ManagerPerformance managers={analytics.managers} />
+            {/* «Kim qaysi bosqichgacha olib bordi» — menejerlar jadvalidan KEYIN: avval
+                natija (nechta aylantirdi), keyin "qayerda tiqilib qolyapti" tafsiloti. */}
+            <ManagerStageMatrix managers={analytics.managers} funnel={analytics.funnel} />
+            <Card
+              title="Lidlar qayerdan keladi"
+              sub="Kanal kesimi — qaysi yo'l ko'p lid beradi va qaysi biri haqiqatan SOTADI"
+            >
+              <OriginTable origins={analytics.origins} />
+            </Card>
           </div>
         )
       )}

@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/Badge'
 import { CardTabs } from '@/components/ui/CardTabs'
 import { formTabs } from '@/config/sectionTabs'
 import { StageBars } from '@/components/leads/StageBars'
+import { CrmOverviewCard } from '@/components/leads/CrmOverviewCard'
 import { DailyFlowChart } from '@/components/charts/DailyFlowChart'
 import { FunnelAiPanel } from '@/components/ai/FunnelAiPanel'
 import { usePerm } from '@/lib/permissions'
@@ -53,7 +54,7 @@ export function FormStatsPage() {
 
       <PageHeader
         title="Formalar statistikasi"
-        sub="Ochildi → ariza → lid → o'quvchi → TO'LADI. Foizlar TAKRORSIZ lidlar bo'yicha hisoblanadi"
+        sub="Ochildi → ariza → lid → o'quvchi → TO'LADI. Foizlar TAKRORSIZ lidlar bo'yicha; «Butun CRM manzarasi» esa markazning HAMMA lidini ko'rsatadi"
       />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -96,6 +97,14 @@ export function FormStatsPage() {
           iconColor="text-teal-600"
           hint={stats.revenue > 0 ? `${formatMoney(stats.revenue)} so'm tushum` : "Hali to'lov yo'q"}
         />
+      </div>
+
+      {/* BUTUN CRM MANZARASI — yuqoridagi raqamlar faqat FORMALARDAN kelganlarni sanaydi.
+          Markazda qo'lda kiritilgan va boshqa kanallardan kelgan lidlar ham bor, shuning uchun
+          bu blok darrov KPI'dan keyin turadi: sahifadagi sonlar noto'g'ri o'qilmasin.
+          AYNAN shu blok daraja testi statistikasida ham bor. */}
+      <div className="mb-4">
+        <CrmOverviewCard overview={stats.overview} highlight="form" />
       </div>
 
       {/* AI xulosasi — KPI'dan keyin, grafiklardan OLDIN: pastdagi jadvallarni o'qishdan avval
@@ -185,8 +194,8 @@ export function FormStatsPage() {
 
         {/* BOSQICHLAR — "voronka qayerda tiqilib qolgan": lidlar hozir qaysi ustunda turibdi */}
         <Card
-          title="Lidlar qaysi bosqichda"
-          sub="Formalardan kelgan lidlarning HOZIRGI kanban ustuni — sotuv qayerda to'xtab qolganini ko'rsatadi"
+          title="Formadan kelgan lidlar qaysi bosqichda"
+          sub="FAQAT formalardan kelganlarning HOZIRGI kanban ustuni — sotuv qayerda to'xtab qolgani (barcha lidlar yuqoridagi blokda)"
         >
           <StageBars items={stats.byStage} emptyText="Bosqichga tushgan lid yo'q." />
         </Card>

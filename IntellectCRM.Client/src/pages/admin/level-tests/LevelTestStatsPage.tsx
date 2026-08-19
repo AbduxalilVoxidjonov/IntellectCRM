@@ -11,6 +11,7 @@ import { CardTabs } from '@/components/ui/CardTabs'
 import { formTabs } from '@/config/sectionTabs'
 import { LeadStageChip } from '@/components/leads/LeadStageChip'
 import { StageBars } from '@/components/leads/StageBars'
+import { CrmOverviewCard } from '@/components/leads/CrmOverviewCard'
 import { DailyFlowChart } from '@/components/charts/DailyFlowChart'
 import { FunnelAiPanel } from '@/components/ai/FunnelAiPanel'
 import { usePerm } from '@/lib/permissions'
@@ -56,7 +57,7 @@ export function LevelTestStatsPage() {
 
       <PageHeader
         title="Test statistikasi"
-        sub="Topshirdi → lid → o'quvchi → TO'LADI. Foizlar TAKRORSIZ lidlar bo'yicha hisoblanadi"
+        sub="Topshirdi → lid → o'quvchi → TO'LADI. Foizlar TAKRORSIZ lidlar bo'yicha; «Butun CRM manzarasi» esa markazning HAMMA lidini ko'rsatadi"
       />
 
       {loading ? (
@@ -120,6 +121,15 @@ export function LevelTestStatsPage() {
               hint={stats.revenue > 0 ? `${formatMoney(stats.revenue)} so'm tushum` : "Hali to'lov yo'q"}
             />
           </div>
+
+          {/* BUTUN CRM MANZARASI — yuqoridagi raqamlar faqat DARAJA TESTIDAN kelganlarni
+              sanaydi. Lid formalari statistikasidagi bilan AYNAN bir xil blok (server tomonda
+              ham hisob bitta: `LeadCrmOverview`). */}
+          {stats.overview && (
+            <div className="mb-4">
+              <CrmOverviewCard overview={stats.overview} highlight="test" />
+            </div>
+          )}
 
           {/* AI xulosasi — KPI'dan keyin, grafiklardan OLDIN: pastdagi jadvallarni o'qishdan avval
               nima muhimligini aytadi ("boshqaruvchi xulosasi"). */}
@@ -211,8 +221,8 @@ export function LevelTestStatsPage() {
 
             {/* BOSQICHLAR — "voronka qayerda tiqilib qolgan" (lid statistikasi bilan bir xil) */}
             <Card
-              title="Lidlar qaysi bosqichda"
-              sub="Test topshirganlarning HOZIRGI kanban ustuni — sotuv qayerda to'xtab qolganini ko'rsatadi"
+              title="Test topshirganlar qaysi bosqichda"
+              sub="FAQAT test topshirganlarning HOZIRGI kanban ustuni — sotuv qayerda to'xtab qolgani (barcha lidlar yuqoridagi blokda)"
             >
               <StageBars items={stats.byStage} emptyText="Bosqichga tushgan lid yo'q." />
             </Card>

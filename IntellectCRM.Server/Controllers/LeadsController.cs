@@ -413,11 +413,44 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
     public async Task<ActionResult<LeadAnalyticsDto>> Analytics(
         [FromQuery] string? from = null, [FromQuery] string? to = null)
     {
-        var leads = (await db.Leads.AsNoTracking()
-                .Select(l => new { l.Id, l.Stage, l.Source, l.ConvertedStudentId, l.CreatedAt })
-                .ToListAsync())
+        var raw = await db.Leads.AsNoTracking()
+            .Select(l => new { l.Id, l.Stage, l.Source, l.ConvertedStudentId, l.CreatedAt })
+            .ToListAsync();
+
+        // Davr filtri SHU YERDA ham qo'llanadi (`Build` ichida yana takrorlanadi, natija bir xil):
+        // pul va kanal ma'lumoti faqat DAVRDAGI lidlar uchun yuklansin — aks holda hisobot
+        // sahifasi butun bazani (barcha to'lovlar, barcha arizalar) ko'tarardi.
+        var inRange = raw.Where(l => LeadAnalytics.InRange(l.CreatedAt ?? "", from, to)).ToList();
+        var ids = inRange.Select(l => l.Id).ToList();
+
+        // SOTUV: lid → o'quvchi → to'lov (vozvrat ayirilgan). Daraja testi va lid formalari
+        // statistikasidagi bilan AYNAN bir xil zanjir — "to'ladi" so'zi bo'limlarda bir xil
+        // ma'no anglatsin (`LeadOutcome`).
+        var outcome = await LeadOutcome.BuildAsync(db, ids);
+
+        // KANAL (qayerdan keldi). Qoida `LeadOrigins` da — "Formalar statistikasi" ham shundan
+        // foydalanadi, ya'ni ikkala sahifadagi "qo'lda kiritilgan" bir xil hisoblanadi.
+        var idSet = ids.ToHashSet(StringComparer.Ordinal);
+        var manualIds = (await db.LeadEvents.AsNoTracking()
+                .Where(e => e.Type == LeadAnalytics.TypeCreated && e.ActorUserId != null && e.ActorUserId != "")
+                .Select(e => e.LeadId).Distinct().ToListAsync())
+            .Where(idSet.Contains).ToHashSet(StringComparer.Ordinal);
+        var formIds = (await db.LeadFormSubmissions.AsNoTracking()
+                .Where(x => x.LeadId != "").Select(x => x.LeadId).Distinct().ToListAsync())
+            .Where(idSet.Contains).ToHashSet(StringComparer.Ordinal);
+        var testIds = (await db.LevelTestSubmissions.AsNoTracking()
+                .Where(x => x.LeadId != "").Select(x => x.LeadId).Distinct().ToListAsync())
+            .Where(idSet.Contains).ToHashSet(StringComparer.Ordinal);
+        var igIds = (await db.IgConversations.AsNoTracking()
+                .Where(x => x.LeadId != null).Select(x => x.LeadId!).Distinct().ToListAsync())
+            .Where(idSet.Contains).ToHashSet(StringComparer.Ordinal);
+
+        var leads = inRange
             .Select(l => new LeadAnalytics.LeadRow(
-                l.Id, l.Stage ?? "", l.Source ?? "", l.ConvertedStudentId != null, l.CreatedAt ?? ""))
+                l.Id, l.Stage ?? "", l.Source ?? "", l.ConvertedStudentId != null, l.CreatedAt ?? "",
+                Paid: outcome.HasPaid(l.Id),
+                Revenue: outcome.PaidTotal(l.Id),
+                Origin: LeadOrigins.Classify(l.Id, manualIds, formIds, testIds, igIds)))
             .ToList();
 
         // Faqat bosqich/konversiyaga oid hodisalar kerak (izoh/qo'ng'iroq/sinov — voronkaga aloqasiz).

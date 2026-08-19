@@ -464,7 +464,13 @@ public static class LeadFormService
         var subs = await db.LeadFormSubmissions.AsNoTracking()
             .Select(s => new SubRow(s.FormId, s.LeadId, s.IsNewLead, s.Ref, s.CreatedAt))
             .ToListAsync();
+
         var outcome = await LeadOutcome.BuildAsync(db, subs.Select(s => s.LeadId));
+
+        // BUTUN CRM manzarasi ham shu sahifada kerak: bu yerdagi raqamlar faqat FORMALARDAN
+        // kelganlarni sanaydi, markazda esa qo'lda kiritilgan, daraja testidan va Instagramdan
+        // kelgan lidlar ham bor. Ularsiz sahifa "markazning hamma lidi" deb o'qilardi.
+        var overview = await LeadCrmOverview.BuildAsync(db);
 
         // Bir guruh (forma / manba) uchun voronka sanoqlari — takrorsiz lidlar bo'yicha.
         //
@@ -543,6 +549,8 @@ public static class LeadFormService
         return new LeadFormStatsDto(
             forms.Count, forms.Count(f => f.IsActive), forms.Sum(f => f.Views),
             total.Subs, total.NewLeads, total.Converted, total.Active, total.Paid, total.Revenue,
-            byForm, bySource, byRef, byStage, daily);
+            byForm, bySource, byRef, byStage, daily,
+            // BUTUN CRM manzarasi — daraja testi statistikasi ham AYNAN shu funksiyadan oladi.
+            Overview: overview);
     }
 }

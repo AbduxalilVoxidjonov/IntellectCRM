@@ -219,7 +219,10 @@ public static class LevelTestService
             inviteCount, inviteUsed,
             subs.Count > 0 ? Math.Round(subs.Average(s => (double)s.Percent), 1) : 0,
             total.Leads, total.Converted, total.Active, total.Paid, total.Revenue,
-            byLevel, byTest, byStage, daily, rows.Count, rowDtos);
+            byLevel, byTest, byStage, daily, rows.Count, rowDtos,
+            // BUTUN CRM manzarasi — lid formalari statistikasi ham AYNAN shu funksiyadan oladi,
+            // ya'ni ikkala sahifada "qo'lda kiritilgan" va "to'ladi" bir xil hisoblanadi.
+            Overview: await LeadCrmOverview.BuildAsync(db));
     }
 
     /// <summary>Ball foiziga mos daraja yorlig'i — foiz ≥ MinPercent bo'lgan ENG YUQORI diapazon.</summary>

@@ -90,3 +90,26 @@ export function formatDwell(avgHours: number | null): string | null {
   if (avgHours < 48) return `${avgHours.toFixed(1)} soat`
   return `${(avgHours / 24).toFixed(1)} kun`
 }
+
+/* ---------- SEKVENSIAL (magnituda) — matritsa kataklari uchun ---------- */
+
+/**
+ * «Kim qaysi bosqichgacha olib bordi» matritsasidagi katak foni: BITTA tus (kategorial
+ * palitraning 1-sloti, indigo) ning ochiqdan quyuqqa pog'onasi. Magnituda — rang bilan,
+ * chunki bu ikki o'lchovli jadval (menejer × bosqich) va uzunlik uchun joy yo'q.
+ *
+ * ⚠️ Shaffoflik 0.55 dan OSHMAYDI. Sabab hisoblab chiqilgan: eng quyuq katak oq fonda
+ * `#a9abf7` bo'ladi va uning ustidagi matn (`#1e293b`, slate-800) kontrasti **6.9:1** —
+ * ya'ni AA dan yuqori. Undan quyuqroq qilinsa matn oqartirilishi kerak bo'lardi va bir
+ * jadvalda ikki xil matn rangi paydo bo'lardi.
+ *
+ * ⚠️ 0 — mutlaqo rangsiz (fon qoladi): "hech narsa yo'q" ni eng och tus bilan ko'rsatish
+ * uni "ozgina bor" dan ajratib bo'lmaydigan qilib qo'yardi.
+ */
+export function matrixTint(value: number, max: number): string | undefined {
+  if (value <= 0 || max <= 0) return undefined
+  // Kvadrat ildiz — kichik qiymatlar ham ko'rinadigan bo'lsin (chiziqli shkalada bitta
+  // yirik katak qolganlarini butunlay oqartirib yuborardi).
+  const alpha = 0.08 + 0.47 * Math.sqrt(Math.min(1, value / max))
+  return `rgba(99, 102, 241, ${alpha.toFixed(3)})`
+}

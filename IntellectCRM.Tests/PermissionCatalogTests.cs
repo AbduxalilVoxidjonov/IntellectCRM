@@ -121,6 +121,45 @@ public class PermissionCatalogTests
             "navigation.ts dagi ruxsat kalitlari katalogda yo'q: " + string.Join(", ", yoq));
     }
 
+    /// <summary>
+    /// HAR BIR sahifa kaliti KAMIDA BITTA joyda ISHLATILGAN bo'lishi shart: menyu bandida,
+    /// marshrut darvozasida yoki serverdagi <c>[AdminPerm]</c> da.
+    ///
+    /// <para><b>Nega:</b> aks holda matritsada "o'lik katakcha" paydo bo'ladi — superadmin
+    /// sahifani belgilaydi, lekin xodimda hech narsa ochilmaydi. Buni faqat xodim shikoyat
+    /// qilgandan keyin bilib bo'lardi.</para>
+    /// </summary>
+    [Fact]
+    public void HAR_BIR_sahifa_kaliti_KODDA_ishlatilgan()
+    {
+        var nav = ClientFile("config", "navigation.ts");
+        var app = ClientFile("App.tsx");
+        var constants = ClientFile("config", "constants.ts");
+        var server = string.Join("\n", Directory
+            .GetFiles(Path.Combine(RepoRoot, "IntellectCRM.Server", "Controllers"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText));
+
+        // Katalogning O'ZIDAGI ta'rif qatorlari hisobga olinmasin — shuning uchun `constants.ts`
+        // dan faqat KATALOGDAN TASHQARI qismi olinadi (`settingsPagePerm` kabi yordamchilar).
+        var afterCatalog = constants[constants.IndexOf("export function permPagesOf", StringComparison.Ordinal)..];
+
+        var pageKeys = Catalog().Where(k => k.Contains('.')).ToList();
+        Assert.NotEmpty(pageKeys);
+
+        var ishlatilmagan = pageKeys
+            .Where(k => !nav.Contains($"'{k}'") && !app.Contains($"\"{k}\"")
+                        && !server.Contains($"\"{k}\"") && !afterCatalog.Contains($"'{k}'")
+                        // `/admin/settings/:section` darvozasi kalitni URL segmentidan QURADI
+                        // (`settingsPagePerm`), ya'ni App.tsx da yalang matn bo'lib turmaydi.
+                        && !(k.StartsWith("settings.", StringComparison.Ordinal)
+                             && nav.Contains($"'{k}'")))
+            .ToList();
+
+        Assert.True(ishlatilmagan.Count == 0,
+            "Bu sahifa kalitlari hech qayerda ishlatilmagan — matritsada belgilansa ham hech narsa " +
+            "ochilmaydi (o'lik katakcha):\n  " + string.Join("\n  ", ishlatilmagan));
+    }
+
     [Fact]
     public void SAHIFA_kaliti_OZ_bolimi_ichida_boladi()
     {

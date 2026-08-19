@@ -448,3 +448,264 @@ public class LeadAnalyticsTests
         Assert.Equal(1, LeadAnalytics.Build(leads, [], Stages, [], "2026-05-01").Total); // filtr bor — sanasi yo'q lid tushmaydi
     }
 }
+
+/// <summary>
+/// SOTUV BO'LIMI KPI — menejerning pul ko'rsatkichlari, «kim qaysi bosqichgacha olib bordi»
+/// matritsasi va lid KANALLARI (<see cref="LeadOrigins"/>).
+///
+/// <para>Bu yerdagi eng nozik talab: <b>tushum hech qachon ikki marta sanalmasin</b>. Bir lidni
+/// bir necha menejer surgan bo'lishi mumkin, lekin pul faqat AYLANTIRGANga yoziladi — aks holda
+/// menejerlar jadvalidagi summa markazning haqiqiy tushumidan oshib ketardi.</para>
+/// </summary>
+public class LeadSalesAnalyticsTests
+{
+    private static readonly List<LeadAnalytics.StageRow> Stages =
+    [
+        new("s1", "Yangi", "slate", 0),
+        new("s2", "Aloqada", "blue", 1),
+        new("s3", "Shartnoma", "emerald", 2),
+    ];
+
+    private static LeadAnalytics.LeadRow Lead(
+        string id, string stage, bool converted = false, bool paid = false, decimal revenue = 0,
+        string origin = "", string createdAt = "2026-05-10T09:00:00")
+        => new(id, stage, "", converted, createdAt, paid, revenue, origin);
+
+    private static LeadAnalytics.EventRow Moved(
+        string leadId, string from, string to, string at, string? userId, string actor = "Menejer")
+        => new(leadId, LeadAnalytics.TypeStage, from, to, userId, actor, at);
+
+    private static LeadAnalytics.EventRow Created(string leadId, string to, string at, string? userId)
+        => new(leadId, LeadAnalytics.TypeCreated, "", to, userId, "Menejer", at);
+
+    private static LeadAnalytics.EventRow Converted(string leadId, string at, string? userId)
+        => new(leadId, LeadAnalytics.TypeConvert, "", "", userId, "Menejer", at);
+
+    // ===================== Menejer: PUL =====================
+
+    [Fact]
+    public void Menejerning_puli_faqat_OZI_AYLANTIRGAN_lidlardan_yigiladi()
+    {
+        var leads = new[]
+        {
+            Lead("a", "s3", converted: true, paid: true, revenue: 500_000),
+            Lead("b", "s3", converted: true, paid: false),          // aylantirilgan, lekin PUL YO'Q
+        };
+        var events = new[]
+        {
+            Moved("a", "s1", "s2", "2026-05-11T10:00:00", "u1"),
+            Converted("a", "2026-05-12T10:00:00", "u1"),
+            Moved("b", "s1", "s2", "2026-05-11T11:00:00", "u1"),
+            Converted("b", "2026-05-12T11:00:00", "u1"),
+        };
+
+        var row = LeadAnalytics.BuildManagers(events, null, leads, Stages).Single(r => r.UserId == "u1");
+
+        Assert.Equal(2, row.Won);
+        Assert.Equal(1, row.Paid);                 // faqat haqiqatan pul to'lagani
+        Assert.Equal(500_000m, row.Revenue);
+    }
+
+    [Fact]
+    public void Bir_lidning_tushumi_IKKI_menejerga_qoshilmaydi()
+    {
+        // Lidni "u1" surgan, "u2" aylantirgan. Pul FAQAT aylantirganda bo'lishi shart —
+        // aks holda jadvaldagi summa markaz tushumidan oshib ketardi.
+        var leads = new[] { Lead("a", "s3", converted: true, paid: true, revenue: 900_000) };
+        var events = new[]
+        {
+            Moved("a", "s1", "s2", "2026-05-11T10:00:00", "u1"),
+            Converted("a", "2026-05-12T10:00:00", "u2"),
+        };
+
+        var rows = LeadAnalytics.BuildManagers(events, null, leads, Stages);
+
+        Assert.Equal(0m, rows.Single(r => r.UserId == "u1").Revenue);
+        Assert.Equal(900_000m, rows.Single(r => r.UserId == "u2").Revenue);
+        Assert.Equal(900_000m, rows.Sum(r => r.Revenue));   // jami — AYNAN bir marta
+    }
+
+    [Fact]
+    public void Davrdan_TASHQARIDAGI_lidning_puli_hisobga_kirmaydi()
+    {
+        // `leads` — davr bo'yicha allaqachon filtrlangan ro'yxat; unda yo'q lid PULSIZ qoladi.
+        var events = new[] { Converted("eski", "2026-05-12T10:00:00", "u1") };
+
+        var row = LeadAnalytics.BuildManagers(events, null, leads: [], stages: Stages).Single();
+
+        Assert.Equal(1, row.Won);      // hodisa bor — menejer jadvalda ko'rinadi
+        Assert.Equal(0, row.Paid);
+        Assert.Equal(0m, row.Revenue);
+    }
+
+    // ===================== Menejer: BOSQICH MATRITSASI =====================
+
+    [Fact]
+    public void Bosqich_matritsasi_menejer_OLIB_KELGAN_takrorsiz_lidlarni_sanaydi()
+    {
+        var events = new[]
+        {
+            Created("a", "s1", "2026-05-10T09:00:00", "u1"),   // kiritish ham "olib kelish"
+            Moved("a", "s1", "s2", "2026-05-11T10:00:00", "u1"),
+            Moved("a", "s2", "s1", "2026-05-11T12:00:00", "u1"),  // orqaga
+            Moved("a", "s1", "s2", "2026-05-11T13:00:00", "u1"),  // yana s2 — TAKROR sanalmaydi
+            Moved("b", "s1", "s2", "2026-05-11T14:00:00", "u1"),
+        };
+
+        var row = LeadAnalytics.BuildManagers(events, null, leads: [], stages: Stages).Single();
+        var byStage = row.Stages.ToDictionary(x => x.StageId, x => x.Reached);
+
+        Assert.Equal(1, byStage["s1"]);   // faqat "a" (kiritilgan + orqaga qaytarilgan) — bir marta
+        Assert.Equal(2, byStage["s2"]);   // "a" va "b"
+        Assert.Equal(0, byStage["s3"]);   // bu bosqichga hech kim olib bormagan
+    }
+
+    [Fact]
+    public void Bosqich_matritsasi_USTUNLARI_har_doim_TOLIQ_va_TARTIBLI()
+    {
+        // Bo'sh bosqich ham qator ichida turadi (0 bilan) — aks holda jadval ustunlari
+        // menejerdan menejerga siljib ketardi.
+        var events = new[] { Moved("a", "s1", "s2", "2026-05-11T10:00:00", "u1") };
+
+        var row = LeadAnalytics.BuildManagers(events, null, leads: [], stages: Stages).Single();
+
+        Assert.Equal(["s1", "s2", "s3"], row.Stages.Select(x => x.StageId));
+    }
+
+    [Fact]
+    public void Bosqichlar_berilmasa_matritsa_BOSH_qaytadi_qolgani_ishlayveradi()
+    {
+        var events = new[] { Moved("a", "s1", "s2", "2026-05-11T10:00:00", "u1") };
+
+        var row = LeadAnalytics.BuildManagers(events).Single();
+
+        Assert.Empty(row.Stages);
+        Assert.Equal(1, row.Moves);
+    }
+
+    [Fact]
+    public void Lidni_faqat_KIRITGAN_menejer_ham_jadvalda_korinadi()
+    {
+        // Bosqich ko'chirmagan, aylantirmagan — lekin lidni O'ZI kiritgan.
+        var events = new[] { Created("a", "s1", "2026-05-10T09:00:00", "u1") };
+
+        var row = LeadAnalytics.BuildManagers(events, null, leads: [], stages: Stages).Single();
+
+        Assert.Equal(1, row.Created);
+        Assert.Equal(1, row.Leads);
+        Assert.Equal(0, row.Moves);      // `Moves` ta'rifi o'zgarmadi — faqat ko'chirishlar
+    }
+
+    // ===================== KANALLAR =====================
+
+    [Fact]
+    public void Kanallar_kesimi_konversiya_va_TOLOV_ulushini_beradi()
+    {
+        var leads = new[]
+        {
+            Lead("a", "s3", converted: true, paid: true, revenue: 400_000, origin: LeadOrigins.Form),
+            Lead("b", "s2", converted: true, paid: false, origin: LeadOrigins.Form),
+            Lead("c", "s1", origin: LeadOrigins.Form),
+            Lead("d", "s3", converted: true, paid: true, revenue: 600_000, origin: LeadOrigins.Manual),
+        };
+
+        var rows = LeadAnalytics.BuildOrigins(leads);
+
+        var form = rows.Single(r => r.Key == LeadOrigins.Form);
+        Assert.Equal(3, form.Leads);
+        Assert.Equal(2, form.Converted);
+        Assert.Equal(67, form.ConversionRate);
+        Assert.Equal(1, form.Paid);
+        Assert.Equal(33, form.PayRate);           // SOTUV konversiyasi — konversiyadan past
+        Assert.Equal(400_000m, form.Revenue);
+
+        var manual = rows.Single(r => r.Key == LeadOrigins.Manual);
+        Assert.Equal(100, manual.PayRate);
+    }
+
+    [Fact]
+    public void Kanali_BOSH_lid_boshqa_kanalga_tushadi_va_YOQOLMAYDI()
+    {
+        var rows = LeadAnalytics.BuildOrigins([Lead("a", "s1"), Lead("b", "s1", origin: "  ")]);
+
+        // Bo'sh kalit — "other"; "  " esa noma'lum kalit sifatida oxirida o'z qatorini oladi.
+        Assert.Equal(2, rows.Sum(r => r.Leads));
+        Assert.Contains(rows, r => r.Key == LeadOrigins.Other);
+    }
+
+    [Fact]
+    public void Kanallar_TARTIBI_katalogdagidek_va_BOSH_kanallar_chiqmaydi()
+    {
+        var leads = new[]
+        {
+            Lead("a", "s1", origin: LeadOrigins.Manual),
+            Lead("b", "s1", origin: LeadOrigins.Test),
+            Lead("c", "s1", origin: LeadOrigins.Form),
+        };
+
+        var keys = LeadAnalytics.BuildOrigins(leads).Select(r => r.Key).ToList();
+
+        Assert.Equal([LeadOrigins.Form, LeadOrigins.Test, LeadOrigins.Manual], keys);
+        Assert.DoesNotContain(LeadOrigins.Instagram, keys);   // 0 li qator jadvalni suyultirardi
+    }
+
+    [Fact]
+    public void Build_sotuv_jamlanmasini_va_kanallarni_qaytaradi()
+    {
+        var leads = new[]
+        {
+            Lead("a", "s3", converted: true, paid: true, revenue: 300_000, origin: LeadOrigins.Form),
+            Lead("b", "s1", origin: LeadOrigins.Manual),
+        };
+
+        var dto = LeadAnalytics.Build(leads, [], Stages, []);
+
+        Assert.Equal(2, dto.Total);
+        Assert.Equal(1, dto.Paid);
+        Assert.Equal(50, dto.PayRate);
+        Assert.Equal(300_000m, dto.Revenue);
+        Assert.Equal(2, dto.Origins.Count);
+    }
+}
+
+/// <summary>Lid KANALI tasnifi (<see cref="LeadOrigins"/>) — birinchi teginish qoidasi.</summary>
+public class LeadOriginsTests
+{
+    private static readonly HashSet<string> Manual = ["m1"];
+    private static readonly HashSet<string> Form = ["m1", "f1"];      // m1 KEYIN forma to'ldirgan
+    private static readonly HashSet<string> Test = ["t1"];
+    private static readonly HashSet<string> Ig = ["i1"];
+
+    [Fact]
+    public void QOLDA_kiritilgan_eng_ustun_takroriy_forma_kanalni_OZGARTIRMAYDI()
+    {
+        // "m1" ni xodim kiritgan, keyin o'sha odam forma ham to'ldirgan (takroriy murojaat).
+        // Kanal — BIRINCHI teginish, ya'ni baribir "qo'lda".
+        Assert.Equal(LeadOrigins.Manual, LeadOrigins.Classify("m1", Manual, Form, Test, Ig));
+    }
+
+    [Fact]
+    public void Avtomatik_kanallar_tartib_boyicha_aniqlanadi()
+    {
+        Assert.Equal(LeadOrigins.Form, LeadOrigins.Classify("f1", Manual, Form, Test, Ig));
+        Assert.Equal(LeadOrigins.Test, LeadOrigins.Classify("t1", Manual, Form, Test, Ig));
+        Assert.Equal(LeadOrigins.Instagram, LeadOrigins.Classify("i1", Manual, Form, Test, Ig));
+    }
+
+    [Fact]
+    public void Topilmagan_va_BOSH_id_boshqa_kanalga_tushadi()
+    {
+        Assert.Equal(LeadOrigins.Other, LeadOrigins.Classify("yoq", Manual, Form, Test, Ig));
+        Assert.Equal(LeadOrigins.Other, LeadOrigins.Classify(""));
+        Assert.Equal(LeadOrigins.Other, LeadOrigins.Classify("x"));
+    }
+
+    [Fact]
+    public void Har_bir_kanalning_YORLIGI_bor()
+    {
+        foreach (var k in LeadOrigins.Order)
+            Assert.False(string.IsNullOrWhiteSpace(LeadOrigins.LabelOf(k)));
+        // Noma'lum kalit yo'qolmaydi — o'zi qaytadi.
+        Assert.Equal("yangi-kanal", LeadOrigins.LabelOf("yangi-kanal"));
+    }
+}

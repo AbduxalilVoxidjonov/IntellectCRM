@@ -7,6 +7,7 @@ import type {
   DayCount,
   LeadStageCount,
 } from '@/types'
+import type { CrmOverview } from './leads'
 
 /** Daraja testlari ro'yxati. */
 export async function getLevelTests(): Promise<LevelTestListItem[]> {
@@ -168,6 +169,8 @@ export interface LevelTestOverallStats {
   /** JAMI topshiruvchilar soni — `rows` esa ko'pi bilan eng yangi 500 tasi (server chegarasi). */
   rowsTotal: number
   rows: LevelTestOverallRow[]
+  /** BUTUN CRM manzarasi — lid formalari statistikasidagi bilan AYNAN bir xil blok. */
+  overview?: CrmOverview
 }
 export async function getLevelTestOverallStats(): Promise<LevelTestOverallStats> {
   const { data } = await api.get<LevelTestOverallStats>('/admin/level-tests/overall-stats')

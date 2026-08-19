@@ -33,8 +33,12 @@ public static class LeadAnalytics
 
     /// <summary>Hisob uchun kerak bo'lgan lid maydonlari.</summary>
     /// <param name="CreatedAt">Yaratilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss") — davr filtri shu bo'yicha.</param>
+    /// <param name="Paid">Lid haqiqatan PUL to'laganmi (<c>LeadOutcome.HasPaid</c>) — sotuvning o'lchovi.</param>
+    /// <param name="Revenue">Lid keltirgan SOF tushum (to'lov − vozvrat).</param>
+    /// <param name="Origin">Kanal kaliti (<see cref="LeadOrigins"/>); bo'sh = <c>other</c>.</param>
     public readonly record struct LeadRow(
-        string Id, string Stage, string Source, bool Converted, string CreatedAt);
+        string Id, string Stage, string Source, bool Converted, string CreatedAt,
+        bool Paid = false, decimal Revenue = 0m, string Origin = "");
 
     /// <summary>Hisob uchun kerak bo'lgan hodisa maydonlari (<c>LeadEvent</c>).</summary>
     public readonly record struct EventRow(
@@ -92,8 +96,10 @@ public static class LeadAnalytics
         // Davrdan tashqaridagi lidlarning hodisalari hisobga kirmasin.
         var events = (allEvents ?? []).Where(e => leadIds.Contains(e.LeadId)).ToList();
 
+        var stageList = (stages ?? []).ToList();
         var total = leads.Count;
         var converted = leads.Count(l => l.Converted);
+        var paid = leads.Count(l => l.Paid);
 
         return new LeadAnalyticsDto(
             From: from ?? "",
@@ -101,9 +107,13 @@ public static class LeadAnalytics
             Total: total,
             Converted: converted,
             ConversionRate: Percent(converted, total),
-            Funnel: BuildFunnel(leads, events, stages ?? []),
+            Paid: paid,
+            Revenue: leads.Sum(l => l.Revenue),
+            PayRate: Percent(paid, total),
+            Funnel: BuildFunnel(leads, events, stageList),
             Sources: BuildSources(leads, sources ?? []),
-            Managers: BuildManagers(events, userNames));
+            Managers: BuildManagers(events, userNames, leads, stageList),
+            Origins: BuildOrigins(leads));
     }
 
     /* =========================================================================================
@@ -264,47 +274,148 @@ public static class LeadAnalytics
      * ====================================================================================== */
 
     /// <summary>
-    /// Menejerlar kesimi — <c>stage</c> VA <c>convert</c> hodisalari <c>ActorUserId</c> bo'yicha.
+    /// Menejerlar (sotuvchilar) kesimi — <c>created</c>, <c>stage</c> va <c>convert</c> hodisalari
+    /// <c>ActorUserId</c> bo'yicha.
     ///
-    /// <para><b>Nega ikkala tur ham?</b> Faqat <c>stage</c> bo'yicha guruhlansa, lidni o'quvchiga
-    /// AYLANTIRGAN, lekin bosqichni o'zi ko'chirmagan menejer jadvalga umuman tushmasdi va uning
-    /// <c>Won</c> i jimgina yo'qolardi — holbuki konversiya eng muhim ko'rsatkich. <c>Moves</c>
-    /// baribir faqat bosqich ko'chirishlarini sanaydi (ta'rifi shu), ya'ni bunday menejerda 0 bo'ladi.</para>
+    /// <para><b>Nega uchala tur ham?</b> Faqat <c>stage</c> bo'yicha guruhlansa, lidni o'quvchiga
+    /// AYLANTIRGAN yoki lidni O'ZI KIRITGAN, lekin bosqichni ko'chirmagan menejer jadvalga umuman
+    /// tushmasdi va uning ishi jimgina yo'qolardi. <c>Moves</c> baribir faqat bosqich
+    /// ko'chirishlarini sanaydi (ta'rifi shu), ya'ni bunday menejerda 0 bo'ladi.</para>
+    ///
+    /// <para><b>PUL bir marta sanaladi.</b> <c>Won</c>/<c>Paid</c>/<c>Revenue</c> faqat lidni
+    /// AYLANTIRGAN menejerga yoziladi — aks holda bir lidning tushumi bir necha menejerga
+    /// qo'shilib, jami haqiqiy tushumdan oshib ketardi. "Kim yordam berdi" savoliga
+    /// <c>Stages</c> (bosqich matritsasi) javob beradi.</para>
     ///
     /// <para><c>ActorUserId</c> BO'SH yozuvlar butunlay TASHLAB YUBORILADI (ular "Noma'lum" qatoriga
     /// ham yig'ilmaydi): bu maydon eski hodisalarda yo'q, tizim yozgan hodisalarda esa (sayt formasi,
     /// daraja testi) menejer umuman yo'q — ularni bitta uyumga qo'shish yolg'on qator yasardi.</para>
     ///
-    /// <para>Tartib: avval <c>Won</c> (natija), keyin <c>Moves</c> (faollik) — "samaradorlik"
-    /// jadvalida yutuq faollikdan ustun turadi.</para>
+    /// <para>Tartib: avval <c>Revenue</c> (pul), keyin <c>Won</c>, so'ng <c>Moves</c> — sotuv
+    /// jadvalida natija faollikdan ustun turadi.</para>
     /// </summary>
+    /// <param name="leads">Davrdagi lidlar — pul (<c>Paid</c>/<c>Revenue</c>) shulardan olinadi.
+    /// Berilmasa pul ustunlari 0 bo'ladi (kesimning o'zi baribir ishlaydi).</param>
+    /// <param name="stages">Bosqich matritsasining USTUNLARI (<c>Order</c> bo'yicha). Berilmasa
+    /// <c>Stages</c> bo'sh qaytadi.</param>
     public static List<LeadManagerRowDto> BuildManagers(
-        IEnumerable<EventRow> events, IReadOnlyDictionary<string, string>? userNames = null)
+        IEnumerable<EventRow> events,
+        IReadOnlyDictionary<string, string>? userNames = null,
+        IEnumerable<LeadRow>? leads = null,
+        IEnumerable<StageRow>? stages = null)
     {
         var list = events as IReadOnlyList<EventRow> ?? events.ToList();
+        var leadById = (leads ?? []).GroupBy(l => l.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        var stageOrder = (stages ?? []).OrderBy(x => x.Order)
+            .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase).ToList();
 
         // "Won" — shu menejer o'quvchiga aylantirgan lidlar (bir lid faqat bir marta sanaladi).
-        var wonByUser = list
+        var wonLeadsByUser = list
             .Where(e => e.Type == TypeConvert && !string.IsNullOrWhiteSpace(e.ActorUserId))
             .GroupBy(e => e.ActorUserId!, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.Select(e => e.LeadId).Distinct(StringComparer.Ordinal).Count(),
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(e => e.LeadId).Distinct(StringComparer.Ordinal).ToList(),
                 StringComparer.Ordinal);
 
         return list
-            .Where(e => (e.Type == TypeStage || e.Type == TypeConvert)
+            .Where(e => (e.Type == TypeStage || e.Type == TypeConvert || e.Type == TypeCreated)
                         && !string.IsNullOrWhiteSpace(e.ActorUserId))
             .GroupBy(e => e.ActorUserId!, StringComparer.Ordinal)
-            .Select(g => new LeadManagerRowDto(
-                UserId: g.Key,
-                Name: ResolveName(g.Key, g, userNames),
-                // Faqat bosqich ko'chirishlari — `convert` bu yerda sanalmaydi.
-                Moves: g.Count(e => e.Type == TypeStage),
-                Leads: g.Select(e => e.LeadId).Distinct(StringComparer.Ordinal).Count(),
-                Won: wonByUser.GetValueOrDefault(g.Key, 0)))
-            .OrderByDescending(m => m.Won)
+            .Select(g =>
+            {
+                var won = wonLeadsByUser.GetValueOrDefault(g.Key, []);
+                // Pul faqat DAVRDAGI (leadById dagi) lidlardan olinadi — davrdan tashqaridagi
+                // lidning tushumi shu davr hisobotiga qo'shilib ketmasin.
+                // ⚠️ `default(LeadRow)` da `Id == null` (record struct) — shuning uchun
+                // `Length > 0` EMAS, `IsNullOrEmpty`: aks holda davrdan tashqaridagi lid
+                // NullReferenceException berardi.
+                var money = won.Select(id => leadById.TryGetValue(id, out var l) ? l : default)
+                    .Where(l => !string.IsNullOrEmpty(l.Id)).ToList();
+
+                return new LeadManagerRowDto(
+                    UserId: g.Key,
+                    Name: ResolveName(g.Key, g, userNames),
+                    // Faqat bosqich ko'chirishlari — `created`/`convert` bu yerda sanalmaydi.
+                    Moves: g.Count(e => e.Type == TypeStage),
+                    Leads: g.Select(e => e.LeadId).Distinct(StringComparer.Ordinal).Count(),
+                    Won: won.Count,
+                    Created: g.Where(e => e.Type == TypeCreated)
+                        .Select(e => e.LeadId).Distinct(StringComparer.Ordinal).Count(),
+                    Paid: money.Count(l => l.Paid),
+                    Revenue: money.Sum(l => l.Revenue),
+                    Stages: StageCounts(g, stageOrder));
+            })
+            .OrderByDescending(m => m.Revenue)
+            .ThenByDescending(m => m.Won)
             .ThenByDescending(m => m.Moves)
             .ThenBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    /// <summary>
+    /// «Kim qaysi bosqichgacha olib bordi» — bitta menejerning hodisalaridan bosqich kesimi:
+    /// har bosqich uchun u AYNAN shu bosqichga ko'chirgan (yoki shu bosqichga kiritgan) TAKRORSIZ
+    /// lidlar soni.
+    ///
+    /// <para>⚠️ Bu VORONKA EMAS: pastga qarab kamayib borishi SHART emas — menejer lidni
+    /// o'rtadagi bosqichga boshqa xodimdan olib, keyingisiga surgan bo'lishi mumkin. Voronka
+    /// (<see cref="BuildFunnel"/>) lidning yo'lini, bu jadval esa XODIMNING ishini ko'rsatadi.</para>
+    /// </summary>
+    private static List<LeadManagerStageDto> StageCounts(
+        IEnumerable<EventRow> userEvents, IReadOnlyList<StageRow> stages)
+    {
+        if (stages.Count == 0) return [];
+        var byStage = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var e in userEvents)
+        {
+            if (e.Type != TypeStage && e.Type != TypeCreated) continue;
+            if (string.IsNullOrEmpty(e.ToStage)) continue;
+            if (!byStage.TryGetValue(e.ToStage, out var set))
+                byStage[e.ToStage] = set = new HashSet<string>(StringComparer.Ordinal);
+            set.Add(e.LeadId);
+        }
+        return stages
+            .Select(s => new LeadManagerStageDto(s.Id, byStage.TryGetValue(s.Id, out var v) ? v.Count : 0))
+            .ToList();
+    }
+
+    /* =========================================================================================
+     *  KANALLAR (lid qayerdan keldi)
+     * ====================================================================================== */
+
+    /// <summary>
+    /// Kanal kesimi — <see cref="LeadOrigins.Order"/> tartibida, BO'SH kanallar tushirib
+    /// qoldiriladi (nol qatorlar jadvalni suyultirardi).
+    ///
+    /// <para>Savol: "qaysi kanal ko'p lid beradi" emas, "qaysi kanal haqiqatan SOTADI" — shuning
+    /// uchun har qatorda konversiya bilan birga TO'LOV ulushi ham bor.</para>
+    /// </summary>
+    public static List<LeadOriginRowDto> BuildOrigins(IEnumerable<LeadRow> leads)
+    {
+        var list = leads as IReadOnlyList<LeadRow> ?? leads.ToList();
+        var byKey = list
+            .GroupBy(l => string.IsNullOrEmpty(l.Origin) ? LeadOrigins.Other : l.Origin, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+
+        // Katalogda yo'q (kelajakdagi yangi) kalit ham yo'qolmasin — oxiriga qo'shiladi.
+        var keys = LeadOrigins.Order.Where(byKey.ContainsKey)
+            .Concat(byKey.Keys.Where(k => !LeadOrigins.Order.Contains(k)).OrderBy(k => k, StringComparer.Ordinal))
+            .ToList();
+
+        return keys.Select(k =>
+        {
+            var rows = byKey[k];
+            var conv = rows.Count(l => l.Converted);
+            var paid = rows.Count(l => l.Paid);
+            return new LeadOriginRowDto(
+                Key: k, Label: LeadOrigins.LabelOf(k),
+                Leads: rows.Count, Converted: conv, Paid: paid,
+                Revenue: rows.Sum(l => l.Revenue),
+                ConversionRate: Percent(conv, rows.Count),
+                PayRate: Percent(paid, rows.Count));
+        }).ToList();
     }
 
     /// <summary>Menejer ismi: avval joriy ro'yxatdan (ism o'zgargan bo'lishi mumkin), aks holda

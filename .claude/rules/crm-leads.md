@@ -45,3 +45,71 @@ paths:
   `District`/`School` ma'lumotnomasi) — formada tuman→maktab select'lari, Lidlar sahifasida shu bo'yicha
   filtr + lidlar ichida qidiruv (ism/telefon/ota-ona/manba/maktab; telefon raqamlar bo'yicha).
   Konversiyada (`/convert`) tuman/maktab `Student`ga ko'chadi.
+
+## SOTUV BO'LIMI ANALITIKASI (2026-08-19)
+
+Savol: **«kim qaysi bosqichgacha nechta lidni olib bordi va qanday sotmoqda»**. Hisob-kitob
+`LeadAnalytics` da (sof funksiyalar, `LeadSalesAnalyticsTests`), endpoint
+`GET /api/admin/leads/analytics?from&to`, UI — `CrmStatsPage`.
+
+### 1. Menejer qatori (`LeadManagerRowDto`)
+
+| Maydon | Ma'nosi |
+|---|---|
+| `Moves` | bosqich ko'chirishlar soni (faollik) |
+| `Leads` | nechta HAR XIL lid bilan ishlagani (kiritgan yoki ko'chirgan) |
+| `Created` | shundan nechtasini O'ZI kiritgan |
+| `Won` | o'quvchiga aylantirgan |
+| `Paid` / `Revenue` | shulardan nechtasi PUL to'lagan va qancha (sof: to'lov − vozvrat) |
+| `Stages[]` | bosqich matritsasi — shu bosqichga olib kelgan takrorsiz lidlar |
+
+⚠️ **PUL BIR MARTA SANALADI:** `Won`/`Paid`/`Revenue` faqat lidni **AYLANTIRGAN** menejerga
+yoziladi. Aks holda bir lidning tushumi bir necha menejerga qo'shilib, jadvaldagi summa
+markazning haqiqiy tushumidan oshib ketardi. «Kim yordam berdi» savoliga bosqich matritsasi
+javob beradi.
+
+⚠️ **BOSQICH MATRITSASI — VORONKA EMAS:** qatordagi sonlar o'ngga qarab kamayib borishi SHART
+emas (menejer lidni o'rtadagi bosqichdan olib, keyingisiga surgan bo'lishi mumkin) va ustun
+yig'indisi voronkadagi son bilan mos kelmasligi mumkin (bir lidni ikki xodim surgan bo'lsa,
+har biri o'zi ko'chirgani uchun sanaladi). Shu sabab jadvalda "jami" qatori ATAYIN yo'q.
+
+⚠️ Matritsaga `created` hodisasi ham kiradi — lidni birinchi ustunga QO'YISH ham uni o'sha
+bosqichga olib kelish demak. `Moves` ga esa kirmaydi (uning ta'rifi — faqat ko'chirishlar).
+
+⚠️ Butun kesim `LeadEvent.ActorUserId` ga tayanadi — u 2026-08 gacha yozilmagan, ya'ni jadval
+faqat shundan keyingi ishni ko'rsatadi. `ActorUserId` bo'sh yozuvlar "Noma'lum" qatoriga
+YIG'ILMAYDI (tizim yozgan hodisalarda menejer umuman yo'q).
+
+### 2. Lid KANALI — `LeadOrigins`
+
+`form` · `test` · `instagram` · `manual` · `other`. Tasnif **BIRINCHI TEGINISH** bo'yicha:
+xodim lidni o'zi kiritgan bo'lsa (`created` hodisasida `ActorUserId` bor) — u keyin forma
+to'ldirgani (takroriy murojaat) kanalni O'ZGARTIRMAYDI.
+
+⚠️ Eski (2026-08 gacha) qo'lda kiritilgan lidlarda `ActorUserId` yo'q — ular `other` ga tushadi,
+shuning uchun yorlig'i ochiq: «Boshqa (sayt, eski yozuvlar)».
+
+Kesimning o'zi — `LeadAnalytics.BuildOrigins`, UI — `components/leads/OriginTable.tsx`
+(CRM statistikasi ham, "Formalar"/"Daraja testi" sahifalari ham AYNAN shuni chizadi).
+
+### 3. «Butun CRM manzarasi» — `LeadCrmOverview`
+
+"Formalar" bo'limidagi ikkala statistika ham (lid formalari va daraja testi) FAQAT o'z kanalini
+sanaydi. Markazda esa qo'lda kiritilgan lidlar ham bor — shu kontekstsiz sahifadagi "jami" raqami
+«markazning hamma lidi» deb o'qilib, noto'g'ri xulosaga olib kelardi.
+
+Shuning uchun ikkala sahifada ham bir xil blok bor: **jami lid → aylandi → to'ladi**, kanallar
+kesimi va **barcha lidlar qaysi bosqichda**. Server tomonda hisob BITTA (`LeadCrmOverview`),
+UI'da ham BITTA komponent (`components/leads/CrmOverviewCard.tsx`) — ya'ni "qo'lda kiritilgan"
+yoki "to'ladi" so'zi ikki sahifada ikki xil hisoblanib qolmaydi. Blok DAVRGA BOG'LIQ EMAS
+(joriy holat) va bu sarlavha ostida yozib qo'yilgan.
+
+Sahifadagi bosqich jadvallari shu sababdan qayta nomlandi: «Formadan kelgan lidlar qaysi
+bosqichda» / «Test topshirganlar qaysi bosqichda» — ular BUTUN CRM emas, faqat o'z kanalini
+ko'rsatadi.
+
+### 4. "To'ladi" — yagona ta'rif
+
+Uchala sahifada ham `LeadOutcome` zanjiri: lid → o'quvchi → `FinanceTransaction` (kirim/tuition
+MINUS chiqim/refund). Ya'ni **"o'quvchi bo'ldi" hali pul degani emas** — sotuv konversiyasi
+(`payRate`) aynan pul to'laganlar ulushi. Kitob sotuvi bunga kirmaydi (`.claude/rules/books.md`).

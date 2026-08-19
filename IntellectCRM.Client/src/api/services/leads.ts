@@ -173,14 +173,63 @@ export interface LeadSourceSlice {
   pct: number
 }
 
-/** Menejer kesimidagi ko'rsatkichlar. */
+/** «Kim qaysi bosqichgacha olib bordi» matritsasining bitta katagi. */
+export interface LeadManagerStage {
+  stageId: string
+  /** Shu menejer AYNAN shu bosqichga olib kelgan takrorsiz lidlar soni. */
+  reached: number
+}
+
+/** Menejer (sotuvchi) kesimidagi ko'rsatkichlar — sotuv bo'limi KPI jadvali. */
 export interface LeadManagerRow {
   userId: string
   name: string
   /** Bosqichlar bo'ylab qilingan harakatlar soni. */
   moves: number
+  /** Nechta HAR XIL lid bilan ishlagani (kiritgan yoki ko'chirgan). */
   leads: number
+  /** O'quvchiga aylantirgan lidlar. */
   won: number
+  /** Shundan nechtasini O'ZI kiritgan. */
+  created: number
+  /** Aylantirganlaridan nechtasi haqiqatan PUL to'lagan. */
+  paid: number
+  /** Shu lidlar keltirgan SOF tushum. ⚠️ Faqat AYLANTIRGANga yoziladi — ikki marta sanalmaydi. */
+  revenue: number
+  /** Bosqichlar kesimi — ustunlar tartibi HAR menejerda bir xil (bo'shlari 0 bilan turadi). */
+  stages: LeadManagerStage[]
+}
+
+/** Lid KANALI (qayerdan keldi) kesmasi. */
+export interface LeadOriginRow {
+  /** `form` | `test` | `instagram` | `manual` | `other` */
+  key: string
+  label: string
+  leads: number
+  converted: number
+  paid: number
+  revenue: number
+  /** O'quvchiga aylanganlar ulushi (0-100). */
+  conversionRate: number
+  /** PUL to'laganlar ulushi (0-100) — sotuvning haqiqiy o'lchovi. */
+  payRate: number
+}
+
+/**
+ * «BUTUN CRM MANZARASI» — markazdagi BARCHA lidlar (qo'lda kiritilgani ham).
+ *
+ * "Formalar" bo'limidagi ikkala statistika ham (lid formalari va daraja testi) faqat O'Z
+ * kanalini sanaydi; bu blok ularni butun manzara ichiga qo'yadi. Serverdagi juftligi —
+ * `LeadCrmOverview` (ikkala sahifa uchun YAGONA hisob).
+ */
+export interface CrmOverview {
+  leads: number
+  converted: number
+  paid: number
+  revenue: number
+  origins: LeadOriginRow[]
+  /** Barcha lidlar HOZIR qaysi bosqichda (kanban ustuni). */
+  byStage: { stage: string; color: string; leads: number }[]
 }
 
 export interface LeadAnalytics {
@@ -190,10 +239,18 @@ export interface LeadAnalytics {
   converted: number
   /** Konversiya foizi (0-100). */
   conversionRate: number
+  /** Davrdagi lidlardan haqiqatan PUL to'laganlari. */
+  paid: number
+  /** Shu lidlarning sof tushumi (to'lov − vozvrat). */
+  revenue: number
+  /** SOTUV konversiyasi (0-100): to'lagan / jami lid. */
+  payRate: number
   funnel: LeadFunnelStage[]
   sources: LeadSourceSlice[]
   /** Bo'sh bo'lishi MUMKIN — bu xato emas, shunchaki davrda harakat qilgan menejer yo'q. */
   managers: LeadManagerRow[]
+  /** Lidlar qaysi kanaldan kelgani (bo'sh kanallar ro'yxatda yo'q). */
+  origins: LeadOriginRow[]
 }
 
 /**

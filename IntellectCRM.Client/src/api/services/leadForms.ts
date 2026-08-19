@@ -1,5 +1,6 @@
 import { api } from '../client'
 import type { DayCount, LeadStageCount } from '@/types'
+import type { CrmOverview } from './leads'
 
 /**
  * LID FORMALARI — "O'quv bo'limi → Formalar" bo'limi.
@@ -195,6 +196,14 @@ export interface LeadFormStats {
   /** Bosqich va kunlik oqim — daraja testi statistikasi bilan YAGONA shakl (`@/types`). */
   byStage: LeadStageCount[]
   daily: DayCount[]
+
+  /* ---- BUTUN CRM manzarasi (formadan TASHQARI lidlar ham) ----
+     ⚠️ Yuqoridagi raqamlar faqat FORMALARDAN kelganlarni sanaydi. Markazda esa qo'lda
+     kiritilgan, daraja testidan va Instagramdan kelgan lidlar ham bor — ularsiz bu sahifadagi
+     sonlar "markazning hamma lidi" deb o'qilib, noto'g'ri xulosaga olib kelardi. */
+
+  /** CRM'dagi BARCHA lidlar — kanallar va bosqichlar bilan (daraja testi sahifasida ham shu blok). */
+  overview: CrmOverview
 }
 
 export async function getLeadForms(): Promise<LeadFormListItem[]> {
