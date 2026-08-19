@@ -60,6 +60,7 @@ import { SupportDetailPage } from '@/pages/admin/support/SupportDetailPage'
 import { PublicTestPage } from '@/pages/public/PublicTestPage'
 import { VerifyCertificatePage } from '@/pages/public/VerifyCertificate'
 import { PrivacyPolicyPage } from '@/pages/public/PrivacyPolicyPage'
+import { DataDeletionPage } from '@/pages/public/DataDeletionPage'
 import { PublicCertificatesPage } from '@/pages/public/PublicCertificatesPage'
 import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
 import { GroupChatPage } from '@/pages/admin/chats/GroupChatPage'
@@ -165,6 +166,12 @@ export default function App() {
       {/* Maxfiylik siyosati (autentifikatsiyasiz) — Google Play / App Store uchun */}
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
+      {/* Ma'lumotni o'chirish — Meta App sozlamalaridagi «Data Deletion Instructions URL»
+          MAJBURIY maydoni (Instagram moduli shusiz sozlanmaydi) va Google Play ham so'raydi.
+          Manzil AYNAN shu bo'lishi kerak (`.claude/rules/marketing-instagram.md` §14).
+          ⚠️ Sahifa ochiq, lekin hech qanday CRM ma'lumotini ko'rsatmaydi. */}
+      <Route path="/data-deletion" element={<DataDeletionPage />} />
+      <Route path="/data-deletion.html" element={<Navigate to="/data-deletion" replace />} />
       {/* Ommaviy sertifikatlar katalogi (React SPA) */}
       <Route path="/sertifikatlar" element={<PublicCertificatesPage />} />
       <Route path="/sertifikatlar.html" element={<Navigate to="/sertifikatlar" replace />} />

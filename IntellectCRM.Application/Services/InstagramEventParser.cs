@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Globalization;
 using System.Text.Json;
 
 namespace IntellectCRM.Application.Services;
@@ -27,7 +28,12 @@ public record IgIncomingEvent(
     string MediaId,
     string IgMessageId,
     string EventKey,
-    bool IsEcho);
+    bool IsEcho,
+    /// <summary>Meta bergan hodisa vaqti (ISO, mahalliy mintaqada). Bo'sh = payloadda yo'q.
+    /// <para>⚠️ 24 soatlik DM oynasi SHU vaqtdan hisoblanishi kerak, hodisa QAYTA ISHLANGAN
+    /// vaqtdan emas: navbat uzoq turib qolsa (modul o'chiq bo'lib keyin yoqilsa) oyna "ochiq"
+    /// bo'lib ko'rinardi va Instagram javobni rad etardi.</para></summary>
+    string SentAtIso = "");
 
 /// <summary>
 /// Meta'ning XOM webhook JSON'ini ichki hodisalarga aylantiradi.
@@ -35,7 +41,8 @@ public record IgIncomingEvent(
 /// <para><b>Cheksiz halqa himoyasining 1-qavati SHU YERDA:</b> o'z akkauntimizdan kelgan izoh
 /// (<c>from.id</c> bizniki) umuman qaytarilmaydi. NUR loyihasida bot o'z javobini begona izoh deb
 /// hisoblab, unga yana javob yozgan va akkaunt spam sifatida bloklanish arafasiga kelgan.
-/// Solishtirish IKKI id bo'yicha: saqlangan <c>IgAccount.IgUserId</c> va payloaddagi
+/// Solishtirish UCHALA identifikator bo'yicha (<see cref="InstagramEventParser.IgSelf"/>):
+/// saqlangan <c>IgUserId</c>, app-scoped <c>id</c>, <c>username</c> va payloaddagi
 /// <c>entry.id</c> — <c>from.id</c> ba'zan biri, ba'zan boshqasi formatida keladi.</para>
 ///
 /// <para><b>Dedup kaliti DETERMINISTIK.</b> NUR'da kalit matnning runtime hash'idan qurilgan edi:
@@ -47,9 +54,27 @@ public record IgIncomingEvent(
 /// </summary>
 public static class InstagramEventParser
 {
+    /// <summary>
+    /// AKKAUNTIMIZNING IDENTIFIKATORLARI — halqa himoyasining 1-qavati shular bo'yicha ishlaydi.
+    ///
+    /// <para>⚠️ Webhook'da <c>from.id</c> <b>ba'zan</b> IG professional akkaunt id'si,
+    /// <b>ba'zan</b> app-scoped id (IGSID) bo'lib keladi — bittasiga tayanish bot o'z izohini
+    /// begona deb bilib, unga javob yozib CHEKSIZ HALQAGA tushishining aynan sababi.
+    /// Shuning uchun uchala qiymat ham solishtiriladi.</para>
+    /// </summary>
+    /// <param name="IgUserId">IG professional akkaunt id (<c>me.user_id</c>).</param>
+    /// <param name="AppScopedId">App-scoped id (<c>me.id</c>) — DM'larda shu keladi.</param>
+    /// <param name="Username">Zaxira: id umuman kelmagan/boshqa formatdagi hollarda (registr e'tiborsiz).</param>
+    public readonly record struct IgSelf(string IgUserId = "", string AppScopedId = "", string Username = "");
+
     /// <summary>Xom JSON → 0..N hodisa. <paramref name="ourIgUserId"/> — bizning akkaunt id'miz
-    /// (bo'sh bo'lsa ham parser ishlaydi, lekin halqa himoyasi faqat <c>entry.id</c> ga tayanadi).</summary>
-    public static IReadOnlyList<IgIncomingEvent> Parse(string rawJson, string ourIgUserId)
+    /// (bo'sh bo'lsa ham parser ishlaydi, lekin halqa himoyasi faqat <c>entry.id</c> ga tayanadi).
+    /// <para>Uchala identifikatorni beradigan ko'rinishi: <see cref="Parse(string, IgSelf)"/>.</para></summary>
+    public static IReadOnlyList<IgIncomingEvent> Parse(string rawJson, string ourIgUserId) =>
+        Parse(rawJson, new IgSelf(IgUserId: ourIgUserId ?? ""));
+
+    /// <summary>Xom JSON → 0..N hodisa (halqa himoyasi UCHALA identifikator bo'yicha).</summary>
+    public static IReadOnlyList<IgIncomingEvent> Parse(string rawJson, IgSelf self)
     {
         var result = new List<IgIncomingEvent>();
         if (string.IsNullOrWhiteSpace(rawJson)) return result;
@@ -71,8 +96,8 @@ public static class InstagramEventParser
                 var entryId = Str(entry, "id");
                 var entryTime = Raw(entry, "time");
 
-                ReadComments(entry, entryId, entryTime, ourIgUserId, result);
-                ReadMessaging(entry, entryId, entryTime, ourIgUserId, result);
+                ReadComments(entry, entryId, entryTime, self, result);
+                ReadMessaging(entry, entryId, entryTime, self, result);
             }
         }
 
@@ -82,7 +107,7 @@ public static class InstagramEventParser
     /* ---------------- izohlar (entry.changes[]) ---------------- */
 
     private static void ReadComments(
-        JsonElement entry, string entryId, string entryTime, string ourId, List<IgIncomingEvent> outList)
+        JsonElement entry, string entryId, string entryTime, IgSelf self, List<IgIncomingEvent> outList)
     {
         if (!entry.TryGetProperty("changes", out var changes) || changes.ValueKind != JsonValueKind.Array) return;
 
@@ -108,20 +133,20 @@ public static class InstagramEventParser
                 mediaId = Str(media, "id");
 
             // ⚠️ HALQA HIMOYASI: o'z izohimizga javob yozmaymiz.
-            if (IsOurs(fromId, ourId, entryId)) continue;
+            if (IsOurs(fromId, username, self, entryId)) continue;
             if (fromId.Length == 0 && commentId.Length == 0) continue;   // taniqli hech narsa yo'q
 
             var ts = Str(v, "timestamp") is { Length: > 0 } t ? t : entryTime;
             var key = EventKeyOf(IgConst.KindComment, commentId, "", fromId, ts, text);
             outList.Add(new IgIncomingEvent(
-                IgConst.KindComment, text, fromId, username, commentId, mediaId, "", key, false));
+                IgConst.KindComment, text, fromId, username, commentId, mediaId, "", key, false, ToIso(ts)));
         }
     }
 
     /* ---------------- DM va echo (entry.messaging[]) ---------------- */
 
     private static void ReadMessaging(
-        JsonElement entry, string entryId, string entryTime, string ourId, List<IgIncomingEvent> outList)
+        JsonElement entry, string entryId, string entryTime, IgSelf self, List<IgIncomingEvent> outList)
     {
         if (!entry.TryGetProperty("messaging", out var arr) || arr.ValueKind != JsonValueKind.Array) return;
 
@@ -139,14 +164,14 @@ public static class InstagramEventParser
 
             // Echo — Meta bayrog'i YOKI jo'natuvchi biz (ikki qavatli tekshiruv: bayroq
             // kelmasa ham o'z xabarimizga javob yozib qo'ymaymiz).
-            var isEcho = Bool(msg, "is_echo") || IsOurs(senderId, ourId, entryId);
+            var isEcho = Bool(msg, "is_echo") || IsOurs(senderId, "", self, entryId);
             var counterparty = isEcho ? recipientId : senderId;
             if (counterparty.Length == 0) continue;
-            if (IsOurs(counterparty, ourId, entryId)) continue;   // o'zimizga o'zimiz — mumkin emas
+            if (IsOurs(counterparty, "", self, entryId)) continue;   // o'zimizga o'zimiz — mumkin emas
 
             var kind = isEcho ? IgConst.KindEcho : IgConst.KindDm;
             var key = EventKeyOf(kind, "", mid, counterparty, ts, text);
-            outList.Add(new IgIncomingEvent(kind, text, counterparty, "", "", "", mid, key, isEcho));
+            outList.Add(new IgIncomingEvent(kind, text, counterparty, "", "", "", mid, key, isEcho, ToIso(ts)));
         }
     }
 
@@ -180,11 +205,51 @@ public static class InstagramEventParser
 
     /// <summary>Berilgan id bizga tegishlimi — saqlangan akkaunt id'si YOKI payloaddagi
     /// <c>entry.id</c> bilan mos kelsa (ID formatlari farq qilishi mumkin).</summary>
-    private static bool IsOurs(string id, string ourId, string entryId)
+    /// <summary>
+    /// Bu yozuv BIZNIKIMI — cheksiz halqa himoyasining 1-qavati.
+    ///
+    /// <para>To'rtta manba solishtiriladi: saqlangan IG id, saqlangan app-scoped id,
+    /// payloaddagi <c>entry.id</c> (shu hodisa qaysi akkauntga tegishli) va zaxira sifatida
+    /// <c>username</c> (registr e'tiborsiz). Bittasiga tayanish — halqaning aynan sababi
+    /// (<c>marketing-instagram.md</c> §4).</para>
+    /// </summary>
+    private static bool IsOurs(string id, string username, IgSelf self, string entryId)
     {
-        if (id.Length == 0) return false;
-        if (ourId.Length > 0 && string.Equals(id, ourId, StringComparison.Ordinal)) return true;
-        return entryId.Length > 0 && string.Equals(id, entryId, StringComparison.Ordinal);
+        if (id.Length > 0)
+        {
+            if (self.IgUserId.Length > 0 && string.Equals(id, self.IgUserId, StringComparison.Ordinal)) return true;
+            if (self.AppScopedId.Length > 0 && string.Equals(id, self.AppScopedId, StringComparison.Ordinal)) return true;
+            if (entryId.Length > 0 && string.Equals(id, entryId, StringComparison.Ordinal)) return true;
+        }
+        // Zaxira: id formati kutilmagan bo'lsa ham o'z username'imizga javob yozmaymiz.
+        return username.Length > 0 && self.Username.Length > 0
+               && string.Equals(username.TrimStart('@'), self.Username.TrimStart('@'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Meta vaqtini loyihaning ISO ko'rinishiga o'giradi ("yyyy-MM-ddTHH:mm:ss", MAHALLIY vaqt).
+    ///
+    /// <para>Meta ikki xil beradi: <c>entry.time</c> — epoch (soniya yoki millisekund),
+    /// izoh <c>value.timestamp</c> — ISO satr. O'qib bo'lmasa BO'SH qaytadi va chaqiruvchi
+    /// o'zining joriy vaqtiga qaytadi — noto'g'ri vaqt yozgandan ko'ra "noma'lum" yaxshiroq.</para>
+    /// </summary>
+    internal static string ToIso(string? raw)
+    {
+        var v = (raw ?? "").Trim();
+        if (v.Length == 0) return "";
+
+        if (long.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out var num) && num > 0)
+        {
+            // 13 xonali — millisekund, 10 xonali — soniya (Meta ikkalasini ham ishlatadi).
+            var utc = v.Length >= 12
+                ? DateTimeOffset.FromUnixTimeMilliseconds(num)
+                : DateTimeOffset.FromUnixTimeSeconds(num);
+            return utc.ToLocalTime().ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+        }
+
+        return DateTimeOffset.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var iso)
+            ? iso.ToLocalTime().ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture)
+            : "";
     }
 
     private static string Str(JsonElement e, string name) =>

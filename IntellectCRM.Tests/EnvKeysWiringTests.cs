@@ -74,3 +74,82 @@ public class EnvKeysWiringTests
             $"`{key}` .env.example da YO'Q — admin bu kalit borligini bilmaydi.");
     }
 }
+
+/// <summary>
+/// MAXFIY QIYMAT LOGGA TUSHMASIN + META TALAB QILGAN OCHIQ SAHIFALAR — drift qulflari.
+///
+/// <para><b>Real hodisa (2026-08-19):</b> konteyner loglarida Telegram bot tokeni OCHIQ holda
+/// 102 marta yozilgani topildi. Sabab: <c>AddHttpClient</c> .NET'ning standart HTTP loggerini
+/// yoqadi va u so'rovning TO'LIQ manzilini <c>Information</c> darajasida yozadi, bizda esa token
+/// MANZIL ICHIDA keladi (<c>api.telegram.org/bot&lt;TOKEN&gt;/…</c>, Instagram Graph'da
+/// <c>?access_token=…</c>). Instagram moduli ulangach 60 kunlik token ham shu yo'l bilan
+/// loglarga tushardi.</para>
+///
+/// <para>Tuzatish bitta qatorda (<c>System.Net.Http.HttpClient: Warning</c>), lekin uni bexosdan
+/// olib tashlash ham bitta qatorda — shuning uchun test bilan qulflanadi.</para>
+/// </summary>
+public class SecretLeakAndPublicPageTests
+{
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "docker-compose.yml")))
+            dir = dir.Parent;
+        Assert.True(dir is not null, "Repo ildizi topilmadi.");
+        return dir!.FullName;
+    }
+
+    private static string Read(params string[] parts) =>
+        File.ReadAllText(Path.Combine(new[] { RepoRoot() }.Concat(parts).ToArray()));
+
+    [Theory]
+    [InlineData("appsettings.json")]
+    [InlineData("appsettings.Development.json")]
+    public void HTTP_klient_loglari_OCHIRILGAN(string file)
+    {
+        var json = Read("IntellectCRM.Server", file);
+        Assert.True(
+            json.Contains("\"System.Net.Http.HttpClient\": \"Warning\"", StringComparison.Ordinal),
+            $"{file} da `System.Net.Http.HttpClient: Warning` yo'q — HTTP klient so'rov MANZILINI "
+            + "Information darajasida yozadi, manzil ichida esa Telegram bot tokeni va Instagram "
+            + "access_token keladi. Ular konteyner loglariga (va zaxira nusxalarga) ochiq tushadi.");
+    }
+
+    [Fact]
+    public void LogLevel_ichida_IZOH_kaliti_BOLMASIN()
+    {
+        // ⚠️ `Logging:LogLevel` ichidagi HAR bir qiymat LogLevel enum sifatida o'qiladi. U yerga
+        // izoh kaliti qo'yilsa ilova "Configuration value ... is not supported" bilan yiqiladi
+        // (bu tuzatish paytida aynan shunday bo'ldi). Izoh — LogLevel'dan TASHQARIDA.
+        foreach (var file in new[] { "appsettings.json", "appsettings.Development.json" })
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(Read("IntellectCRM.Server", file));
+            if (!doc.RootElement.TryGetProperty("Logging", out var logging)) continue;
+            if (!logging.TryGetProperty("LogLevel", out var levels)) continue;
+
+            foreach (var p in levels.EnumerateObject())
+                Assert.True(
+                    Enum.TryParse<Microsoft.Extensions.Logging.LogLevel>(p.Value.GetString(), out _),
+                    $"{file}: `Logging:LogLevel:{p.Name}` qiymati LogLevel emas ('{p.Value}') — "
+                    + "ilova startupda yiqiladi. Izohni LogLevel'dan TASHQARIGA chiqaring.");
+        }
+    }
+
+    [Theory]
+    [InlineData("/privacy", "Maxfiylik siyosati (Meta App: Privacy Policy URL)")]
+    [InlineData("/data-deletion", "Ma'lumotni o'chirish (Meta App: Data Deletion Instructions URL)")]
+    public void META_talab_qilgan_OCHIQ_marshrutlar_bor(string route, string nima)
+    {
+        var app = Read("IntellectCRM.Client", "src", "App.tsx");
+        Assert.True(
+            app.Contains($"path=\"{route}\"", StringComparison.Ordinal),
+            $"App.tsx da `{route}` marshruti yo'q — {nima}. Bu maydonsiz Meta App sozlamasi "
+            + "yakunlanmaydi (`.claude/rules/marketing-instagram.md` §14).");
+
+        // Marshrut LOGIN ORTIDA qolmasligi kerak: `ProtectedRoute` blokidan OLDIN turishi shart.
+        var routeAt = app.IndexOf($"path=\"{route}\"", StringComparison.Ordinal);
+        var protectedAt = app.IndexOf("<ProtectedRoute", StringComparison.Ordinal);
+        Assert.True(protectedAt < 0 || routeAt < protectedAt,
+            $"`{route}` himoyalangan marshrutlar ichida qolib ketgan — u ochiq bo'lishi SHART.");
+    }
+}

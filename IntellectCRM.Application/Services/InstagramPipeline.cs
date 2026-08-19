@@ -14,10 +14,15 @@ namespace IntellectCRM.Application.Services;
 /// <para><b>Modul o'chiq bo'lsa hech qanday tashqi so'rov ketmaydi:</b> kiruvchi xabar bazaga
 /// yoziladi (tarix yo'qolmasin), lekin AI ham, Graph API ham chaqirilmaydi.</para>
 ///
-/// <para><b>Cheksiz halqadan himoya — 3 qavat:</b> (1) o'z izohimiz parserda tashlanadi;
+/// <para><b>Cheksiz halqadan himoya — 4 qavat, biri ham olib tashlanmaydi:</b>
+/// (1) o'z izohimiz parserda tashlanadi (UCHALA identifikator: IG id, app-scoped id, username);
 /// (2) echo xabar javob berish uchun ISHLATILMAYDI (faqat operator pauzasini yoqadi);
 /// (3) bot o'z javobiga javob bermaydi — echo bizning oxirgi chiquvchi xabarimiz bilan
-/// solishtiriladi.</para>
+/// solishtiriladi;
+/// (4) <b>AVTOMAT O'CHIRGICH</b> — 10 daqiqada bitta post ostida 8, umumiy 30 javob chegarasi
+/// (<c>InstagramContract.BurstBlockReason</c>) + kunlik chegara. Kunlik chegara (200) YOLG'IZ
+/// yetmaydi: halqa daqiqalar ichida yuzlab javob yozadi va Instagram akkauntni 200 ga
+/// yetmasdan spam deb belgilaydi.</para>
 ///
 /// <para>DI: <c>builder.Services.AddSingleton&lt;InstagramPipeline&gt;();</c> — ichkarida
 /// har chaqiruvda o'z <c>scope</c>i olinadi.</para>
@@ -47,7 +52,10 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
                 .OrderByDescending(a => a.ConnectedAt)
                 .FirstOrDefaultAsync(ct);
 
-            var incoming = InstagramEventParser.Parse(ev.RawJson, account?.IgUserId ?? "");
+            var incoming = InstagramEventParser.Parse(ev.RawJson, new InstagramEventParser.IgSelf(
+                IgUserId: account?.IgUserId ?? "",
+                AppScopedId: account?.AppScopedUserId ?? "",
+                Username: account?.Username ?? ""));
             if (incoming.Count == 0)
             {
                 // Qo'llab-quvvatlanmaydigan maydon (`mentions`, `live_comments`), reaksiya/o'qildi
@@ -64,7 +72,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             {
                 try
                 {
-                    await HandleOneAsync(db, api, telegram, config, meta, account, inc, ct);
+                    await HandleOneAsync(db, api, telegram, config, meta, account, inc, ev.ReceivedAt, ct);
                 }
                 catch (Exception ex)
                 {
@@ -93,7 +101,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
 
     private async Task HandleOneAsync(
         IAppDbContext db, InstagramApi api, TelegramService telegram, IConfiguration config,
-        CenterMeta? meta, IgAccount? account, IgIncomingEvent inc, CancellationToken ct)
+        CenterMeta? meta, IgAccount? account, IgIncomingEvent inc, string receivedAtIso, CancellationToken ct)
     {
         var now = AppClock.Now;
         var nowIso = AppClock.Iso();
@@ -146,7 +154,16 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             ActorName = inc.Username.Length > 0 ? "@" + inc.Username : "Mijoz",
             CreatedAt = nowIso,
         });
-        conv.LastInboundAt = nowIso;
+        // ⚠️ 24 soatlik oyna MIJOZ YOZGAN vaqtdan hisoblanadi, biz qayta ishlagan vaqtdan emas.
+        // Navbat uzoq turib qolsa (modul o'chiq bo'lib keyin yoqilsa, yoki Meta 36 soat davomida
+        // qayta yuborsa) oyna "ochiq" bo'lib ko'rinardi, biz javob yuborardik va Instagram uni
+        // RAD ETARDI — operator esa sababini bilmasdi.
+        //
+        // ⚠️ Lekin Meta vaqti KO'R-KO'RONA ishonilmaydi: server soati oldinga surilgan yoki
+        // payload buzuq bo'lsa bot BUTUNLAY jim bo'lib qolardi (eng yomon nosozlik — sababsiz
+        // sukut). Shuning uchun faqat "mantiqiy" oraliqdagi vaqt qabul qilinadi, aks holda
+        // joriy vaqt (eski xulq).
+        conv.LastInboundAt = SaneInboundAt(inc.SentAtIso, now) ?? nowIso;
         conv.LastMessageText = InstagramContract.Trim(inc.Text, 300);
         conv.MessageCount += 1;
         conv.Unread = true;
@@ -185,6 +202,29 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             Escalate(conv, $"Kunlik javob chegarasi tugadi ({limit}) — javob yuborilmadi");
             await db.SaveChangesAsync(ct);
             await NotifyAdminsAsync(db, telegram, meta, $"🚦 Instagram: kunlik javob chegarasi ({limit}) tugadi.", ct);
+            return;
+        }
+
+        // ── 4.5) HALQA AVTOMAT O'CHIRGICHI (qisqa oyna) ──
+        //
+        // Kunlik chegara (200) — uzoq muddatli to'siq. Cheksiz halqa esa DAQIQALAR ichida yuzlab
+        // javob yozadi va Instagram akkauntni 200 ga yetmasdan spam deb belgilaydi. Shuning uchun
+        // 10 daqiqalik oynada ikkita qo'shimcha chegara: bitta post ostida 8, umumiy 30.
+        var burstSince = now.AddMinutes(-IgConst.BurstWindowMinutes).ToString("yyyy-MM-ddTHH:mm:ss");
+        var globalRecent = await db.IgMessages
+            .CountAsync(m => m.Direction == IgConst.DirOut && m.CreatedAt.CompareTo(burstSince) >= 0, ct);
+        var perPostRecent = inc.MediaId.Length == 0
+            ? 0
+            : await db.IgMessages.CountAsync(
+                m => m.Direction == IgConst.DirOut && m.MediaId == inc.MediaId
+                     && m.CreatedAt.CompareTo(burstSince) >= 0, ct);
+
+        var burst = InstagramContract.BurstBlockReason(perPostRecent, globalRecent);
+        if (burst.Length > 0)
+        {
+            Escalate(conv, burst);
+            await db.SaveChangesAsync(ct);
+            await NotifyAdminsAsync(db, telegram, meta, $"🛑 Instagram: {burst}. Operator tekshirsin.", ct);
             return;
         }
 
@@ -249,7 +289,17 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         reply = InstagramContract.Trim(reply, IgConst.MaxReplyLength);
 
         // ── 7) TABIIY KECHIKISH (bir zumda kelgan javob spamga o'xshaydi) ──
-        var delay = Math.Clamp(meta.InstagramReplyDelaySeconds, 0, IgConst.MaxReplyDelaySeconds);
+        //
+        // ⚠️ Hodisa NAVBATDA kutgan vaqt HISOBGA OLINADI. Ilgari kechikish har hodisaga to'liq
+        // qo'shilardi va u ketma-ket siklda bajarilgani uchun izohlar to'lqinida navbat sun'iy
+        // ravishda cho'zilib ketardi (10 ta hodisa × 5 soniya = bitta tsiklga 50+ soniya).
+        // Endi "javob mijoz yozganidan keyin kamida N soniya o'tib ketsin" degan MAQSAD saqlanadi,
+        // lekin kutish allaqachon o'tgan bo'lsa qo'shimcha pauza qilinmaydi.
+        var wanted = Math.Clamp(meta.InstagramReplyDelaySeconds, 0, IgConst.MaxReplyDelaySeconds);
+        var waited = InstagramContract.TryIso(receivedAtIso, out var received)
+            ? (now - received).TotalSeconds
+            : 0;
+        var delay = (int)Math.Round(Math.Clamp(wanted - Math.Max(0, waited), 0, wanted));
         if (delay > 0)
         {
             try { await Task.Delay(TimeSpan.FromSeconds(delay), ct); }
@@ -263,7 +313,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         {
             var res = await api.ReplyToCommentAsync(inc.CommentId, reply, account.AccessToken, ct);
             sendError = res.Ok ? "" : res.Error;
-            AddOutbound(db, conv, IgConst.ChannelComment, reply, actor, isAi, output, inc.CommentId, nowIso, sendError);
+            AddOutbound(db, conv, IgConst.ChannelComment, reply, actor, isAi, output, inc.CommentId, inc.MediaId, nowIso, sendError);
 
             // Yopiq javob (private reply) — yoqilgan bo'lsa va shu izohga HALI yuborilmagan bo'lsa.
             if (res.Ok && meta.InstagramPrivateReplyEnabled && inc.CommentId.Length > 0)
@@ -274,7 +324,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
                 {
                     var pr = await api.SendPrivateReplyAsync(inc.CommentId, reply, account.AccessToken, ct);
                     AddOutbound(db, conv, IgConst.ChannelPrivateReply, reply, actor, isAi, output,
-                        inc.CommentId, AppClock.Iso(), pr.Ok ? "" : pr.Error);
+                        inc.CommentId, inc.MediaId, AppClock.Iso(), pr.Ok ? "" : pr.Error);
                 }
             }
         }
@@ -292,7 +342,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
 
             var res = await api.SendDmAsync(account.IgUserId, conv.IgUserId, reply, account.AccessToken, ct);
             sendError = res.Ok ? "" : res.Error;
-            AddOutbound(db, conv, IgConst.ChannelDm, reply, actor, isAi, output, "", nowIso, sendError);
+            AddOutbound(db, conv, IgConst.ChannelDm, reply, actor, isAi, output, "", "", nowIso, sendError);
         }
 
         if (sendError.Length > 0)
@@ -439,9 +489,12 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
 
     /* ═════════════════════════ Yordamchilar ═════════════════════════ */
 
+    /// <param name="mediaId">Javob QAYSI POST ostiga yozilgani. ⚠️ Bo'sh qoldirilmaydi:
+    /// halqa avtomat o'chirgichi "shu post ostida 10 daqiqada nechta javob" ni AYNAN shu
+    /// ustundan sanaydi (`InstagramContract.BurstBlockReason`).</param>
     private static void AddOutbound(
         IAppDbContext db, IgConversation conv, string channel, string text, string actor, bool isAi,
-        IgAgentOutput? output, string commentId, string nowIso, string error)
+        IgAgentOutput? output, string commentId, string mediaId, string nowIso, string error)
     {
         db.IgMessages.Add(new IgMessage
         {
@@ -450,6 +503,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             Channel = channel,
             Text = text,
             CommentId = commentId,
+            MediaId = mediaId,
             ActorName = actor.Length > 0 ? actor : IgConst.ActorAi,
             IsAi = isAi,
             AiIntent = output?.Intent ?? "",
@@ -458,6 +512,27 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             CreatedAt = nowIso,
         });
     }
+
+    /// <summary>
+    /// Meta bergan xabar vaqti ISHONCHLIMI (24 soatlik oyna shundan hisoblanadi).
+    ///
+    /// <para>Qabul qilinadi: kelajakda emas (soat farqiga <see cref="InboundFutureSkewMinutes"/>
+    /// daqiqa yon beriladi) va <see cref="InboundMaxAgeDays"/> kundan eski emas. Chegaradan
+    /// tashqarisi — buzuq ma'lumot yoki soat nosozligi: bunda <c>null</c> qaytadi va chaqiruvchi
+    /// joriy vaqtga qaytadi.</para>
+    /// </summary>
+    private static string? SaneInboundAt(string sentAtIso, DateTime now)
+    {
+        if (!InstagramContract.TryIso(sentAtIso, out var sent)) return null;
+        if (sent > now.AddMinutes(InboundFutureSkewMinutes)) return null;
+        if (sent < now.AddDays(-InboundMaxAgeDays)) return null;
+        return sentAtIso;
+    }
+
+    /// <summary>Meta vaqti shundan ko'proq KELAJAKDA bo'lsa — ishonmaymiz (server soati farqi).</summary>
+    private const int InboundFutureSkewMinutes = 60;
+    /// <summary>Meta vaqti shundan eski bo'lsa — buzuq deb hisoblaymiz (24 soatlik oynadan ancha keng).</summary>
+    private const int InboundMaxAgeDays = 30;
 
     /// <summary>Suhbatni "operator kerak" holatiga qo'yadi (sabab bilan) — inbox'da qizil chip.</summary>
     private static void Escalate(IgConversation conv, string reason)

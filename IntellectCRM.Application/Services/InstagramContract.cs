@@ -51,6 +51,19 @@ public static class IgConst
     public const int DmWindowHours = 24;
     /// <summary>Izohga yopiq javob (private reply) muddati — izohdan keyin 7 kun, BIR marta.</summary>
     public const int PrivateReplyDays = 7;
+    /* ---- HALQA AVTOMAT O'CHIRGICHI (burst) ----
+       Kunlik chegara (`InstagramDailyReplyLimit`, default 200) — juda KENG to'siq: cheksiz halqa
+       to'xtaguncha 200 javob ketardi va Instagram akkauntni bundan ancha oldin spam deb belgilardi.
+       Shuning uchun QISQA oynali ikkita chegara ham bor. Qiymatlar odam tezligidan yuqori, lekin
+       halqa tezligidan past. */
+
+    /// <summary>Burst oynasi (daqiqa) — ikkala chegara ham shu oynada sanaladi.</summary>
+    public const int BurstWindowMinutes = 10;
+    /// <summary>Bitta POST ostida 10 daqiqada ko'pi bilan shuncha javob.</summary>
+    public const int BurstPerPost = 8;
+    /// <summary>Butun akkaunt bo'yicha 10 daqiqada ko'pi bilan shuncha javob.</summary>
+    public const int BurstGlobal = 30;
+
     /// <summary>60 kunlik token 45-kunda yangilanadi (15 kun zaxira qoladi).</summary>
     public const int TokenRefreshDays = 45;
     /// <summary>Token muddatiga shundan kam qolganda yangilanadi (45-kun bilan bir xil chegara).</summary>
@@ -182,6 +195,30 @@ public static class InstagramContract
         c.Status != IgConst.StatusClosed && !OperatorPaused(c, now);
 
     /// <summary>
+    /// HALQA AVTOMAT O'CHIRGICHI — shu javobni yuborish MUMKINMI.
+    ///
+    /// <para>Qaytaradi: bo'sh satr = mumkin, aks holda operatorga ko'rsatiladigan SABAB.
+    /// Ikki chegara mustaqil: bitta post ostida qizib ketgan halqa global chegaraga yetmasdan
+    /// ham to'xtatiladi, butun akkaunt bo'yicha portlash esa hech bir postga bog'liq emas.</para>
+    ///
+    /// <para>⚠️ Bu <b>kunlik</b> chegaraning o'rnini bosmaydi — u uzoq muddatli to'siq, bu esa
+    /// TEZKOR: halqa daqiqalar ichida yuzlab javob yozadi, kunlik chegara esa unga ulgurmaydi.</para>
+    /// </summary>
+    /// <param name="perPostInWindow">Shu post ostida oxirgi <see cref="IgConst.BurstWindowMinutes"/>
+    /// daqiqada yuborilgan javoblar soni. Post noma'lum bo'lsa (DM) — 0.</param>
+    /// <param name="globalInWindow">Butun akkaunt bo'yicha o'sha oynadagi javoblar soni.</param>
+    public static string BurstBlockReason(int perPostInWindow, int globalInWindow)
+    {
+        if (perPostInWindow >= IgConst.BurstPerPost)
+            return $"Bitta post ostida {IgConst.BurstWindowMinutes} daqiqada {IgConst.BurstPerPost} ta javob "
+                   + "chegarasiga yetildi — avtomatik javob to'xtatildi (halqa himoyasi)";
+        if (globalInWindow >= IgConst.BurstGlobal)
+            return $"Oxirgi {IgConst.BurstWindowMinutes} daqiqada {IgConst.BurstGlobal} ta javob "
+                   + "chegarasiga yetildi — avtomatik javob to'xtatildi (halqa himoyasi)";
+        return "";
+    }
+
+    /// <summary>
     /// Matndan O'ZBEK telefon raqamini ajratib oladi (topilmasa "").
     /// <para>Qabul qilinadi: <c>+998 90 123 45 67</c>, <c>998901234567</c>, <c>90 123 45 67</c>.
     /// Raqamlar orasidagi ajratuvchilar (bo'sh joy, <c>-</c>, qavs, nuqta) uzilish hisoblanmaydi.</para>
@@ -193,15 +230,47 @@ public static class InstagramContract
     {
         if (string.IsNullOrWhiteSpace(text)) return "";
 
+        // Matn RAQAM BO'LAKLARIGA ajratiladi; ajratuvchi (bo'sh joy, `-`, qavs...) bo'laklarni
+        // BOG'LANGAN deb belgilaydi, harf yoki boshqa belgi esa guruhni UZADI.
+        var groups = new List<List<string>>();
+        var group = new List<string>();
         var run = new StringBuilder();
+
+        void EndRun()
+        {
+            if (run.Length == 0) return;
+            group.Add(run.ToString());
+            run.Clear();
+        }
+        void EndGroup()
+        {
+            EndRun();
+            if (group.Count > 0) { groups.Add(group); group = new List<string>(); }
+        }
+
         for (var i = 0; i <= text.Length; i++)
         {
             var c = i < text.Length ? text[i] : '\n';
             if (char.IsDigit(c)) { run.Append(c); continue; }
-            if (IsPhoneSeparator(c) && run.Length > 0) continue;   // raqamlar orasidagi ajratuvchi
-            var hit = TryPhone(run.ToString());
-            if (hit.Length > 0) return hit;
-            run.Clear();
+            if (IsPhoneSeparator(c)) { EndRun(); continue; }   // guruh davom etadi
+            EndGroup();
+        }
+        EndGroup();
+
+        // ⚠️ Har guruhda AVVAL bo'laklarning BIRLASHMASI ("+998 90 123 45 67" → 998901234567),
+        // topilmasa HAR BO'LAK ALOHIDA sinaladi. Ilgari faqat birlashma sinalardi va
+        // "narxi 500000 901234567" kabi matnda ikki son qo'shilib ketib (15 raqam), telefon
+        // BUTUNLAY yo'qolardi. Alohida bo'lak sinovi esa Instagram id'sini (17 raqamli BITTA
+        // bo'lak) baribir qabul qilmaydi — uzunlik sharti o'zgarmadi.
+        foreach (var g in groups)
+        {
+            var joined = TryPhone(string.Concat(g));
+            if (joined.Length > 0) return joined;
+            foreach (var part in g)
+            {
+                var hit = TryPhone(part);
+                if (hit.Length > 0) return hit;
+            }
         }
         return "";
     }

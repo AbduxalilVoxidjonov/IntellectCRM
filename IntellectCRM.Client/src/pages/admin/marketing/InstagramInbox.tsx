@@ -10,6 +10,10 @@ import {
 import { ChannelIcon, Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
 
 /** Suhbat holati yorliqlari — xom kalit ekranda ko'rinmasin. */
+/** Avtomatik yangilash oralig'i (ms). Instagram javobi bir zumda kelmaydi — 15 soniya yetarli,
+ *  bundan tez-tez so'rash serverni ham, xodimning trafigini ham bekorga yeydi. */
+const REFRESH_MS = 15_000
+
 const STATUS_LABEL: Record<IgConversationStatus, string> = {
   bot: 'AI javob bermoqda',
   operator: 'Operator qo‘lida',
@@ -65,6 +69,10 @@ export function InstagramInbox() {
   const [detailError, setDetailError] = useState('')
 
   const [text, setText] = useState('')
+  // Avtoyangilash effekti `text` ga BOG'LANMASIN (har harfda taymer qayta qurilardi) —
+  // shuning uchun joriy qiymat ref orqali o'qiladi.
+  const textRef = useRef('')
+  textRef.current = text
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [actionError, setActionError] = useState('')
@@ -113,6 +121,30 @@ export function InstagramInbox() {
     if (activeId) openConv(activeId)
     else setDetail(null)
   }, [activeId, openConv])
+
+  /**
+   * AVTOMATIK YANGILANISH — Instagram xabari webhook orqali fonda keladi, ya'ni sahifada hech
+   * qanday "hodisa" bo'lmaydi. Yangilanishsiz operator yangi murojaatni sahifani QO'LDA
+   * yangilamaguncha ko'rmasdi (Telegram signali bo'lsa ham, "Inbox" degan bo'lim buni kutdiradi).
+   *
+   * ⚠️ Sahifa KO'RINMAYOTGANDA so'rov yubormaymiz (`visibilitychange`): ochiq qolgan tab
+   * kechasi ham serverga har 15 soniyada so'rov yuborib turardi.
+   * ⚠️ Ochiq suhbat ham yangilanadi, lekin FAQAT operator matn yozmayotgan bo'lsa —
+   * aks holda javob yozayotganda lenta pastga sakrab, yozuvni chalg'itardi.
+   */
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return
+      loadList()
+      if (activeId && !textRef.current) openConv(activeId)
+    }
+    const id = setInterval(tick, REFRESH_MS)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [loadList, activeId, openConv])
 
   // Yangi xabar kelganda lenta pastiga tushsin.
   useEffect(() => {

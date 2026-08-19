@@ -262,14 +262,58 @@ export function PrivacyPolicyPage() {
               </ul>
             </Section>
 
-            <Section title="10. Siyosatdagi o'zgarishlar">
+            {/* ⚠️ META (Instagram) TALABI. Modul markazning Instagram akkauntiga kelgan izoh va
+                shaxsiy xabarlarga AI bilan javob beradi — ya'ni Instagram foydalanuvchisining
+                ma'lumoti qayta ishlanadi. Meta App sozlamalaridagi «Privacy Policy URL» aynan shu
+                sahifaga ishora qiladi va sharhlovchi bu bo'limni izlaydi. Modul o'zgarsa
+                (yangi maydon yig'ilsa) — shu ro'yxat ham yangilanishi SHART.
+                Batafsil: `.claude/rules/marketing-instagram.md` §14. */}
+            <Section title="10. Instagram orqali murojaat qilganlar" id="instagram">
+              <p>
+                Markazning Instagram sahifasiga <b>izoh</b> yozsangiz yoki <b>shaxsiy xabar</b>
+                {' '}(Direct) yuborsangiz, murojaatingizga javob berish uchun quyidagilar qayta
+                ishlanadi:
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  <b>Yig'iladi:</b> Instagram foydalanuvchi nomingiz (@username), Instagram bergan
+                  ichki identifikatoringiz, xabar/izoh matni va yuborilgan vaqti. Agar o'zingiz
+                  yozsangiz — ism va telefon raqamingiz (markazga murojaat sifatida saqlanadi).
+                </li>
+                <li>
+                  <b>Yig'ilmaydi:</b> Instagram parolingiz, do'stlar ro'yxatingiz, boshqa
+                  yozishmalaringiz, sahifangizdagi postlar va shaxsiy ma'lumotlaringiz. Markaz
+                  Instagram akkauntingizga kira olmaydi.
+                </li>
+                <li>
+                  <b>Nima uchun:</b> savolingizga javob berish, kurslar haqida ma'lumot berish va
+                  siz so'ragan bo'lsangiz — qayta bog'lanish.
+                </li>
+                <li>
+                  <b>Kim ko'radi:</b> faqat markazning mas'ul xodimlari. Javob matnini tayyorlash
+                  uchun xabaringiz Google'ning Gemini xizmatiga yuboriladi; unga ismingiz va
+                  telefoningiz <b>berilmaydi</b>.
+                </li>
+                <li>
+                  <b>Javobning bir qismi avtomatik</b> (AI yordamchisi) — bu suhbatning birinchi
+                  xabarida ochiq aytiladi. Istalgan payt «operator» deb yozsangiz jonli xodimga
+                  ulanadi.
+                </li>
+                <li>
+                  <b>O'chirish:</b> Instagram orqali yig'ilgan ma'lumotni o'chirish uchun quyidagi
+                  bo'limga qarang yoki Direct'da «ma'lumotlarimni o'chiring» deb yozing.
+                </li>
+              </ul>
+            </Section>
+
+            <Section title="11. Siyosatdagi o'zgarishlar">
               <p>
                 Ushbu siyosat vaqti-vaqti bilan yangilanishi mumkin. Muhim o'zgarishlar Ilova orqali
                 e'lon qilinadi. Yuqoridagi «oxirgi yangilanish» sanasi joriy versiyani bildiradi.
               </p>
             </Section>
 
-            <Section title="11. Biz bilan bog'lanish">
+            <Section title="12. Biz bilan bog'lanish">
               <p>
                 Maxfiylik bo'yicha savol yoki so'rovlaringiz bo'lsa, <b>{centerName}</b> o'quv
                 markaziga murojaat qiling — {contact}.

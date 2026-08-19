@@ -307,3 +307,83 @@ public class InstagramContractTests
         Assert.Equal("", InstagramContract.Trim(null, 100));
     }
 }
+
+/// <summary>
+/// 2026-08-19 da TUZATILGAN kamchiliklar — qayta qaytib kelmasin.
+///
+/// <para>Har bir test aynan bitta xatoni qulflaydi: halqa avtomat o'chirgichi (hujjatda va'da
+/// qilingan, lekin kodda YO'Q edi) va telefon ajratishdagi "ikki son qo'shilib ketishi".</para>
+/// </summary>
+public class InstagramHardeningTests
+{
+    // ─────────────── HALQA AVTOMAT O'CHIRGICHI ───────────────
+
+    [Fact]
+    public void Burst_chegaradan_PAST_bolsa_javob_MUMKIN()
+    {
+        Assert.Equal("", InstagramContract.BurstBlockReason(0, 0));
+        Assert.Equal("", InstagramContract.BurstBlockReason(IgConst.BurstPerPost - 1, IgConst.BurstGlobal - 1));
+    }
+
+    [Fact]
+    public void Burst_POST_chegarasi_javobni_TOXTATADI()
+    {
+        // Halqa odatda BITTA post ostida qiziydi — global chegaraga yetmasdan ushlanishi kerak.
+        var reason = InstagramContract.BurstBlockReason(IgConst.BurstPerPost, 0);
+        Assert.NotEqual("", reason);
+        Assert.Contains("post", reason);
+    }
+
+    [Fact]
+    public void Burst_GLOBAL_chegarasi_javobni_TOXTATADI()
+    {
+        var reason = InstagramContract.BurstBlockReason(0, IgConst.BurstGlobal);
+        Assert.NotEqual("", reason);
+        Assert.Contains("daqiqada", reason);
+    }
+
+    [Fact]
+    public void Burst_chegaralari_KUNLIK_chegaradan_ancha_PAST()
+    {
+        // Kunlik chegara (default 200) yolg'iz qolsa halqa 200 ta javob yozib ulgurardi —
+        // Instagram esa bundan ancha oldin akkauntni spam deb belgilaydi. Qisqa oynadagi
+        // chegaralar shu sababdan MAJBURIY va sezilarli darajada past bo'lishi shart.
+        Assert.True(IgConst.BurstGlobal < 200);
+        Assert.True(IgConst.BurstPerPost < IgConst.BurstGlobal);
+        Assert.True(IgConst.BurstWindowMinutes is > 0 and <= 60);
+    }
+
+    // ─────────────── TELEFON AJRATISH ───────────────
+
+    [Fact]
+    public void Telefon_PROBEL_bilan_ajratilgan_ikki_son_orasidan_topiladi()
+    {
+        // ⚠️ ESKI XATO: probel "ajratuvchi" deb hisoblanib, raqamlar oqimini UZMASDI —
+        // "500000" va "901234567" qo'shilib 15 raqamli son bo'lardi va telefon YO'QOLARDI.
+        Assert.Equal("+998-90-123-45-67", InstagramContract.ExtractPhone("narxi 500000 901234567"));
+        Assert.Equal("+998-90-123-45-67", InstagramContract.ExtractPhone("2 ta kurs 901234567"));
+        Assert.Equal("+998-90-123-45-67", InstagramContract.ExtractPhone("2026 901234567"));
+    }
+
+    [Fact]
+    public void Telefon_BOLAKLARGA_bolingan_holda_ham_topiladi()
+    {
+        // Bir guruh ichidagi bo'laklar AVVAL birlashtiriladi — bu asosiy yozilish usuli.
+        Assert.Equal("+998-90-123-45-67", InstagramContract.ExtractPhone("+998 90 123 45 67"));
+        Assert.Equal("+998-90-123-45-67", InstagramContract.ExtractPhone("tel: 90-123-45-67"));
+        Assert.Equal("+998-90-123-45-67", InstagramContract.ExtractPhone("(90) 123 45 67 ga qo'ng'iroq qiling"));
+    }
+
+    [Fact]
+    public void Instagram_IDsi_telefon_deb_OLINMAYDI()
+    {
+        // Eng xavfli noto'g'ri ijobiy: 17 raqamli IG id begona lidga biriktirilib ketardi.
+        Assert.Equal("", InstagramContract.ExtractPhone("id 17841400000000000"));
+        Assert.Equal("", InstagramContract.ExtractPhone("17841400000000000"));
+        // Narx va yil ham telefon emas.
+        Assert.Equal("", InstagramContract.ExtractPhone("narxi 500000 so'm"));
+        Assert.Equal("", InstagramContract.ExtractPhone("2026 yildan beri"));
+        // 0 bilan boshlanadigan mahalliy raqam ham yo'q.
+        Assert.Equal("", InstagramContract.ExtractPhone("012345678"));
+    }
+}

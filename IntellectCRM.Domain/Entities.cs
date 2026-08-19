@@ -3724,6 +3724,22 @@ public class IgAccount
     /// <summary>Instagram professional akkaunt id — webhook'da "biznikimi" tekshiruvi shu bilan
     /// qilinadi (o'zimiz yozgan izoh/xabarga javob berib cheksiz halqaga tushmaslik uchun).</summary>
     public string IgUserId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// APP-SCOPED id (<c>me.id</c>) — <see cref="IgUserId"/> (<c>me.user_id</c>) dan BOSHQA raqam.
+    ///
+    /// <para>⚠️ Webhook'da <c>from.id</c> / <c>sender.id</c> <b>ba'zan</b> biri, <b>ba'zan</b>
+    /// ikkinchisi bo'lib keladi. Faqat bittasini saqlash — botning O'Z izohini begona deb bilib,
+    /// unga javob yozib CHEKSIZ HALQAGA tushishining aynan sababi
+    /// (<c>.claude/rules/marketing-instagram.md</c> §4). Ikkalasi ham OAuth paytida bir so'rovda
+    /// olinadi, shuning uchun saqlash tekin.</para>
+    ///
+    /// <para>Eski (bu ustun qo'shilishidan oldin ulangan) akkauntlarda BO'SH bo'ladi — himoya
+    /// o'shanda ham ishlaydi (<c>IgUserId</c> + <c>entry.id</c> + <c>username</c>), lekin
+    /// akkauntni qayta ulash uni to'ldiradi.</para>
+    /// </summary>
+    public string AppScopedUserId { get; set; } = string.Empty;
+
     public string Username { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string ProfilePictureUrl { get; set; } = string.Empty;

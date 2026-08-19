@@ -75,18 +75,27 @@ public class InstagramPipelineTests
     private const string OurId = "17841400000000000";
     private const string ClientId = "5550001112223";
 
+    /// <summary>
+    /// Fikstura vaqti — HOZIRGI paytdan hisoblanadi (qotib qolgan epoch EMAS).
+    /// <para>⚠️ Ilgari bu yerda o'zgarmas <c>1786500000</c> turardi. Pipeline 24 soatlik DM
+    /// oynasini Meta vaqtidan hisoblaydigan bo'lgach, o'sha fikstura "6 kun oldin" ga aylanib,
+    /// testlar sababsiz qizara boshlagan edi. Nisbiy vaqt bilan test kelasi yili ham ishlaydi.</para>
+    /// </summary>
+    private static long NowSeconds => new DateTimeOffset(AppClock.Now.ToUniversalTime(), TimeSpan.Zero).ToUnixTimeSeconds();
+    private static long NowMillis => NowSeconds * 1000;
+
     /* ───────────────────────── yordamchilar ───────────────────────── */
 
     private static string DmJson(string text = "Narxi qancha?", string mid = "mid-1", bool echo = false) => $$"""
-        { "entry": [{ "id": "{{OurId}}", "time": 1786500000, "messaging": [{
+        { "entry": [{ "id": "{{OurId}}", "time": {{NowSeconds}}, "messaging": [{
             "sender": { "id": "{{(echo ? OurId : ClientId)}}" },
             "recipient": { "id": "{{(echo ? ClientId : OurId)}}" },
-            "timestamp": 1786500000000,
+            "timestamp": {{NowMillis}},
             "message": { "mid": "{{mid}}", "text": "{{text}}" } }]}]}
         """;
 
     private static string CommentJson(string fromId = ClientId, string text = "Narxi qancha?") => $$"""
-        { "entry": [{ "id": "{{OurId}}", "time": 1786500000, "changes": [{ "field": "comments",
+        { "entry": [{ "id": "{{OurId}}", "time": {{NowSeconds}}, "changes": [{ "field": "comments",
             "value": { "id": "c-1", "text": "{{text}}",
                        "from": { "id": "{{fromId}}", "username": "ali" },
                        "media": { "id": "m-1" } } }]}]}

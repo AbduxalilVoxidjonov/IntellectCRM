@@ -133,25 +133,31 @@ public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
     /// <c>from.id</c> aynan shu formatda keladi va "o'zimizni tanish" tekshiruvi shunga tayanadi.
     /// U bo'lmasa <c>id</c> ishlatiladi.
     /// </summary>
-    public async Task<(bool Ok, string IgUserId, string Username, string Name, string PictureUrl, string Error)> MeAsync(
+    /// <remarks>⚠️ <c>id</c> (app-scoped) ham QAYTARILADI: webhook'da <c>from.id</c> ba'zan
+    /// <c>user_id</c>, ba'zan <c>id</c> bo'lib keladi va faqat bittasini saqlash halqa
+    /// himoyasini teshib qo'yadi (<c>marketing-instagram.md</c> §4).</remarks>
+    public async Task<(bool Ok, string IgUserId, string AppScopedId, string Username, string Name, string PictureUrl, string Error)> MeAsync(
         string token, CancellationToken ct)
     {
         var url = $"{IgConst.GraphBase}/me?fields=id,user_id,username,name,account_type,profile_picture_url" +
                   $"&access_token={Uri.EscapeDataString(token ?? "")}";
         var (ok, body, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), ct);
-        if (!ok) return (false, "", "", "", "", err);
+        if (!ok) return (false, "", "", "", "", "", err);
         try
         {
             using var doc = JsonDocument.Parse(body);
             var r = doc.RootElement;
+            var appScoped = Str(r, "id");
             var userId = Str(r, "user_id");
-            if (userId.Length == 0) userId = Str(r, "id");
-            if (userId.Length == 0) return (false, "", "", "", "", "Instagram akkaunt id'sini aniqlab bo'lmadi.");
-            return (true, userId, Str(r, "username"), Str(r, "name"), Str(r, "profile_picture_url"), "");
+            if (userId.Length == 0) userId = appScoped;
+            if (userId.Length == 0) return (false, "", "", "", "", "", "Instagram akkaunt id'sini aniqlab bo'lmadi.");
+            // `id` va `user_id` bir xil bo'lsa app-scoped'ni takrorlashning ma'nosi yo'q.
+            if (string.Equals(appScoped, userId, StringComparison.Ordinal)) appScoped = "";
+            return (true, userId, appScoped, Str(r, "username"), Str(r, "name"), Str(r, "profile_picture_url"), "");
         }
         catch (JsonException)
         {
-            return (false, "", "", "", "", "Instagram javobini o'qib bo'lmadi (kutilmagan format).");
+            return (false, "", "", "", "", "", "Instagram javobini o'qib bo'lmadi (kutilmagan format).");
         }
     }
 

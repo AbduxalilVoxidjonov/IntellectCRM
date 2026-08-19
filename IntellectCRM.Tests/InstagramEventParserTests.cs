@@ -298,3 +298,97 @@ public class InstagramEventParserTests
         Assert.NotEqual(dm, echo);
     }
 }
+
+/// <summary>
+/// HALQA HIMOYASINING 1-QAVATI — "o'zimizni tanish" UCHALA identifikator bo'yicha, va Meta
+/// bergan VAQTNING o'qilishi.
+///
+/// <para>⚠️ Ilgari faqat IKKI qiymat solishtirilardi (<c>IgUserId</c> + <c>entry.id</c>), holbuki
+/// hujjat uchtasini talab qilardi. Webhook'da <c>from.id</c> ba'zan app-scoped id bo'lib keladi —
+/// o'shanda bot O'Z izohini begona deb bilib, unga javob yozib CHEKSIZ HALQAGA tushardi.</para>
+/// </summary>
+public class InstagramSelfIdentityTests
+{
+    private const string IgUserId = "17841400000000000";
+    private const string AppScoped = "9988776655";
+    private const string Username = "intellect_kokand";
+
+    private static string Comment(string fromId, string username = "begona") => $$"""
+        { "entry": [{ "id": "entry-boshqa", "time": 1786500000, "changes": [{ "field": "comments",
+            "value": { "id": "c-1", "text": "salom",
+                       "from": { "id": "{{fromId}}", "username": "{{username}}" } } }]}]}
+        """;
+
+    private static InstagramEventParser.IgSelf Self =>
+        new(IgUserId: IgUserId, AppScopedId: AppScoped, Username: Username);
+
+    [Fact]
+    public void OZ_izohimiz_IG_id_boyicha_tashlanadi()
+    {
+        Assert.Empty(InstagramEventParser.Parse(Comment(IgUserId), Self));
+    }
+
+    [Fact]
+    public void OZ_izohimiz_APP_SCOPED_id_boyicha_ham_tashlanadi()
+    {
+        // ⚠️ AYNAN SHU holat ilgari o'tib ketardi — halqaning sababi.
+        Assert.Empty(InstagramEventParser.Parse(Comment(AppScoped), Self));
+    }
+
+    [Fact]
+    public void OZ_izohimiz_USERNAME_boyicha_ham_tashlanadi()
+    {
+        // Id kutilmagan formatda kelsa ham o'z username'imizga javob yozmaymiz (zaxira qavat).
+        Assert.Empty(InstagramEventParser.Parse(Comment("kutilmagan-id", Username), Self));
+        // "@" bilan va boshqa registrda kelsa ham.
+        Assert.Empty(InstagramEventParser.Parse(Comment("kutilmagan-id", "@Intellect_Kokand"), Self));
+    }
+
+    [Fact]
+    public void BEGONA_izoh_baribir_otadi()
+    {
+        var events = InstagramEventParser.Parse(Comment("5550001112223"), Self);
+        Assert.Single(events);
+        Assert.Equal("salom", events[0].Text);
+    }
+
+    [Fact]
+    public void Eski_chaqiruv_shakli_ISHLAYVERADI()
+    {
+        // Bitta id beradigan eski ko'rinish saqlanib qolgan (mavjud chaqiruvchilar buzilmasin).
+        Assert.Empty(InstagramEventParser.Parse(Comment(IgUserId), IgUserId));
+        Assert.Single(InstagramEventParser.Parse(Comment("5550001112223"), IgUserId));
+    }
+
+    // ─────────────── META VAQTI ───────────────
+
+    [Theory]
+    [InlineData("1786500000000")]   // millisekund
+    [InlineData("1786500000")]      // soniya
+    public void Meta_epoch_vaqti_ISO_ga_ogiriladi(string raw)
+    {
+        var iso = InstagramEventParser.ToIso(raw);
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$", iso);
+        // Ikkala ko'rinish ham AYNAN bir xil vaqtni bildiradi.
+        Assert.Equal(InstagramEventParser.ToIso("1786500000"), InstagramEventParser.ToIso("1786500000000"));
+    }
+
+    [Fact]
+    public void Meta_ISO_vaqti_ham_oqiladi_buzuq_bolsa_BOSH()
+    {
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T", InstagramEventParser.ToIso("2026-08-13T10:00:00+0000"));
+        // O'qib bo'lmasa — BO'SH: noto'g'ri vaqt yozgandan ko'ra "noma'lum" yaxshiroq
+        // (chaqiruvchi joriy vaqtga qaytadi).
+        Assert.Equal("", InstagramEventParser.ToIso("allaqachon"));
+        Assert.Equal("", InstagramEventParser.ToIso(""));
+        Assert.Equal("", InstagramEventParser.ToIso(null));
+    }
+
+    [Fact]
+    public void Hodisaga_Meta_vaqti_yoziladi()
+    {
+        var events = InstagramEventParser.Parse(Comment("5550001112223"), Self);
+        // `entry.time` dan olinadi (izohda alohida `timestamp` bo'lmasa).
+        Assert.NotEqual("", events[0].SentAtIso);
+    }
+}

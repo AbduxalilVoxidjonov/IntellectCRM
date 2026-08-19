@@ -186,14 +186,30 @@ public class InstagramWebhookController(
 
     private static string Sha256Hex(byte[] data) => Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
 
-    /// <summary>Body'ni to'liq baytlar sifatida o'qiydi (chegaradan oshsa <c>null</c>).</summary>
+    /// <summary>
+    /// Body'ni to'liq baytlar sifatida o'qiydi (chegaradan oshsa <c>null</c>).
+    ///
+    /// <para>⚠️ <b>Oqim BOSHIDAN o'qilishi SHART.</b> HMAC aynan Meta yuborgan baytlardan
+    /// hisoblanadi; body'ni kimdir (middleware, so'rov logeri, kelajakda qo'shiladigan filtr)
+    /// allaqachon o'qib qo'ygan bo'lsa, bu yerda BO'SH massiv qaytardi va imzo <b>hech qachon</b>
+    /// mos kelmasdi — tashqaridan bu "Meta tasdiqlamayapti" bo'lib ko'rinadi va sababini topish
+    /// juda qiyin. Shuning uchun oqim buferlanadi va pozitsiya nolga qaytariladi.</para>
+    /// </summary>
     private async Task<byte[]?> ReadBodyAsync(CancellationToken ct)
     {
         try
         {
             if (Request.ContentLength is > MaxBodyBytes) return null;
+
+            // Buferlash: oqimni qayta o'qish mumkin bo'lsin (o'zimiz uchun ham, keyingi
+            // bosqichlar uchun ham). Allaqachon buferlangan bo'lsa — zararsiz.
+            Request.EnableBuffering();
+            if (Request.Body.CanSeek) Request.Body.Position = 0;
+
             using var ms = new MemoryStream();
             await Request.Body.CopyToAsync(ms, ct);
+            if (Request.Body.CanSeek) Request.Body.Position = 0;   // keyingi o'quvchiga to'liq qoldiriladi
+
             if (ms.Length > MaxBodyBytes) return null;
             return ms.ToArray();
         }
@@ -256,7 +272,7 @@ public class InstagramWebhookController(
         }
 
         // --- biz kimmiz (cheksiz halqa himoyasi shu ID'ga tayanadi) ---
-        var (okMe, igUserId, username, name, pictureUrl, errMe) = await api.MeAsync(longToken, ct);
+        var (okMe, igUserId, appScopedId, username, name, pictureUrl, errMe) = await api.MeAsync(longToken, ct);
         if (!okMe || string.IsNullOrWhiteSpace(igUserId))
         {
             logger.LogWarning("[instagram] akkaunt ma'lumotini olib bo'lmadi: {Err}", errMe);
@@ -281,6 +297,9 @@ public class InstagramWebhookController(
         var account = new IgAccount
         {
             IgUserId = igUserId,
+            // ⚠️ App-scoped id ham SAQLANADI: webhook'da `from.id` ba'zan biri, ba'zan ikkinchisi
+            // bo'lib keladi va faqat bittasiga tayanish halqa himoyasini teshadi (§4).
+            AppScopedUserId = appScopedId ?? "",
             Username = username ?? "",
             Name = name ?? "",
             ProfilePictureUrl = pictureUrl ?? "",

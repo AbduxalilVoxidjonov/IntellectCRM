@@ -75,20 +75,28 @@ Barcha bayroqlar **default `false`** (entity default'i ham, migratsiya default'i
 ⚠️ Yangi tashqi chaqiruv qo'shsangiz — u ham shu darvozadan o'tsin. "Kichkina bitta so'rov"
 sozlanmagan markazda kutilmagan xabar yuborilishiga olib keladi.
 
-## 4. CHEKSIZ HALQADAN HIMOYA — 3 QAVAT, BIRI HAM OLIB TASHLANMAYDI
+## 4. CHEKSIZ HALQADAN HIMOYA — 4 QAVAT, BIRI HAM OLIB TASHLANMAYDI
 
 **Real hodisa:** bot izohga javob yozadi → o'z javobi webhook bo'lib qaytadi → begona izoh
 deb hisoblaydi → yana javob yozadi → **cheksiz halqa** → akkaunt spam sifatida bloklanadi.
 
-| Qavat | Mexanizm |
-|---|---|
-| 1. Identifikatsiya | `from.id` **ikkala** saqlangan ID (`IgAccount.IgUserId` va app-scoped `user_id`) bilan solishtiriladi + zaxira `username` (registr e'tiborsiz) |
-| 2. Dedup | bir xil `EventKey` ikkinchi marta ishlanmaydi |
-| 3. Avtomat o'chirgich | post bo'yicha 8/10daq · global 30/10daq · `InstagramDailyReplyLimit` |
+| Qavat | Mexanizm | Kod |
+|---|---|---|
+| 1. Identifikatsiya | `from.id` **uchala** qiymat bilan solishtiriladi: `IgAccount.IgUserId`, app-scoped `IgAccount.AppScopedUserId`, `entry.id` + zaxira `username` (registr e'tiborsiz) | `InstagramEventParser.IsOurs` |
+| 2. Dedup | bir xil `EventKey` ikkinchi marta ishlanmaydi + `IgMessages` dagi `mid`/`comment_id` | `AlreadyHandledAsync` |
+| 3. Avtomat o'chirgich | post bo'yicha **8/10daq** · global **30/10daq** | `InstagramContract.BurstBlockReason` |
+| 4. Kunlik chegara | `InstagramDailyReplyLimit` (default 200) | pipeline §4 |
 
-⚠️ **Uchala identifikator ham saqlanadi** (`id`, `user_id`, `username`) — webhook'da
-`from.id` **ba'zan** biri, **ba'zan** ikkinchisi bo'lib keladi. Bittasiga tayanish —
-yuqoridagi halqaning aynan sababi.
+⚠️ **3-qavat 4-qavatning o'rnini BOSMAYDI va aksincha.** Kunlik chegara uzoq muddatli to'siq:
+halqa daqiqalar ichida yuzlab javob yozadi va Instagram akkauntni 200 ga yetmasdan spam deb
+belgilaydi. Qisqa oynali chegaralar esa odam tezligidan yuqori, halqa tezligidan past qilib
+tanlangan. (2026-08-19 gacha 3-qavat hujjatda VA'DA QILINGAN, lekin kodda YO'Q edi.)
+
+⚠️ **Uchala identifikator ham saqlanadi**: `IgAccount.IgUserId` (`me.user_id`),
+`IgAccount.AppScopedUserId` (`me.id`, migratsiya `AddIgAccountAppScopedId`) va `Username`.
+Webhook'da `from.id` **ba'zan** biri, **ba'zan** ikkinchisi bo'lib keladi. Bittasiga tayanish —
+yuqoridagi halqaning aynan sababi. Eski ulangan akkauntda `AppScopedUserId` bo'sh bo'ladi —
+himoya qolgan qiymatlar bilan ishlaydi, akkauntni **qayta ulash** uni to'ldiradi.
 
 DM tomonida ekvivalenti: `message.is_echo == true` bo'lsa **hech qachon** javob yozilmaydi.
 
@@ -143,7 +151,19 @@ paydo bo'ladi.
 | `IgAccount.AccessToken` | **BAZADA** | ATAYIN chekinish: token OAuth orqali ISH VAQTIDA olinadi, `.env` ga yozib bo'lmaydi |
 | `CenterMeta.InstagramAppId` va qolgan 10 sozlama | **BAZADA** (UI'dan) | maxfiy emas |
 
-⚠️ **Token/secret HECH QACHON javobga, DTO'ga, auditga yoki logga tushmaydi.** `GET /status`
+⚠️ **Token/secret HECH QACHON javobga, DTO'ga, auditga yoki LOGGA tushmaydi.**
+
+⚠️ **LOG orqali sizib chiqish — 2026-08-19 da topilgan REAL hodisa.** `AddHttpClient` .NET'ning
+standart HTTP loggerini yoqadi va u so'rovning **to'liq manzilini** `Information` darajasida
+yozadi. Bizda esa token MANZIL ICHIDA keladi: Telegram (`api.telegram.org/bot<TOKEN>/…`) va
+Instagram Graph (`?access_token=…`). Natijada konteyner loglarida bot tokeni **ochiq** turardi
+(102 marta). Tuzatish — `appsettings.json` da `"System.Net.Http.HttpClient": "Warning"`;
+`SecretLeakAndPublicPageTests` buni qulflaydi.
+
+⚠️ Izohni `Logging:LogLevel` ICHIGA yozib bo'lmaydi — u yerdagi har bir qiymat `LogLevel` enum
+sifatida o'qiladi va ilova startupda yiqiladi.
+
+`GET /status`
 faqat holat qaytaradi: `appIdSet`, `appSecretSet`, `verifyTokenSet`, `tokenDaysLeft`,
 `connected`. Qiymatning o'zi emas.
 
@@ -238,6 +258,9 @@ ko'ra operatorga signal berish yaxshiroq.
 | 10 | `redirect_uri` | Meta'dagi bilan **harfma-harf** bir xil, oxirida `/` yo'q; `[2]` va `[4]` da ham bir xil |
 | 11 | Kod javobi `data[]` massivida | `ExchangeCodeAsync` parseri — obyekt emas, massiv |
 | 12 | `DateTime.Now` | **TAQIQLANGAN** — `AppClock.Now` / `AppClock.Iso()` |
+| 14 | **24 soatlik oyna MIJOZ yozgan vaqtdan** | `IgIncomingEvent.SentAtIso` (Meta bergan vaqt), qayta ishlangan vaqtdan EMAS — navbat kechiksa oyna "ochiq" ko'rinib, Instagram javobni rad etardi. Vaqt mantiqsiz bo'lsa (kelajak / 30 kundan eski) joriy vaqtga qaytiladi |
+| 15 | **Javob kechikishi navbatda kutgan vaqtni HISOBGA oladi** | aks holda ketma-ket siklda 10 hodisa × 5 soniya = bitta tsiklga 50+ soniya qo'shilardi |
+| 16 | Chiquvchi xabarga **`MediaId` yoziladi** | halqa avtomat o'chirgichi "shu post ostida nechta javob" ni AYNAN shu ustundan sanaydi |
 | 13 | Telegram bildirishnomasi | xatosi **jim yutiladi** (`LeadNotifier`/`BookSalesService` bilan bir xil siyosat) — bildirishnoma javobni buzmasin |
 
 **Xatolarga chidamlilik:** har bosqich alohida `try/catch`. Yordamchi tizim yiqilsa
@@ -274,6 +297,12 @@ o'chirilgan, `mk.tsx` qoladi (mock ma'lumotsiz, `ChannelId` faqat `'instagram'`)
 | Sozlamalar | `/admin/marketing/settings` |
 
 Holat boshqaruvi — `useState`/`useEffect` + axios (loyiha uslubi, TanStack Query YO'Q).
+
+⚠️ **Inbox HAR 15 SONIYADA o'zi yangilanadi** (`REFRESH_MS`): Instagram xabari webhook orqali
+fonda keladi va sahifada hech qanday "hodisa" bo'lmaydi — yangilanishsiz operator yangi
+murojaatni qo'lda F5 qilmaguncha ko'rmasdi. Ikki cheklov ATAYIN: tab ko'rinmayotganda so'rov
+YUBORILMAYDI (`visibilitychange`), ochiq suhbat esa operator **matn yozayotganda**
+yangilanmaydi (lenta pastga sakrab yozuvni chalg'itardi).
 API klienti — `src/api/services/instagram.ts` (`books.ts` uslubida).
 
 ⚠️ **Sozlamalar sahifasi maxfiy qiymatni KO'RSATMAYDI** — faqat "sozlangan / sozlanmagan".
@@ -296,6 +325,19 @@ grafikda **ikki y-o'q bilan ko'rsatilmaydi**.
 ⚠️ Bu ikki sahifa SPA'da ochiq marshrut, lekin **hech qanday CRM ma'lumotini
 KO'RSATMAYDI** — faqat: qaysi ma'lumot yig'iladi (username, ID, xabar matni), nima
 yig'ilmaydi, kim bilan bo'lishiladi, qanday o'chiriladi.
+
+| Sahifa | Komponent | Marshrut |
+|---|---|---|
+| Maxfiylik siyosati | `pages/public/PrivacyPolicyPage.tsx` (§10 «Instagram orqali murojaat qilganlar») | `/privacy` |
+| Ma'lumotni o'chirish | `pages/public/DataDeletionPage.tsx` | `/data-deletion` |
+
+⚠️ **`/data-deletion` 2026-08-19 gacha UMUMAN YO'Q edi** (hujjatda va'da qilingan, kodda yo'q) —
+Meta App sozlamasidagi majburiy maydonni to'ldirib bo'lmasdi. `SecretLeakAndPublicPageTests`
+ikkala marshrut ham mavjudligini VA `ProtectedRoute` dan OLDIN turishini (ya'ni login ortida
+qolmaganini) tekshiradi.
+
+⚠️ Sahifaga **forma, qidiruv yoki hisob ma'lumoti QO'SHILMAYDI**: manzil ochiq, begona odam
+boshqaning ma'lumotini so'rab olishi mumkin bo'lardi.
 
 ## 15. Testlar
 
