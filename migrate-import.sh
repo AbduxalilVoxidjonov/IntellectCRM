@@ -58,7 +58,7 @@ echo "==> 4/6 fayllar tiklanmoqda..."
 # ishlab turgan postgres konteynerining compose yorlig'idan ANIQ olamiz.
 PROJ=$(docker inspect intellectcrm-postgres -f '{{index .Config.Labels "com.docker.compose.project"}}')
 [ -n "$PROJ" ] || { echo "XATO: compose loyiha nomi aniqlanmadi"; exit 1; }
-echo "    compose loyihasi: $PROJ
+echo "    compose loyihasi: $PROJ"
 untarvol() { # untarvol <volume-suffix> <arxiv>
   [ -f "$SRC/$2" ] || { echo "    ! $2 yo'q — tashlab ketildi"; return 0; }
   local v="${PROJ}_$1"
