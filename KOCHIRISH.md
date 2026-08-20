@@ -69,6 +69,12 @@ rsync -avz --progress ~/migration/ <user>@<yangi>:~/migration/
 
 ⚠️ `env.backup` ichida barcha parollar bor — ko'chirish tugagach lokal nusxani o'chiring.
 
+Skript `SHA256SUMS` yozadi, `migrate-import.sh` esa uni birinchi qadamda tekshiradi — yarim
+ko'chgan arxiv jimgina ochilib, ichidan yarim ma'lumot chiqib ketmasin.
+
+**Qo'shimcha kafolat:** provayder panelidan (DigitalOcean va h.k.) **Snapshot** olib qo'ying —
+butun diskning nusxasi, biror narsa esdan chiqsa qaytarib olasiz.
+
 ## 3. Cloudflare tunnelini bo'shating
 
 ```bash

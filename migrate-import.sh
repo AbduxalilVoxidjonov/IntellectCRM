@@ -14,6 +14,15 @@ SRC="${1:-}"
 SRC=$(cd "$SRC" && pwd)
 [ -f "$SRC/db.dump" ] || { echo "XATO: $SRC/db.dump topilmadi"; exit 1; }
 
+# --- 0) Fayllar BUTUN ko'chganmi? (yarim ko'chgan arxiv jimgina ochilib qolmasin) ---
+if [ -f "$SRC/SHA256SUMS" ]; then
+  echo "==> 0/6 nazorat summalari tekshirilmoqda..."
+  ( cd "$SRC" && grep -v 'SHA256SUMS' SHA256SUMS | sha256sum -c - ) \
+    || { echo "XATO: fayllar buzilgan yoki to'liq ko'chmagan — rsync'ni QAYTA ishga tushiring"; exit 1; }
+else
+  echo "==> 0/6 SHA256SUMS yo'q — tekshiruv o'tkazib yuborildi"
+fi
+
 # --- 1) .env ---
 if [ ! -f .env ]; then
   cp "$SRC/env.backup" .env

@@ -68,6 +68,9 @@ docker compose config > "$OUT/compose-resolved.yml" 2>/dev/null || true
 
 # --- 5) Yakun ---
 echo "==> 5/5 tekshiruv ro'yxati..."
+# Nazorat summalari — ko'chirishdan keyin fayl BUTUN kelganini isbotlaydi (yarim ko'chgan
+# arxiv jimgina ochilib, ichidan yarim ma'lumot chiqishi mumkin edi).
+( cd "$OUT" && sha256sum ./* > SHA256SUMS 2>/dev/null || shasum -a 256 ./* > SHA256SUMS ) || true
 { echo "Sana: $(date)"; echo "Commit: $(git rev-parse --short HEAD 2>/dev/null || echo '-')"; \
   echo; echo "Fayllar:"; ls -lh "$OUT"; } > "$OUT/MANIFEST.txt"
 cat "$OUT/MANIFEST.txt"
