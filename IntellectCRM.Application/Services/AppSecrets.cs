@@ -118,6 +118,40 @@ public static class AppSecrets
     /// bizning manzilni o'z ilovasiga webhook qilib ulay olardi.</summary>
     public static string InstagramVerifyToken => Read("Instagram:VerifyToken", EnvKeys.InstagramVerifyToken);
 
+    /* ---------- MARKETING: REKLAMA LIDLARI (Meta Lead Ads) ---------- */
+
+    /// <summary>
+    /// Reklama lidlari webhook'ini imzolagan Meta ilovasining App Secret'i.
+    ///
+    /// <para><b>Nega alohida kalit?</b> Izoh/DM "Instagram API with Instagram Login" mahsulotidan
+    /// keladi, reklama lidi esa FACEBOOK PAGE obyektining <c>leadgen</c> webhook'idan. Ikkalasi
+    /// BITTA Meta ilovasida bo'lishi ham mumkin, AYRI ilovalarda ham. Shuning uchun kalit
+    /// alohida, lekin <b>bo'sh bo'lsa Instagram kalitiga qaytadi</b> — bitta ilova ishlatilganda
+    /// admin hech narsa qo'shmaydi.</para>
+    ///
+    /// <para>⚠️ Fallback FAIL-OPEN EMAS: ikkalasi ham bo'sh bo'lsa natija baribir bo'sh satr va
+    /// <see cref="InstagramSignature.Verify"/> <c>false</c> qaytaradi (so'rov rad etiladi).</para>
+    /// </summary>
+    public static string MetaAppSecret
+    {
+        get
+        {
+            var own = Read("Meta:AppSecret", EnvKeys.MetaAppSecret);
+            return own.Length > 0 ? own : InstagramAppSecret;
+        }
+    }
+
+    /// <summary>Reklama lidlari webhook'ining verify tokeni. Bo'sh bo'lsa Instagram tokeniga
+    /// qaytadi (bitta ilova / bitta callback URL holati).</summary>
+    public static string MetaVerifyToken
+    {
+        get
+        {
+            var own = Read("Meta:VerifyToken", EnvKeys.MetaVerifyToken);
+            return own.Length > 0 ? own : InstagramVerifyToken;
+        }
+    }
+
     /* ---------- Holat (Sozlamalar sahifasi uchun) ---------- */
 
     public static bool TelegramConfigured => TelegramBotToken.Length > 0;
@@ -154,5 +188,7 @@ public static class AppSecrets
         public const string PlayIntegrityPackage = "PLAY_INTEGRITY_PACKAGE";
         public const string InstagramAppSecret = "INSTAGRAM_APP_SECRET";
         public const string InstagramVerifyToken = "INSTAGRAM_VERIFY_TOKEN";
+        public const string MetaAppSecret = "META_APP_SECRET";
+        public const string MetaVerifyToken = "META_VERIFY_TOKEN";
     }
 }

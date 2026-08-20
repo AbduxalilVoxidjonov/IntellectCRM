@@ -3,9 +3,9 @@ import { useSearchParams } from 'react-router-dom'
 import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage } from '@/lib/utils'
 import {
-  disconnectIg, getIgConnectUrl, getIgSettings, getIgStatus, refreshIgToken, saveIgSettings,
-  testIgAgent,
-  type IgChannel, type IgSettings, type IgStatus, type IgTestAgentResult,
+  disconnectIg, disconnectIgAdPage, getIgAdStatus, getIgConnectUrl, getIgSettings, getIgStatus,
+  refreshIgToken, saveIgAdPage, saveIgSettings, testIgAgent,
+  type IgAdStatus, type IgChannel, type IgSettings, type IgStatus, type IgTestAgentResult,
 } from '@/api/services/instagram'
 import {
   ChannelIcon, Icon, MarketingPage, MkCopyRow, MkError, MkLoading, MkStatusCard,
@@ -387,6 +387,14 @@ export function InstagramSettings() {
           </div>
         </div>
 
+        {/* ── REKLAMA LIDLARI ── */}
+        <LeadAdsBlock
+          canEdit={canEdit}
+          enabled={form.instagramLeadAdsEnabled}
+          source={form.instagramAdsLeadSource}
+          onPatch={patch}
+        />
+
         {/* ── SINOV ── */}
         <TestBlock canEdit={canEdit} />
       </div>
@@ -415,6 +423,206 @@ function Toggle({
         style={disabled ? { opacity: .5, cursor: 'not-allowed' } : undefined}
         onClick={() => { if (!disabled) onToggle() }}
       />
+    </div>
+  )
+}
+
+/**
+ * REKLAMA LIDLARI (Meta Lead Ads) — Instagram/Facebook reklamasidagi FORMA to'ldirilganda lid
+ * CRM'ga avtomatik tushadi.
+ *
+ * ⚠️ Bu izoh/DM'dan BOSHQA yo'l: lid Facebook Page obyektining `leadgen` webhook'i orqali keladi
+ * va Page Access Token talab qiladi. Shu sabab bayroq ham, token ham, webhook manzili ham
+ * yuqoridagi Instagram sozlamalaridan AYRI.
+ *
+ * ⚠️ Token EKRANDA KO'RSATILMAYDI — faqat "sozlangan/sozlanmagan". Maydon bo'sh yuborilsa
+ * serverda mavjud token saqlanadi (Page ID'ni tahrirlash uchun tokenni qayta yozish shart emas).
+ */
+function LeadAdsBlock({
+  canEdit, enabled, source, onPatch,
+}: {
+  canEdit: boolean
+  enabled: boolean
+  source: string
+  onPatch: (p: Partial<IgSettings>) => void
+}) {
+  const [status, setStatus] = useState<IgAdStatus | null>(null)
+  const [pageId, setPageId] = useState('')
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [done, setDone] = useState('')
+
+  const load = useCallback(() => {
+    getIgAdStatus()
+      .then((st) => { setStatus(st); setPageId(st.pageId) })
+      .catch((e) => setError(apiErrorMessage(e, "Reklama lidlari holatini yuklab bo'lmadi")))
+  }, [])
+
+  useEffect(load, [load])
+
+  const connect = async () => {
+    setBusy('save')
+    setError('')
+    setDone('')
+    try {
+      const st = await saveIgAdPage(pageId.trim(), token.trim())
+      setStatus(st)
+      setPageId(st.pageId)
+      setToken('')   // token ekranda saqlanib qolmasin
+      setDone(st.leadgenSubscribed
+        ? 'Sahifa ulandi va obuna qilindi.'
+        : 'Sahifa saqlandi, lekin obuna qilinmadi — pastdagi xatoni ko\'ring.')
+    } catch (e) {
+      setError(apiErrorMessage(e, "Sahifani ulab bo'lmadi"))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const disconnect = async () => {
+    if (!window.confirm("Sahifa uziladi va yangi reklama lidlari kelmaydi. Davom etamizmi?")) return
+    setBusy('disconnect')
+    setError('')
+    setDone('')
+    try {
+      setStatus(await disconnectIgAdPage())
+      setToken('')
+      setDone('Sahifa uzildi.')
+    } catch (e) {
+      setError(apiErrorMessage(e, "Uzib bo'lmadi"))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 18 }}>
+      <div className="section-head">
+        <div>
+          <div className="section-title">Reklama lidlari (Lead Ads)</div>
+          <div className="page-sub">
+            Target reklamadagi forma to'ldirilsa — F.I.Sh. va telefon CRM lidiga avtomatik tushadi
+          </div>
+        </div>
+        {status?.pageConnected && canEdit && (
+          <button
+            className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }}
+            onClick={disconnect} disabled={busy === 'disconnect'}
+          >
+            <Icon name="unlink" /> Uzish
+          </button>
+        )}
+      </div>
+
+      <Toggle
+        name="Reklama lidlari yoqilgan"
+        desc="O'chirilgan bo'lsa webhook qabul qilinadi, lekin Meta'ga so'rov ketmaydi va lid yaratilmaydi."
+        on={enabled}
+        disabled={!canEdit}
+        onToggle={() => onPatch({ instagramLeadAdsEnabled: !enabled })}
+      />
+
+      {error && <div style={{ marginTop: 12 }}><MkError text={error} /></div>}
+      {done && !error && (
+        <div className="mk-alert" style={{ borderColor: 'var(--success)', background: 'var(--success-soft)', color: '#0d6b4b' }}>
+          <Icon name="check" style={{ width: 18, height: 18, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>{done}</div>
+        </div>
+      )}
+
+      {status && (
+        <div className="mk-status-grid" style={{ marginTop: 16 }}>
+          <MkStatusCard label="Modul" ok={status.enabled} value={status.enabled ? 'Yoqilgan' : "O'chirilgan"} hint={status.enabled ? undefined : 'Lid yaratilmaydi'} />
+          <MkStatusCard label="Facebook sahifa" ok={status.pageConnected} value={status.pageConnected ? status.pageName || status.pageId : 'Ulanmagan'} />
+          <MkStatusCard label="Page Access Token" ok={status.tokenSet} hint="Qiymat ko'rsatilmaydi" />
+          <MkStatusCard
+            label="Leadgen obunasi"
+            ok={status.leadgenSubscribed}
+            value={status.leadgenSubscribed ? 'Faol' : "Yo‘q"}
+            hint={status.leadgenSubscribed ? undefined : 'Obunasiz Meta hodisa YUBORMAYDI'}
+          />
+          <MkStatusCard label={status.envKeyAppSecret} ok={status.appSecretSet} hint=".env fayldan o'qiladi" />
+          <MkStatusCard label={status.envKeyVerifyToken} ok={status.verifyTokenSet} hint=".env fayldan o'qiladi" />
+          <MkStatusCard
+            label="Kelgan lidlar"
+            ok={status.leadsTotal > 0}
+            warn={status.leadsTotal === 0}
+            value={`${status.leadsToday} bugun · ${status.leads30Days} (30 kun)`}
+            hint={`Jami ${status.leadsTotal} ta`}
+          />
+          <MkStatusCard
+            label="Xato bilan qolgan"
+            ok={status.leadsFailed === 0}
+            value={`${status.leadsFailed} ta`}
+            hint={status.leadsFailed > 0 ? "«Reklama lidlari» sahifasida qayta olish mumkin" : undefined}
+          />
+        </div>
+      )}
+
+      {status?.lastError && (
+        <div style={{ marginTop: 14 }}>
+          <MkError text={'Oxirgi xato: ' + status.lastError} />
+        </div>
+      )}
+
+      <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="field">
+          <label className="field-label">Facebook Page ID</label>
+          <input
+            className="input" value={pageId} disabled={!canEdit}
+            onChange={(e) => setPageId(e.target.value)}
+            placeholder="masalan: 102938475610293"
+          />
+          <div className="field-hint">
+            Instagram akkaunt BOG'LANGAN Facebook sahifasining ID'si. Reklama lidi aynan shu
+            sahifaga tushadi.
+          </div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">Page Access Token</label>
+          <input
+            className="input" type="password" value={token} disabled={!canEdit}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={status?.tokenSet ? 'sozlangan — o‘zgartirish uchun yangisini kiriting' : 'EAAG…'}
+            autoComplete="new-password"
+          />
+          <div className="field-hint">
+            <b>System User</b> tokeni tavsiya etiladi — u <b>muddatsiz</b>. `leads_retrieval`
+            ruxsati bo'lishi shart. Bo'sh qoldirilsa mavjud token o'zgarmaydi.
+          </div>
+        </div>
+      </div>
+
+      {canEdit && (
+        <button className="btn btn-primary" onClick={connect} disabled={busy === 'save' || !pageId.trim()}>
+          <Icon name="link" /> {busy === 'save' ? 'Tekshirilmoqda…' : 'Sahifani ulash va tekshirish'}
+        </button>
+      )}
+
+      <div className="field" style={{ marginTop: 18 }}>
+        <label className="field-label">Lid manbasi (reklama)</label>
+        <input
+          className="input" value={source} disabled={!canEdit}
+          onChange={(e) => onPatch({ instagramAdsLeadSource: e.target.value })}
+          placeholder="Instagram reklama"
+        />
+        <div className="field-hint">
+          Reklamadan kelgan lidlarda «Manba» shu nom bo'ladi. Izoh/DM lidlaridan ATAYIN
+          farqli — voronkada pul to'langan reklama alohida ko'rinsin.
+        </div>
+      </div>
+
+      {status && (
+        <div style={{ marginTop: 6 }}>
+          <MkCopyRow
+            label="Reklama lidlari webhook URL"
+            value={status.leadgenUrl}
+            hint="Meta konsolida PAGE obyektining «Callback URL» maydoniga AYNAN shu manzil qo'yiladi (izoh/DM manzilidan boshqa) va `leadgen` maydoni belgilanadi."
+          />
+        </div>
+      )}
     </div>
   )
 }

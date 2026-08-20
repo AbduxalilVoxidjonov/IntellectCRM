@@ -153,6 +153,91 @@ public class InstagramWebhookController(
         return Ok();
     }
 
+    // =============================================================================================
+    //  GET|POST /leadgen — REKLAMA LIDLARI (Meta Lead Ads)
+    // =============================================================================================
+
+    /// <summary>
+    /// Reklama lidlari uchun ALOHIDA webhook manzili.
+    ///
+    /// <para><b>Nega alohida?</b> Meta konsolida callback URL <b>obyekt turi bo'yicha</b>
+    /// sozlanadi: izoh/DM <c>instagram</c> obyektidan, reklama lidi esa <c>page</c> obyektidan
+    /// keladi. Ular BOSHQA Meta ilovasida bo'lishi ham mumkin — u holda app secret ham, verify
+    /// token ham boshqa bo'ladi va bitta manzil bilan ikkalasini ham tekshirib bo'lmasdi.
+    /// Bitta ilova ishlatilsa <see cref="AppSecrets.MetaAppSecret"/> Instagram kalitiga
+    /// qaytadi, ya'ni admin uchun hech narsa o'zgarmaydi.</para>
+    ///
+    /// <para>⚠️ Eski <c>/webhook</c> manzili ham <c>page</c> payloadini QABUL QILADI (pastdagi
+    /// <see cref="BuildEventKey"/> leadgen kalitini ham quradi) — admin ikkala obyektni bitta
+    /// manzilga ulab qo'ysa hodisa jimgina yo'qolmasin.</para>
+    /// </summary>
+    [HttpGet("leadgen")]
+    public IActionResult VerifyLeadgen()
+    {
+        var mode = Request.Query["hub.mode"].ToString();
+        var token = Request.Query["hub.verify_token"].ToString();
+        var challenge = Request.Query["hub.challenge"].ToString();
+
+        var ok = InstagramSignature.VerifyChallenge(mode, token, challenge, AppSecrets.MetaVerifyToken);
+        if (ok is null)
+        {
+            logger.LogWarning("[leadgen] webhook verify rad etildi (mode: {Mode})", mode);
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        logger.LogInformation("[leadgen] webhook verify muvaffaqiyatli");
+        return Content(ok, "text/plain");
+    }
+
+    /// <summary>
+    /// Reklama formasi to'ldirilgani haqidagi hodisa. Ketma-ketlik <c>POST /webhook</c> bilan
+    /// AYNAN bir xil: xom baytlar → imzo (fail-closed) → navbat → darhol 200. Og'ir ish
+    /// (Graph so'rovi, lid yaratish) fon xizmatida — Meta 5 soniya kutadi.
+    ///
+    /// <para>⚠️ Payloadda mijozning ismi ham, telefoni ham YO'Q — faqat <c>leadgen_id</c>.
+    /// Ma'lumot keyin Page tokeni bilan olinadi.</para>
+    /// </summary>
+    [HttpPost("leadgen")]
+    [EnableRateLimiting("instagram-webhook")]
+    public async Task<IActionResult> ReceiveLeadgen(CancellationToken ct)
+    {
+        var raw = await ReadBodyAsync(ct);
+        if (raw is null)
+        {
+            logger.LogWarning("[leadgen] webhook body juda katta yoki o'qib bo'lmadi");
+            return BadRequest();
+        }
+
+        var header = Request.Headers["X-Hub-Signature-256"].ToString();
+        if (!InstagramSignature.Verify(raw, header, AppSecrets.MetaAppSecret))
+        {
+            logger.LogWarning("[leadgen] webhook imzosi mos kelmadi — so'rov rad etildi");
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var json = Encoding.UTF8.GetString(raw);
+
+        db.IgWebhookEvents.Add(new IgWebhookEvent
+        {
+            EventKey = BuildEventKey(json, raw, ourIgUserId: ""),
+            RawJson = json,
+            Status = IgConst.EvPending,
+            ReceivedAt = AppClock.Iso(),
+        });
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            logger.LogInformation("[leadgen] takroriy webhook hodisasi o'tkazib yuborildi");
+        }
+
+        return Ok();
+    }
+
     /// <summary>
     /// Dedup kaliti. Odatda bitta POST ichida bitta hodisa keladi — u holda kalit AYNAN
     /// <c>comment_id</c> / <c>mid</c> bo'ladi (barqaror, Meta beradi). Bir necha hodisa bo'lsa
@@ -168,6 +253,14 @@ public class InstagramWebhookController(
         try
         {
             foreach (var e in InstagramEventParser.Parse(json, ourIgUserId))
+                if (!string.IsNullOrWhiteSpace(e.EventKey)) keys.Add(e.EventKey);
+
+            // REKLAMA LIDI — kalit `leadgen:{id}`. Bu yerda ATAYIN ikkala parser ham
+            // chaqiriladi: manzil qaysi biri bo'lishidan qat'i nazar (admin ikkala obyektni
+            // bitta URL'ga ulashi mumkin) kalit BARQAROR bo'lishi kerak. Xom bodyning hash'iga
+            // qaytilsa Meta qayta yuborgan (vaqti boshqacha) payload YANGI hodisa bo'lib
+            // tushardi va bitta mijoz uchun ikkinchi lid ochilardi.
+            foreach (var e in MetaLeadgenParser.Parse(json))
                 if (!string.IsNullOrWhiteSpace(e.EventKey)) keys.Add(e.EventKey);
         }
         catch
@@ -341,6 +434,10 @@ public class InstagramWebhookController(
 
     /// <summary>Meta Dashboard'ga kiritiladigan webhook manzili.</summary>
     public static string WebhookUrl(HttpRequest req) => PublicBase(req) + "/api/public/instagram/webhook";
+
+    /// <summary>REKLAMA LIDLARI webhook manzili — Meta'da <b>Page</b> obyektining «Callback URL»
+    /// maydoniga qo'yiladi (izoh/DM manzilidan BOSHQA).</summary>
+    public static string LeadgenUrl(HttpRequest req) => PublicBase(req) + "/api/public/instagram/leadgen";
 
     /// <summary>Tashqi manzil asosi. Cloudflare Tunnel ortida sxema <c>X-Forwarded-Proto</c> dan
     /// tiklanadi (Program.cs `UseForwardedHeaders`), shuning uchun bu yerda qo'shimcha ish yo'q.</summary>

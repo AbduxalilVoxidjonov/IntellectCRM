@@ -1,7 +1,8 @@
 ---
-description: Marketing — Instagram AI sotuv agenti (webhook, OAuth, avtojavob, lidga aylantirish, inbox).
+description: Marketing — Instagram AI sotuv agenti (webhook, OAuth, avtojavob, lidga aylantirish, inbox) va REKLAMA LIDLARI (Meta Lead Ads).
 paths:
   - "IntellectCRM.Application/Services/Instagram*.cs"
+  - "IntellectCRM.Application/Services/Meta*.cs"
   - "IntellectCRM.Server/Controllers/InstagramController.cs"
   - "IntellectCRM.Server/Controllers/InstagramWebhookController.cs"
   - "IntellectCRM.Client/src/pages/admin/marketing/**"
@@ -355,3 +356,145 @@ boshqaning ma'lumotini so'rab olishi mumkin bo'lardi.
 ⚠️ Sof funksiyalar (`InstagramContract`, `InstagramSignature`, `InstagramEventParser`,
 `BuildSystemPrompt`, `ParseOutput`) ATAYIN HTTP va DB'dan ajratilgan — aynan shular
 testlanadi (`tests.md` uslubi).
+
+## 16. REKLAMA LIDLARI (Meta Lead Ads) — target reklamadagi forma
+
+Migratsiya: `AddInstagramLeadAds`. Instagram/Facebook **reklamasidagi forma** (Instant Form)
+to'ldirilganda F.I.Sh. va telefon CRM lidiga avtomatik tushadi.
+Sahifa: **Marketing → Reklama lidlari** (`/admin/marketing/reklama-lidlari`), sozlash:
+**Marketing → Sozlamalar → «Reklama lidlari (Lead Ads)»**.
+
+### 16.1. ⚠️ BU IZOH/DM'DAN BOSHQA YO'L — eng muhim farq
+
+| | Izoh · DM | **Reklama lidi** |
+|---|---|---|
+| Meta mahsuloti | Instagram API with Instagram Login | **Facebook Page** webhook'i |
+| Webhook obyekti | `instagram` | **`page`**, maydon **`leadgen`** |
+| Graph hosti | `graph.instagram.com` (`IgConst.GraphBase`) | **`graph.facebook.com`** (`IgConst.FbGraphBase`) |
+| Token | Instagram Login tokeni (60 kun, avto-yangilanadi) | **Page Access Token** (System User — muddatsiz) |
+| Meta talabi | App Review KERAK EMAS | **`leads_retrieval` + App Review + Business Verification** |
+| Manzil | `…/api/public/instagram/webhook` | `…/api/public/instagram/**leadgen**` |
+
+⚠️ **Qoida §11 №9 («`graph.facebook.com` — YO'Q») shu bo'limga TEGISHLI EMAS.** Reklama lidi
+Page obyektiga tegishli va `graph.instagram.com` da bunday endpoint YO'Q. Aynan shuning uchun
+mijozlar ayri sinflarda: `InstagramApi` (Instagram) va **`MetaAdsApi`** (reklama). Tokenni
+almashtirib yuborish `OAuthException 190` bo'lib chiqadi va sababini topish qiyin.
+
+### 16.2. Oqim
+
+```
+Meta → POST /api/public/instagram/leadgen
+   1) xom bayt + HMAC imzo (AppSecrets.MetaAppSecret)   ← FAIL-CLOSED, §2 bilan bir xil
+   2) IgWebhookEvent(EventKey="leadgen:{leadgen_id}")   ← MAVJUD durable navbat
+   3) ══ DARHOL 200 OK ══
+                    ↓ InstagramWorkerService (har 2 soniya)
+InstagramPipeline → MetaLeadgenService.HandleAsync
+   4) GET graph.facebook.com/{leadgen_id}  → field_data: full_name, phone_number
+   5) MetaLeadBridge.UpsertAsync → LeadIntake dedup → Lead + LeadEvent
+   6) LeadNotifier (Telegram)
+```
+
+⚠️ **Webhook payloadida ism ham, telefon ham YO'Q** — faqat `leadgen_id`. Meta shaxsiy
+ma'lumotni faqat (4) so'rovi orqali beradi. Ya'ni **token bo'lmasa lid mazmunsiz qoladi** —
+shuning uchun yozuv baribir saqlanadi (`IgAdLead.Error` bilan) va admin «Qayta olish» tugmasi
+bilan tuzatadi. Meta lidni **~90 kun** saqlaydi.
+
+### 16.3. Bayroqlar MUSTAQIL
+
+`CenterMeta.InstagramLeadAdsEnabled` (default **false**) — `InstagramEnabled` dan **AYRI**:
+markaz AI agentini ishlatmasdan ham reklama lidlarini olishi mumkin (va aksincha).
+
+⚠️ `InstagramWorkerService` navbatni **ikkalasidan BIRORTASI** yoqilganda qayta ishlaydi.
+Faqat `InstagramEnabled` ga qaralsa, AI agentini ishlatmaydigan markazda reklama lidlari
+navbatda **turib qolardi** va sababi hech qayerda ko'rinmasdi. Token yangilash esa faqat
+`InstagramEnabled` da (u Instagram Login tokeniga tegishli).
+
+### 16.4. Entitylar va dedup
+
+| Entity | Vazifasi |
+|---|---|
+| `IgAdPage` | Lid olinadigan Facebook Page: `PageId`, **`AccessToken`**, `LeadgenSubscribed`, `LastLeadAt`, `LastError` |
+| `IgAdLead` | Kelgan BITTA lid: `LeadgenId` (**UNIKAL**), forma/e'lon/kampaniya id va nomlari, F.I.Sh., telefon, `RawFieldsJson`, `LeadId`, `Error` |
+
+⚠️ **Dedup IKKI qavat:** (1) `IgWebhookEvent.EventKey = leadgen:{id}` — navbat darajasida;
+(2) **`IgAdLead.LeadgenId` unikal indeksi** — uzoq muddatli qavat. Navbat yozuvlari 30 kunda
+tozalanadi, ya'ni birinchi qavat abadiy emas: usiz Meta eski hodisani qayta yuborsa CRM'da
+**ikkinchi lid** ochilardi.
+
+⚠️ Kalit `MetaLeadgenParser.EventKey` da — sof funksiya, `MetaLeadgenParserTests` bilan
+qulflangan (deterministiklik §5 qoidasi).
+
+⚠️ **`IgConst.LeadgenFields` ga mavjud bo'lmagan maydon qo'shmang** — Graph butun so'rovni rad
+etadi (`code 100`) va lidlar UMUMAN kelmay qo'yadi. Forma NOMI lid tugunida yo'q, u alohida
+olinadi (`FetchFormNameAsync`) va **keshlanadi** (o'sha formaning oldingi lidida saqlangan nom).
+
+### 16.5. Lid — `MetaLeadBridge`, qoidalar `InstagramLeadBridge` bilan AYNAN bir xil
+
+Telefon bo'yicha dedup (`LeadIntake.FindByPhoneAsync`), **first-touch** (`Source`/`Stage`
+o'zgarmaydi, `RepeatCount++`), faqat bo'sh maydonlar to'ldiriladi.
+`Lead.Source` = `CenterMeta.InstagramAdsLeadSource` (default `"Instagram reklama"`),
+`Lead.InterestSubject` = **forma nomi**.
+
+⚠️ Bir odam avval reklama formasini to'ldirib keyin DM yozishi (yoki aksincha) juda odatiy —
+ikki joyda ikki xil qoida bo'lsa CRM'da bitta odam **ikkita kartochka** bo'lib qolardi.
+
+⚠️ **Telefonsiz lid ham YOZILADI** (`"Reklama lidi (ismsiz)"`): Meta formasida telefon majburiy
+bo'lmasligi mumkin va jimgina tashlansa markaz **pul to'lagan** murojaatdan xabar topmasdi.
+
+⚠️ **Kanal tasnifi:** `LeadOrigins.Ads` (`"ads"`, «Instagram reklamasi») — DM/izoh lididan
+ATAYIN ajratilgan, aks holda "Instagram" degan bitta qator reklama byudjeti qancha lid
+berganini ko'rsatmasdi. `Classify` da **reklama Instagram'dan OLDIN** tekshiriladi (birinchi
+teginish).
+
+### 16.6. Sozlash — HAMMASI Marketing bo'limidan
+
+`.env` da faqat **ixtiyoriy** `META_APP_SECRET` / `META_VERIFY_TOKEN`: bo'sh bo'lsa
+`INSTAGRAM_*` kalitlariga qaytadi (bitta Meta ilovasi ishlatilganda hech narsa qo'shilmaydi).
+Ikkalasi ham `docker-compose.yml` da (`EnvKeysWiringTests` qulfi).
+
+**Page ID va Page Access Token — UI'dan** (`PUT /ads/page`), OAuth YO'Q. Sabab: System User
+tokeni **muddatsiz**, ya'ni bir marta kiritiladi; OAuth oqimi esa Facebook Login mahsulotini,
+yana bir redirect URI'ni va yangilash mexanizmini talab qilardi.
+
+⚠️ Saqlashdan **OLDIN** token tekshiriladi (`GET /{page-id}`) va sahifa `leadgen` maydoniga
+**obuna** qilinadi (`POST /{page-id}/subscribed_apps`). **Obunasiz Meta hodisani UMUMAN
+yubormaydi** — Meta konsolida manzil to'g'ri turgan bo'lsa ham. Shuning uchun "obuna faol/yo'q"
+holati ekranda alohida ko'rsatiladi: aks holda nosozlik "reklama ishlayapti, lid kelmayapti"
+bo'lib ko'rinardi.
+
+⚠️ Token **hech qachon** javobga tushmaydi — faqat `tokenSet` bayrog'i. Forma bo'sh yuborilsa
+mavjud token saqlanadi (Page ID'ni tahrirlash uchun tokenni qayta yozish shart emas).
+
+### 16.7. API va ruxsat
+
+| Metod · yo'l | Vazifasi | Ruxsat |
+|---|---|---|
+| `GET \| POST /api/public/instagram/leadgen` | Meta webhook'i | `[AllowAnonymous]` + HMAC |
+| `GET /ads/status` | Diagnostika (modul/sahifa/token/obuna/sanoq) | `marketing` (RRP) |
+| `PUT \| DELETE /ads/page` | Sahifani ulash / uzish | `marketing.settings` |
+| `GET /ads/leads` | Ro'yxat + jamlanma + forma/kampaniya kesimi | `marketing` (RRP) |
+| `POST /ads/leads/{id}/retry` | Xato bilan qolgan lidni qayta olish | `marketing.settings` |
+
+Sahifa ruxsati — **`marketing.leadads`** (bo'lim kaliti `marketing` o'zgarmagan, faqat sahifa
+kaliti qo'shilgan — §8 dagi naqsh).
+
+⚠️ Jamlanma va kesimlar **SERVERDA, butun topilma bo'yicha** — ro'yxat sahifalangani uchun uni
+qatorlardan qo'shib chiqarish noto'g'ri son berardi (`books.md` dagi bir xil saboq).
+
+### 16.8. Audit
+
+`EntityType = "Instagram"` (bo'lim `marketing`). Yoziladi: **sahifani ulash/uzish**, sozlama
+o'zgarishi (bayroq holati bilan), **lidni qayta olish**. Token va App Secret YOZILMAYDI.
+Har kelgan lid auditga yozilmaydi — u `IgAdLead` ro'yxatida va `LeadEvent` da allaqachon bor.
+
+### 16.9. Testlar
+
+`IntellectCRM.Tests/MetaLeadgenTests.cs`:
+
+| Test sinfi | Nimani qulflaydi |
+|---|---|
+| `MetaLeadgenParserTests` | payload o'qilishi, **dedup kalitining deterministikligi**, raqam/satr id, `page_id` yo'q bo'lsa `entry.id`, izoh payloadi olinmasligi, buzuq JSON → bo'sh |
+| `MetaAdLeadReadTests` | `field_data` → F.I.Sh.+telefon, `first_name`+`last_name`, notanish maydon xom JSON'da qolishi |
+| `MetaLeadBridgeTests` | yangi lid, **first-touch**, boshqa formatdagi telefon bilan dedup, telefonsiz lid, bo'sh manba |
+| `LeadOriginsAdsTests` | reklama DM'dan ustun, qo'lda kiritilgan reklamadan ustun |
+

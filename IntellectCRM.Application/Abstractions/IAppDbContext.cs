@@ -198,6 +198,11 @@ public interface IAppDbContext
     DbSet<IgKnowledge> IgKnowledges { get; }
     DbSet<IgOAuthState> IgOAuthStates { get; }
 
+    // Marketing: REKLAMA LIDLARI (Meta Lead Ads) — lid olinadigan Facebook Page (token bilan)
+    // va reklama formasidan kelgan lidlar.
+    DbSet<IgAdPage> IgAdPages { get; }
+    DbSet<IgAdLead> IgAdLeads { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

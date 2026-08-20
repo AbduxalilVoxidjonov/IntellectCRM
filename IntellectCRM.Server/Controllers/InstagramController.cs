@@ -40,6 +40,7 @@ namespace IntellectCRM.Server.Controllers;
 public class InstagramController(
     AppDbContext db,
     InstagramApi api,
+    MetaAdsApi adsApi,
     AuditService audit,
     IConfiguration config,
     ILogger<InstagramController> logger) : ControllerBase
@@ -158,13 +159,18 @@ public class InstagramController(
         meta.InstagramReplyDelaySeconds = Math.Clamp(payload.InstagramReplyDelaySeconds, 0, 300);
         meta.InstagramDailyReplyLimit = Math.Clamp(payload.InstagramDailyReplyLimit, 0, 100000);
         meta.InstagramGreeting = (payload.InstagramGreeting ?? "").Trim();
+        meta.InstagramLeadAdsEnabled = payload.InstagramLeadAdsEnabled;
+        meta.InstagramAdsLeadSource = string.IsNullOrWhiteSpace(payload.InstagramAdsLeadSource)
+            ? MetaLeadBridge.DefaultSource
+            : payload.InstagramAdsLeadSource.Trim();
 
         // ⚠️ Auditga faqat "nima yoqildi/o'chirildi" yoziladi — App ID ham, matnlar ham emas.
         var summary = "Instagram agenti sozlamalari o'zgartirildi — modul: "
                       + (meta.InstagramEnabled ? "YOQILGAN" : "O'CHIRILGAN")
                       + ", izohlarga avto-javob: " + (meta.InstagramAutoReplyComments ? "ha" : "yo'q")
                       + ", DM'ga avto-javob: " + (meta.InstagramAutoReplyDm ? "ha" : "yo'q")
-                      + ", kunlik chegara: " + meta.InstagramDailyReplyLimit;
+                      + ", kunlik chegara: " + meta.InstagramDailyReplyLimit
+                      + ", reklama lidlari: " + (meta.InstagramLeadAdsEnabled ? "YOQILGAN" : "O'CHIRILGAN");
         audit.Record(AuditEntity, "settings", "update", summary);
         await db.SaveChangesAsync(ct);
 
@@ -178,7 +184,8 @@ public class InstagramController(
         m.InstagramEnabled, m.InstagramAutoReplyComments, m.InstagramAutoReplyDm,
         m.InstagramPrivateReplyEnabled, m.InstagramAppId, m.InstagramAiModel,
         m.InstagramLeadSource, m.InstagramNotifyTelegram, m.InstagramReplyDelaySeconds,
-        m.InstagramDailyReplyLimit, m.InstagramGreeting);
+        m.InstagramDailyReplyLimit, m.InstagramGreeting,
+        m.InstagramLeadAdsEnabled, m.InstagramAdsLeadSource);
 
     // =============================================================================================
     //  AKKAUNTNI ULASH / UZISH
@@ -975,6 +982,269 @@ public class InstagramController(
 
         return new IgAnalyticsDto(fromDate, toDate, daily, totals, byIntent, byLanguage, byChannel, topRules);
     }
+
+    // =============================================================================================
+    //  REKLAMA LIDLARI (Meta Lead Ads)
+    // =============================================================================================
+    //  Izoh/DM oqimidan MUSTAQIL: o'z bayrog'i (`InstagramLeadAdsEnabled`), o'z tokeni (Page
+    //  Access Token) va o'z webhook manzili bor. Sozlash HAMMASI shu bo'limdan qilinadi.
+
+    /// <summary>
+    /// Reklama lidlari DIAGNOSTIKASI — "nega lid kelmayapti" savolining barcha sabablari bitta
+    /// ekranda: modul yoqilganmi, sahifa ulanganmi, tokeni bormi, obuna qilinganmi, oxirgi lid
+    /// qachon kelgan va oxirgi xato nima edi.
+    /// <para>⚠️ Token QIYMATI qaytmaydi — faqat "sozlangan/sozlanmagan".</para>
+    /// </summary>
+    [HttpGet("ads/status")]
+    public async Task<ActionResult<IgAdStatusDto>> AdStatus(CancellationToken ct)
+    {
+        var meta = await db.CenterMeta.AsNoTracking().FirstOrDefaultAsync(ct);
+        var page = await db.IgAdPages.AsNoTracking()
+            .Where(p => p.IsActive)
+            .OrderByDescending(p => p.ConnectedAt)
+            .FirstOrDefaultAsync(ct);
+
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        var monthStart = AppClock.Today.AddDays(-29).ToString("yyyy-MM-dd");
+
+        return new IgAdStatusDto(
+            Enabled: meta?.InstagramLeadAdsEnabled ?? false,
+            PageConnected: page is not null,
+            PageId: page?.PageId ?? "",
+            PageName: page?.PageName ?? "",
+            TokenSet: !string.IsNullOrWhiteSpace(page?.AccessToken),
+            LeadgenSubscribed: page?.LeadgenSubscribed ?? false,
+            ConnectedAt: page?.ConnectedAt ?? "",
+            ConnectedBy: page?.ConnectedBy ?? "",
+            LastLeadAt: page?.LastLeadAt ?? "",
+            LastError: page?.LastError ?? "",
+            AppSecretSet: AppSecrets.MetaAppSecret.Length > 0,
+            VerifyTokenSet: AppSecrets.MetaVerifyToken.Length > 0,
+            LeadsTotal: await db.IgAdLeads.CountAsync(ct),
+            LeadsToday: await db.IgAdLeads.CountAsync(l => l.CreatedTime.Substring(0, 10) == today, ct),
+            Leads30Days: await db.IgAdLeads.CountAsync(l => l.CreatedTime.CompareTo(monthStart) >= 0, ct),
+            LeadsFailed: await db.IgAdLeads.CountAsync(l => l.Error != "", ct),
+            LeadgenUrl: InstagramWebhookController.LeadgenUrl(Request),
+            EnvKeyAppSecret: AppSecrets.EnvKeys.MetaAppSecret,
+            EnvKeyVerifyToken: AppSecrets.EnvKeys.MetaVerifyToken);
+    }
+
+    /// <summary>
+    /// Facebook Page'ni ULASH — Page ID va Page Access Token kiritiladi.
+    ///
+    /// <para><b>Nega OAuth emas, qo'lda?</b> Reklama lidlari uchun System User tokeni ishlatiladi
+    /// va u <b>muddatsiz</b> — bir marta kiritiladi va qayta ulash kerak bo'lmaydi. OAuth oqimi
+    /// esa Facebook Login mahsulotini, yana bir redirect URI'ni va 60 kunlik tokenni yangilash
+    /// mexanizmini talab qilardi — bir martalik sozlama uchun bu ortiqcha.</para>
+    ///
+    /// <para><b>Saqlashdan OLDIN tekshiriladi</b> (<c>GET /{page-id}</c>): token noto'g'ri
+    /// sahifaniki bo'lsa yoki muddati tugagan bo'lsa xato DARHOL ko'rinadi. Aks holda nosozlik
+    /// "reklama ishlayapti, lekin lid kelmayapti" bo'lib bir haftadan keyin sezilardi.</para>
+    ///
+    /// <para>Keyin sahifa <c>leadgen</c> maydoniga OBUNA qilinadi — busiz Meta hodisani umuman
+    /// yubormaydi. Obuna muvaffaqiyatsiz bo'lsa sozlama BARIBIR saqlanadi (token to'g'ri, faqat
+    /// ruxsat yetishmayapti) va holat ekranda qizil bo'lib turadi.</para>
+    /// </summary>
+    [HttpPut("ads/page")]
+    [AdminPerm("marketing.settings")]
+    public async Task<ActionResult<IgAdStatusDto>> SaveAdPage(IgAdPagePayload payload, CancellationToken ct)
+    {
+        var pageId = (payload.PageId ?? "").Trim();
+        var token = (payload.AccessToken ?? "").Trim();
+        if (pageId.Length == 0) return BadRequest(new { message = "Page ID kiritilmagan." });
+
+        var existing = await db.IgAdPages.FirstOrDefaultAsync(p => p.IsActive, ct);
+
+        // Token bo'sh kelsa — MAVJUDI saqlanadi (forma tokenni ko'rsatmaydi, ya'ni faqat Page ID
+        // tahrirlanganda uni qayta yozdirish shart emas).
+        if (token.Length == 0) token = existing?.AccessToken ?? "";
+        if (token.Length == 0)
+            return BadRequest(new { message = "Page Access Token kiritilmagan." });
+
+        var (okPage, pageName, errPage) = await adsApi.FetchPageAsync(pageId, token, ct);
+        if (!okPage) return BadRequest(new { message = errPage });
+
+        var (okSub, errSub) = await adsApi.SubscribeLeadgenAsync(pageId, token, ct);
+        if (!okSub)
+            logger.LogWarning("[leadgen] sahifani obuna qilib bo'lmadi ({Page}): {Err}", pageId, errSub);
+
+        var page = existing;
+        if (page is null)
+        {
+            page = new IgAdPage { ConnectedAt = AppClock.Iso() };
+            db.IgAdPages.Add(page);
+        }
+        page.PageId = pageId;
+        page.PageName = pageName;
+        page.AccessToken = token;
+        page.LeadgenSubscribed = okSub;
+        page.IsActive = true;
+        page.ConnectedBy = Actor;
+        page.LastError = okSub ? "" : errSub;
+
+        // ⚠️ Auditga TOKEN yozilmaydi (audit.md §1) — faqat qaysi sahifa ulangani.
+        audit.Record(AuditEntity, page.Id, "update",
+            $"Reklama lidlari uchun Facebook sahifa ulandi: {pageName} ({pageId})"
+            + (okSub ? " — leadgen obunasi faol" : " — ⚠️ obuna qilinmadi: " + errSub));
+        await db.SaveChangesAsync(ct);
+
+        return await AdStatus(ct);
+    }
+
+    /// <summary>Sahifani UZISH. Qator O'CHIRILMAYDI (kelgan lidlar tarixi va analitika saqlansin) —
+    /// faqat <c>IsActive=false</c> va token TOZALANADI.</summary>
+    [HttpDelete("ads/page")]
+    [AdminPerm("marketing.settings")]
+    public async Task<ActionResult<IgAdStatusDto>> DisconnectAdPage(CancellationToken ct)
+    {
+        var pages = await db.IgAdPages.Where(p => p.IsActive).ToListAsync(ct);
+        if (pages.Count == 0) return BadRequest(new { message = "Ulangan sahifa yo'q." });
+
+        foreach (var p in pages)
+        {
+            p.IsActive = false;
+            p.AccessToken = "";
+            p.LeadgenSubscribed = false;
+        }
+
+        audit.Record(AuditEntity, pages[0].Id, "update",
+            $"Reklama lidlari uchun ulangan sahifa uzildi ({pages[0].PageName}) — yangi lidlar kelmaydi");
+        await db.SaveChangesAsync(ct);
+        return await AdStatus(ct);
+    }
+
+    /// <summary>
+    /// Kelgan reklama lidlari ro'yxati + jamlanma va kesimlar.
+    ///
+    /// <para>Tartib — <b>CreatedTime bo'yicha, eng yangisi tepada</b> (Meta bergan vaqt; navbat
+    /// kechikkanda "qabul qilingan vaqt" bo'yicha tartiblash kunlarni aralashtirib yuborardi).</para>
+    ///
+    /// <para>⚠️ Jamlanma va kesimlar <b>BUTUN topilma</b> bo'yicha hisoblanadi, ro'yxatning
+    /// ko'rinadigan qismidan emas: chegara (<see cref="IgConst.AdLeadsPageSize"/>) tufayli
+    /// jadval ostidagi son ro'yxatdan kichik chiqib, "raqamlar to'g'ri kelmayapti" bo'lardi
+    /// (`books.md` dagi bir xil saboq).</para>
+    /// </summary>
+    /// <param name="status">`all` (default) · `ok` (lid yaratilgan) · `failed` (xato bilan).</param>
+    [HttpGet("ads/leads")]
+    public async Task<ActionResult<IgAdLeadListDto>> AdLeads(
+        [FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? q,
+        [FromQuery] string? status, [FromQuery] int page = 1, CancellationToken ct = default)
+    {
+        var query = db.IgAdLeads.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(from)) query = query.Where(l => l.CreatedTime.CompareTo(from) >= 0);
+        // `to` KUN sifatida keladi — kunning oxirigacha cho'ziladi (audit.md §5 bilan bir xil).
+        if (!string.IsNullOrWhiteSpace(to)) query = query.Where(l => l.CreatedTime.CompareTo(to + "T23:59:59") <= 0);
+
+        if (string.Equals(status, "ok", StringComparison.Ordinal)) query = query.Where(l => l.LeadId != "");
+        else if (string.Equals(status, "failed", StringComparison.Ordinal)) query = query.Where(l => l.Error != "");
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            // Qidiruv `ToLower().Contains` bilan — provayderga bog'liq emas (`ILike` SQLite
+            // testlarida ishlamasdi, audit.md §5).
+            var needle = q.Trim().ToLower();
+            query = query.Where(l =>
+                l.FullName.ToLower().Contains(needle)
+                || l.Phone.Contains(needle)
+                || l.FormName.ToLower().Contains(needle)
+                || l.CampaignName.ToLower().Contains(needle));
+        }
+
+        var total = await query.CountAsync(ct);
+        var withLead = await query.CountAsync(l => l.LeadId != "", ct);
+        var newLeads = await query.CountAsync(l => l.IsNewLead, ct);
+        var failed = await query.CountAsync(l => l.Error != "", ct);
+
+        // ⚠️ Guruhlash ANONIM turga proyeksiya qilinadi va `record` ga XOTIRADA aylantiriladi:
+        // konstruktorli proyeksiya EF tarjimasida provayderga bog'liq bo'lib qoladi, anonim
+        // tur esa har joyda ishlaydi (testlar SQLite'da, prod Npgsql'da).
+        var byForm = (await query
+                .Where(l => l.FormName != "")
+                .GroupBy(l => l.FormName)
+                .Select(g => new { Key = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count).Take(20).ToListAsync(ct))
+            .Select(x => new IgBreakdownDto(x.Key, x.Count)).ToList();
+
+        var byCampaign = (await query
+                .Where(l => l.CampaignName != "")
+                .GroupBy(l => l.CampaignName)
+                .Select(g => new { Key = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count).Take(20).ToListAsync(ct))
+            .Select(x => new IgBreakdownDto(x.Key, x.Count)).ToList();
+
+        var pageNo = page < 1 ? 1 : page;
+        var items = await query
+            .OrderByDescending(l => l.CreatedTime)
+            .Skip((pageNo - 1) * IgConst.AdLeadsPageSize)
+            .Take(IgConst.AdLeadsPageSize)
+            .ToListAsync(ct);
+
+        var dtos = items.Select(l => new IgAdLeadDto(
+            l.Id, l.LeadgenId, l.FullName, l.Phone, l.Email, l.FormName, l.CampaignName,
+            l.AdName, l.Platform, l.LeadId, l.IsNewLead, l.CreatedTime, l.ReceivedAt, l.Error)).ToList();
+
+        return new IgAdLeadListDto(
+            dtos, total, pageNo, IgConst.AdLeadsPageSize,
+            new IgAdTotalsDto(total, withLead, newLeads, failed), byForm, byCampaign);
+    }
+
+    /// <summary>
+    /// XATO bilan qolgan lidni QAYTA olish. Eng ko'p uchraydigan holat: lid kelgan paytda token
+    /// hali kiritilmagan yoki muddati tugagan edi — ya'ni ism va telefon olinmay qolgan.
+    ///
+    /// <para>⚠️ Meta lidni ~90 kun saqlaydi; bundan eskisiga "topilmadi" xatosi qaytadi va
+    /// bu foydalanuvchiga OCHIQ aytiladi (jimgina muvaffaqiyat ko'rsatilmaydi).</para>
+    /// </summary>
+    [HttpPost("ads/leads/{id}/retry")]
+    [AdminPerm("marketing.settings")]
+    public async Task<IActionResult> RetryAdLead(string id, CancellationToken ct)
+    {
+        var row = await db.IgAdLeads.FirstOrDefaultAsync(l => l.Id == id, ct);
+        if (row is null) return NotFound(new { message = "Reklama lidi topilmadi." });
+        if (row.LeadId.Length > 0)
+            return BadRequest(new { message = "Bu lid allaqachon CRM'ga qo'shilgan." });
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
+        if (meta is null || !meta.InstagramLeadAdsEnabled)
+            return BadRequest(new { message = "Reklama lidlari moduli o'chirilgan — avval uni yoqing." });
+
+        var page = await db.IgAdPages.FirstOrDefaultAsync(p => p.IsActive, ct);
+        if (page is null || page.AccessToken.Length == 0)
+            return BadRequest(new { message = "Facebook sahifa ulanmagan — avval Page Access Token kiriting." });
+
+        var (ok, data, err) = await adsApi.FetchLeadAsync(row.LeadgenId, page.AccessToken, ct);
+        if (!ok || data is null)
+        {
+            row.Error = err;
+            await db.SaveChangesAsync(ct);
+            return BadRequest(new { message = err });
+        }
+
+        row.FullName = data.FullName;
+        row.Phone = PhoneUtil.Normalize(data.Phone);
+        row.Email = data.Email;
+        row.RawFieldsJson = data.FieldsJson;
+        row.AdName = data.AdName;
+        row.CampaignId = data.CampaignId;
+        row.CampaignName = data.CampaignName;
+        row.Platform = data.Platform;
+        if (data.FormId.Length > 0) row.FormId = data.FormId;
+        if (data.CreatedTimeIso.Length > 0) row.CreatedTime = data.CreatedTimeIso;
+        if (row.FormName.Length == 0)
+            row.FormName = await adsApi.FetchFormNameAsync(row.FormId, page.AccessToken, ct);
+
+        var (leadId, isNew) = await MetaLeadBridge.UpsertAsync(db, row, meta.InstagramAdsLeadSource, ct);
+        row.LeadId = leadId;
+        row.IsNewLead = isNew;
+        row.Error = "";
+
+        audit.Record(AuditEntity, row.Id, "update",
+            $"Reklama lidi qayta olindi va CRM'ga qo'shildi: {row.FullName} {row.Phone}".TrimEnd());
+        await db.SaveChangesAsync(ct);
+
+        return Ok(new { leadId, isNew });
+    }
 }
 
 // =================================================================================================
@@ -1002,7 +1272,37 @@ public record IgSettingsDto(
     bool InstagramEnabled, bool InstagramAutoReplyComments, bool InstagramAutoReplyDm,
     bool InstagramPrivateReplyEnabled, string InstagramAppId, string InstagramAiModel,
     string InstagramLeadSource, bool InstagramNotifyTelegram,
-    int InstagramReplyDelaySeconds, int InstagramDailyReplyLimit, string InstagramGreeting);
+    int InstagramReplyDelaySeconds, int InstagramDailyReplyLimit, string InstagramGreeting,
+    bool InstagramLeadAdsEnabled, string InstagramAdsLeadSource);
+
+/* ---------------- REKLAMA LIDLARI (Meta Lead Ads) ---------------- */
+
+/// <summary>Reklama lidlari diagnostikasi. ⚠️ Page Access Token QIYMATI yo'q — faqat
+/// <paramref name="TokenSet"/> bayrog'i.</summary>
+public record IgAdStatusDto(
+    bool Enabled, bool PageConnected, string PageId, string PageName, bool TokenSet,
+    bool LeadgenSubscribed, string ConnectedAt, string ConnectedBy, string LastLeadAt,
+    string LastError, bool AppSecretSet, bool VerifyTokenSet,
+    int LeadsTotal, int LeadsToday, int Leads30Days, int LeadsFailed,
+    string LeadgenUrl, string EnvKeyAppSecret, string EnvKeyVerifyToken);
+
+/// <summary><paramref name="AccessToken"/> BO'SH yuborilsa mavjud token saqlanadi (forma tokenni
+/// hech qachon ko'rsatmaydi, ya'ni faqat Page ID tahrirlansa uni qayta yozdirish shart emas).</summary>
+public record IgAdPagePayload(string? PageId, string? AccessToken);
+
+/// <summary><paramref name="LeadId"/> bo'sh = CRM lidi yaratilmagan (sababi <paramref name="Error"/> da).</summary>
+public record IgAdLeadDto(
+    string Id, string LeadgenId, string FullName, string Phone, string Email,
+    string FormName, string CampaignName, string AdName, string Platform,
+    string LeadId, bool IsNewLead, string CreatedTime, string ReceivedAt, string Error);
+
+/// <summary>⚠️ Sonlar BUTUN topilma bo'yicha (ro'yxat sahifalangani uchun undan qo'shib
+/// chiqarish noto'g'ri bo'lardi).</summary>
+public record IgAdTotalsDto(int Total, int WithLead, int NewLeads, int Failed);
+
+public record IgAdLeadListDto(
+    List<IgAdLeadDto> Items, int Total, int Page, int PageSize, IgAdTotalsDto Totals,
+    List<IgBreakdownDto> ByForm, List<IgBreakdownDto> ByCampaign);
 
 /// <summary><paramref name="RedirectUri"/> ham qaytadi — Meta'dagi "OAuth redirect URI" bilan
 /// AYNAN bir xil bo'lishi kerak va admin uni nusxa oladi.</summary>

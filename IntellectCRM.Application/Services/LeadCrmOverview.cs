@@ -48,6 +48,9 @@ public static class LeadCrmOverview
         var igIds = (await db.IgConversations.AsNoTracking()
                 .Where(x => x.LeadId != null).Select(x => x.LeadId!).Distinct().ToListAsync(ct))
             .ToHashSet(StringComparer.Ordinal);
+        var adsIds = (await db.IgAdLeads.AsNoTracking()
+                .Where(x => x.LeadId != "").Select(x => x.LeadId).Distinct().ToListAsync(ct))
+            .ToHashSet(StringComparer.Ordinal);
 
         var rows = leads.Select(l => new LeadAnalytics.LeadRow(
             l.Id, l.Stage ?? "", "", l.ConvertedStudentId != null, l.CreatedAt ?? "",
@@ -55,7 +58,7 @@ public static class LeadCrmOverview
             // Tushum — faqat MUSBAT sof summa: to'liq qaytarilgan pul kanalning "daromadi" emas
             // (`LeadFormService.Funnel` bilan bir xil qoida).
             Revenue: Math.Max(0m, outcome.PaidTotal(l.Id)),
-            Origin: LeadOrigins.Classify(l.Id, manualIds, formIds, testIds, igIds))).ToList();
+            Origin: LeadOrigins.Classify(l.Id, manualIds, formIds, testIds, igIds, adsIds))).ToList();
 
         // BOSQICH — lidning HOZIRGI kanban ustuni. Bosqichi yo'q (yoki ustuni o'chirilgan) lid
         // ro'yxatga kirmaydi: kanbanda ham ko'rinmaydi, sun'iy "Noma'lum bosqich" YASALMAYDI.

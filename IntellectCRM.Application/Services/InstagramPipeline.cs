@@ -52,6 +52,26 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
                 .OrderByDescending(a => a.ConnectedAt)
                 .FirstOrDefaultAsync(ct);
 
+            // ── REKLAMA LIDI (Meta Lead Ads) ──
+            // Payload FACEBOOK PAGE obyektidan keladi va izoh/DM bilan hech narsa bo'lishmaydi
+            // (AI ham, suhbat ham, 24 soatlik oyna ham yo'q). Shuning uchun u ALOHIDA xizmatga
+            // beriladi va oqim shu yerda tugaydi — bitta webhook yozuvida ikkala tur birga
+            // kelmaydi (`page` va `instagram` — ayri obyektlar).
+            var leadgen = MetaLeadgenParser.Parse(ev.RawJson);
+            if (leadgen.Count > 0)
+            {
+                var leadProblems = await sp.GetRequiredService<MetaLeadgenService>()
+                    .HandleAsync(leadgen, meta, ct);
+
+                ev.Status = IgConst.EvDone;
+                ev.Error = leadProblems.Count == 0
+                    ? ""
+                    : InstagramContract.Trim(string.Join(" | ", leadProblems), 500);
+                ev.ProcessedAt = AppClock.Iso();
+                await db.SaveChangesAsync(ct);
+                return;
+            }
+
             var incoming = InstagramEventParser.Parse(ev.RawJson, new InstagramEventParser.IgSelf(
                 IgUserId: account?.IgUserId ?? "",
                 AppScopedId: account?.AppScopedUserId ?? "",

@@ -1746,6 +1746,18 @@ public class CenterMeta
     /// yordamchi"). Meta platforma qoidalari avtomatlashtirilgan javobni oshkor qilishni talab
     /// qiladi; bo'sh qoldirilsa agent sukut bo'yicha matnni ishlatadi.</summary>
     public string InstagramGreeting { get; set; } = string.Empty;
+
+    /// <summary>REKLAMA LIDLARI (Meta Lead Ads) yoqilganmi. <b>Default FALSE</b> — o'chiq bo'lsa
+    /// webhook hodisasi navbatga tushadi, lekin `graph.facebook.com` ga HECH QANDAY so'rov
+    /// ketmaydi va lid yaratilmaydi (modul darvozasi qoidasi, `marketing-instagram.md` §3).
+    /// <para>⚠️ Avtojavob bayrog'idan (<see cref="InstagramEnabled"/>) MUSTAQIL: markaz AI
+    /// agentini ishlatmasdan ham reklama lidlarini olishi mumkin (va aksincha).</para></summary>
+    public bool InstagramLeadAdsEnabled { get; set; }
+
+    /// <summary>Reklama formasidan kelgan lidning `Lead.Source` qiymati. DM/izohdan kelgan lid
+    /// (<see cref="InstagramLeadSource"/>) bilan ATAYIN har xil: birida odam o'zi yozgan, bunda
+    /// esa pul to'langan reklama olib kelgan — voronkada ular aralashib ketmasin.</summary>
+    public string InstagramAdsLeadSource { get; set; } = "Instagram reklama";
 }
 
 /// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali
@@ -3968,6 +3980,115 @@ public class IgOAuthState
     public string ExpiresAt { get; set; } = string.Empty;
     /// <summary>Bir marta ishlatilgan — qayta ishlatishga urinish rad etiladi.</summary>
     public bool Used { get; set; }
+}
+
+// =================================================================================================
+//  REKLAMA LIDLARI (Meta Lead Ads / "Instant Form")
+// =================================================================================================
+// Instagram/Facebook reklamasidagi FORMA to'ldirilganda lid CRM'ga avtomatik tushadi.
+//
+// ⚠️ Bu — modulning qolgan qismidan BOSHQA yo'l. Izoh va DM "Instagram API with Instagram Login"
+// orqali keladi (`graph.instagram.com`), reklama lidi esa FACEBOOK PAGE obyektining `leadgen`
+// webhook'i orqali (`graph.facebook.com`) — Meta'da bu ikkisi ayri mahsulot. Shu sababdan
+// alohida token (Page Access Token) va alohida jadvallar kerak; nomlar esa modul bilan birga
+// tursin uchun `Ig` prefiksida qoldirilgan.
+
+/// <summary>
+/// Reklama lidlari olinadigan FACEBOOK PAGE — Instagram akkaunt shunga bog'langan bo'ladi.
+///
+/// <para><b>Nega token bazada?</b> <see cref="IgAccount.AccessToken"/> bilan bir xil ATAYIN
+/// chekinish: token ish vaqtida (admin qo'lda kiritganda yoki System User'dan olinganda)
+/// paydo bo'ladi, ya'ni uni `.env` ga yozib bo'lmaydi. Qiymat HECH QACHON javobga, DTO'ga,
+/// logga yoki auditga tushmaydi — tashqariga faqat "sozlangan / sozlanmagan" holati chiqadi.</para>
+/// </summary>
+public class IgAdPage
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Facebook Page id — webhook'dagi <c>entry.id</c> bilan solishtiriladi.</summary>
+    public string PageId { get; set; } = string.Empty;
+    public string PageName { get; set; } = string.Empty;
+
+    /// <summary>Page Access Token (`leads_retrieval` ruxsati bilan).
+    /// <para>⚠️ System User tokeni MUDDATSIZ bo'ladi — tavsiya etilgani shu. Oddiy foydalanuvchi
+    /// tokeni ~60 kunda o'ladi va lidlar JIMGINA kelmay qo'yadi, shuning uchun so'rov xatosi
+    /// <see cref="LastError"/> ga yozilib, Sozlamalar sahifasida ko'rsatiladi.</para></summary>
+    public string AccessToken { get; set; } = string.Empty;
+
+    /// <summary>Sahifa ilovaga `leadgen` maydoni bo'yicha obuna qilinganmi
+    /// (<c>POST /{page-id}/subscribed_apps</c>). False bo'lsa hodisa umuman kelmaydi.</summary>
+    public bool LeadgenSubscribed { get; set; }
+
+    /// <summary>Uzilganda qator O'CHIRILMAYDI (kelgan lidlar tarixi saqlansin) — faqat
+    /// <c>false</c> va token tozalanadi.</summary>
+    public bool IsActive { get; set; } = true;
+
+    public string ConnectedAt { get; set; } = string.Empty;
+    public string ConnectedBy { get; set; } = string.Empty;
+
+    /// <summary>Oxirgi lid qachon kelgani (ISO) — "ulangan, lekin lid kelmayapti" holatini
+    /// Sozlamalar sahifasidan ko'rish uchun.</summary>
+    public string LastLeadAt { get; set; } = string.Empty;
+
+    /// <summary>Oxirgi xato (o'zbekcha) — masalan token muddati tugagani. Bo'sh = muammo yo'q.</summary>
+    public string LastError { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Reklama formasidan kelgan BITTA lid — Meta'dagi <c>leadgen_id</c> bo'yicha.
+///
+/// <para><b>Nega alohida jadval, faqat <see cref="Lead"/> yetmaydimi?</b> Uch sabab:
+/// (1) <b>dedup</b> — <see cref="LeadgenId"/> unikal, ya'ni Meta hodisani qayta yuborsa ikkinchi
+/// lid ochilmaydi (navbat yozuvlari 30 kunda tozalanadi, bu esa qoladi); (2) <b>analitika</b> —
+/// "qaysi reklama/forma qancha lid berdi" savoliga `Lead` da javob yo'q; (3) <b>kanal tasnifi</b>
+/// (<c>LeadOrigins</c>) — reklama lidini DM'dan kelgan liddan ajratish uchun ro'yxat kerak.</para>
+///
+/// <para>⚠️ Formada odatda FAQAT F.I.Sh. va telefon bo'ladi, lekin webhook payloadida reklama
+/// identifikatorlari ham keladi — ular AYNAN shu yerda saqlanadi.</para>
+/// </summary>
+public class IgAdLead
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Meta bergan lid id — <b>UNIKAL indeks</b> (dedupning asosiy qavati).</summary>
+    public string LeadgenId { get; set; } = string.Empty;
+
+    public string PageId { get; set; } = string.Empty;
+    public string FormId { get; set; } = string.Empty;
+    /// <summary>Forma nomi — lidning "qiziqqan yo'nalishi" sifatida ishlatiladi
+    /// ("Yozgi IELTS intensiv"), chunki formaning o'zida kurs maydoni bo'lmasligi mumkin.</summary>
+    public string FormName { get; set; } = string.Empty;
+
+    public string AdId { get; set; } = string.Empty;
+    public string AdName { get; set; } = string.Empty;
+    public string AdsetId { get; set; } = string.Empty;
+    public string CampaignId { get; set; } = string.Empty;
+    public string CampaignName { get; set; } = string.Empty;
+
+    /// <summary><c>ig</c> | <c>fb</c> — reklama qaysi platformada ko'rsatilgan (Meta beradi).</summary>
+    public string Platform { get; set; } = string.Empty;
+
+    public string FullName { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>Formaning BARCHA javoblari (xom JSON) — kelajakda forma maydoni qo'shilsa
+    /// ma'lumot yo'qolmasin (ustun qo'shmasdan ham ko'rish mumkin).</summary>
+    public string RawFieldsJson { get; set; } = string.Empty;
+
+    /// <summary>CRM'dagi lid. Bo'sh bo'lishi MUMKIN — lid yaratishda xato bo'lsa yozuv baribir
+    /// qoladi (<see cref="Error"/> bilan), ya'ni mijoz jimgina yo'qolmaydi.</summary>
+    public string LeadId { get; set; } = string.Empty;
+    /// <summary>Yangi lid ochildimi yoki mavjudiga qo'shildimi (takroriy murojaat).</summary>
+    public bool IsNewLead { get; set; }
+
+    /// <summary>Meta'dagi yaratilish vaqti (ISO) — hisobot AYNAN shu bo'yicha, qabul qilingan
+    /// vaqt bo'yicha emas (navbat kechiksa kun chegarasi surilib ketardi).</summary>
+    public string CreatedTime { get; set; } = string.Empty;
+    public string ReceivedAt { get; set; } = string.Empty;
+
+    /// <summary>Qayta ishlashdagi xato (o'zbekcha). Bo'sh = muvaffaqiyatli.</summary>
+    public string Error { get; set; } = string.Empty;
 }
 
 /// <summary>Landing sahifasidagi o'qituvchi kartochkasi va to'liq ma'lumotlari.</summary>

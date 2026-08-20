@@ -87,6 +87,76 @@ export interface IgSettings {
   instagramDailyReplyLimit: number
   /** Bot ekanini oshkor qiluvchi salomlashuv matni. */
   instagramGreeting: string
+  /**
+   * REKLAMA LIDLARI (Meta Lead Ads) yoqilganmi.
+   * ⚠️ `instagramEnabled` dan MUSTAQIL: markaz AI agentini ishlatmasdan ham reklama
+   * lidlarini olishi mumkin (va aksincha).
+   */
+  instagramLeadAdsEnabled: boolean
+  /** Reklama formasidan kelgan lidning manba nomi (`Lead.Source`). */
+  instagramAdsLeadSource: string
+}
+
+/**
+ * REKLAMA LIDLARI diagnostikasi — "nega lid kelmayapti" savolining barcha sabablari.
+ * ⚠️ Page Access Token QIYMATI qaytmaydi, faqat `tokenSet` bayrog'i.
+ */
+export interface IgAdStatus {
+  enabled: boolean
+  pageConnected: boolean
+  pageId: string
+  pageName: string
+  tokenSet: boolean
+  /** Sahifa ilovaga `leadgen` maydoni bo'yicha obuna qilinganmi — busiz hodisa UMUMAN kelmaydi. */
+  leadgenSubscribed: boolean
+  connectedAt: string
+  connectedBy: string
+  /** Oxirgi lid qachon kelgani — "ulangan, lekin lid yo'q" holatini ko'rish uchun. */
+  lastLeadAt: string
+  lastError: string
+  appSecretSet: boolean
+  verifyTokenSet: boolean
+  leadsTotal: number
+  leadsToday: number
+  leads30Days: number
+  leadsFailed: number
+  /** Meta'da PAGE obyektining «Callback URL» maydoniga qo'yiladigan manzil. */
+  leadgenUrl: string
+  envKeyAppSecret: string
+  envKeyVerifyToken: string
+}
+
+/** Reklama formasidan kelgan bitta lid. */
+export interface IgAdLead {
+  id: string
+  leadgenId: string
+  fullName: string
+  phone: string
+  email: string
+  /** Instant Form nomi — lidning "qiziqqan yo'nalishi" shu bo'ladi. */
+  formName: string
+  campaignName: string
+  adName: string
+  /** `ig` | `fb` — reklama qaysi platformada ko'rsatilgan. */
+  platform: string
+  /** CRM lidi id. BO'SH bo'lsa lid yaratilmagan — sababi `error` da. */
+  leadId: string
+  /** Yangi lid ochildimi yoki mavjudiga qo'shildimi (takroriy murojaat). */
+  isNewLead: boolean
+  createdTime: string
+  receivedAt: string
+  error: string
+}
+
+export interface IgAdLeadList {
+  items: IgAdLead[]
+  total: number
+  page: number
+  pageSize: number
+  /** ⚠️ Sonlar BUTUN topilma bo'yicha, ro'yxatning ko'rinadigan qismidan emas. */
+  totals: { total: number; withLead: number; newLeads: number; failed: number }
+  byForm: IgBreakdown[]
+  byCampaign: IgBreakdown[]
 }
 
 /** Suhbat ro'yxatidagi bitta qator. */
@@ -414,6 +484,50 @@ export async function simulateIgEvent(payload: {
 
 export async function getIgEvents(status?: IgEventStatus | ''): Promise<IgEvent[]> {
   const { data } = await api.get<IgEvent[]>('/admin/instagram/events', { params: clean({ status }) })
+  return data
+}
+
+// ═══════════════════════════════════════════════ REKLAMA LIDLARI (Meta Lead Ads)
+
+/** Diagnostika: modul, sahifa, token, obuna va kelgan lidlar sanog'i. */
+export async function getIgAdStatus(): Promise<IgAdStatus> {
+  const { data } = await api.get<IgAdStatus>('/admin/instagram/ads/status')
+  return data
+}
+
+/**
+ * Facebook sahifani ulash. `accessToken` BO'SH yuborilsa mavjudi saqlanadi — forma tokenni
+ * hech qachon ko'rsatmaydi, ya'ni faqat Page ID tahrirlanganda uni qayta yozish shart emas.
+ */
+export async function saveIgAdPage(pageId: string, accessToken: string): Promise<IgAdStatus> {
+  const { data } = await api.put<IgAdStatus>('/admin/instagram/ads/page', { pageId, accessToken })
+  return data
+}
+
+/** Sahifani uzish — token tozalanadi, yangi lidlar kelmaydi (tarix qoladi). */
+export async function disconnectIgAdPage(): Promise<IgAdStatus> {
+  const { data } = await api.delete<IgAdStatus>('/admin/instagram/ads/page')
+  return data
+}
+
+export async function getIgAdLeads(params: {
+  from?: string
+  to?: string
+  q?: string
+  status?: 'all' | 'ok' | 'failed'
+  page?: number
+}): Promise<IgAdLeadList> {
+  const { data } = await api.get<IgAdLeadList>('/admin/instagram/ads/leads', {
+    params: clean({ ...params, status: params.status === 'all' ? '' : params.status }),
+  })
+  return data
+}
+
+/** Xato bilan qolgan lidni QAYTA olish (odatda token keyin kiritilgan holat). */
+export async function retryIgAdLead(id: string): Promise<{ leadId: string; isNew: boolean }> {
+  const { data } = await api.post<{ leadId: string; isNew: boolean }>(
+    `/admin/instagram/ads/leads/${id}/retry`,
+  )
   return data
 }
 

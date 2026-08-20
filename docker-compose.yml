@@ -86,6 +86,11 @@ services:
       # Qolgan Instagram sozlamalari (App ID, bayroqlar) — bazada, UI'dan. marketing-instagram.md §7.
       Instagram__AppSecret: "${INSTAGRAM_APP_SECRET:-}"
       Instagram__VerifyToken: "${INSTAGRAM_VERIFY_TOKEN:-}"
+      # REKLAMA LIDLARI (Meta Lead Ads) — `leadgen` webhook'i FACEBOOK PAGE obyektidan keladi,
+      # ya'ni boshqa Meta ilovasida bo'lishi MUMKIN. Bo'sh qoldirilsa yuqoridagi Instagram
+      # kalitlariga qaytadi (bitta ilova ishlatilganda hech narsa qo'shish shart emas).
+      Meta__AppSecret: "${META_APP_SECRET:-}"
+      Meta__VerifyToken: "${META_VERIFY_TOKEN:-}"
       # YUZ BILAN KIRISH — vektorlarni bazada shifrlash kaliti (MAXFIY, base64 32 bayt).
       # Bo'sh bo'lsa modul UMUMAN ishlamaydi (startupda ogohlantirish logi). DEPLOY.md §2.1.
       Face__VectorKey: "${FACE_VECTOR_KEY:-}"

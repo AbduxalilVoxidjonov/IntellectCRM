@@ -338,6 +338,14 @@ builder.Services.AddSingleton<IntellectCRM.Application.Services.InstagramPipelin
 // Navbatni qayta ishlovchi + tokenni 45-kunda yangilovchi + eski hodisalarni tozalovchi fon xizmati.
 // ⚠️ `CenterMeta.InstagramEnabled == false` bo'lsa u HECH QANDAY tashqi so'rov qilmaydi.
 builder.Services.AddHostedService<IntellectCRM.Application.Services.InstagramWorkerService>();
+// MARKETING — REKLAMA LIDLARI (Meta Lead Ads).
+// ⚠️ ALOHIDA mijoz: bu `graph.facebook.com` va PAGE tokeni bilan ishlaydi (izoh/DM esa
+// `graph.instagram.com` va Instagram Login tokeni bilan) — ikkisini bitta sinfga qo'shish
+// tokenlarni chalkashtirishga olib kelardi. marketing-instagram.md §16.
+builder.Services.AddHttpClient<IntellectCRM.Application.Services.MetaAdsApi>();
+// Hodisani qayta ishlaydi (Graph → IgAdLead → CRM Lead → Telegram). Scoped: `IAppDbContext`ga
+// bog'liq va uni pipeline O'Z scope'idan oladi.
+builder.Services.AddScoped<IntellectCRM.Application.Services.MetaLeadgenService>();
 
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();

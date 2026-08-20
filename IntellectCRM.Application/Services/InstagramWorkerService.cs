@@ -16,9 +16,14 @@ namespace IntellectCRM.Application.Services;
 ///     hodisalar o'chiriladi (jadval cheksiz o'smasin).</item>
 /// </list>
 ///
-/// <para><b>⚠️ <c>CenterMeta.InstagramEnabled == false</c> bo'lsa xizmat UMUMAN ishlamaydi</b> —
-/// navbat ham qayta ishlanmaydi, token ham yangilanmaydi, ya'ni HECH QANDAY tashqi so'rov ketmaydi.
-/// Webhook baribir qabul qilinaveradi: modul yoqilganda tarix joyida turadi.</para>
+/// <para><b>⚠️ IKKALA bayroq ham o'chiq bo'lsa (<c>CenterMeta.InstagramEnabled</c> — avtojavob,
+/// <c>InstagramLeadAdsEnabled</c> — reklama lidlari) xizmat UMUMAN ishlamaydi: navbat ham qayta
+/// ishlanmaydi, token ham yangilanmaydi, ya'ni HECH QANDAY tashqi so'rov ketmaydi. Webhook
+/// baribir qabul qilinaveradi: modul yoqilganda tarix joyida turadi.</para>
+///
+/// <para>Bayroqlar MUSTAQIL: markaz AI agentini ishlatmasdan ham reklama lidlarini olishi mumkin.
+/// Har hodisa turining o'z darvozasi bor, shuning uchun navbat ochiq bo'lgani "hammasi ishlaydi"
+/// degani emas — yaroqsiz turdagi hodisa `skipped` bo'lib sababi bilan qoladi.</para>
 ///
 /// <para>DI: <c>builder.Services.AddHostedService&lt;InstagramWorkerService&gt;();</c></para>
 /// </summary>
@@ -45,7 +50,12 @@ public class InstagramWorkerService(
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        if (meta is null || !meta.InstagramEnabled) return;   // modul o'chiq — hech narsa qilinmaydi
+        // ⚠️ IKKI MUSTAQIL MODUL, bitta navbat: avtojavob (izoh/DM) va reklama lidlari
+        // (Lead Ads) ayri yoqiladi. Faqat `InstagramEnabled` ga qaralsa, AI agentini
+        // ishlatmaydigan markazda reklama lidlari navbatda TURIB QOLARDI va sababi hech qayerda
+        // ko'rinmasdi. Har bir hodisa turining O'Z darvozasi bor: izoh/DM — `InstagramPipeline`,
+        // reklama lidi — `MetaLeadgenService`.
+        if (meta is null || (!meta.InstagramEnabled && !meta.InstagramLeadAdsEnabled)) return;
 
         await ProcessQueueAsync(scope.ServiceProvider, db, ct);
 
@@ -53,6 +63,15 @@ public class InstagramWorkerService(
         var today = AppClock.Today;
         if (_lastDaily == today) return;
         _lastDaily = today;
+
+        // Token yangilash — FAQAT avtojavob moduli yoqilganda: u Instagram Login tokeniga
+        // tegishli, reklama lidlari esa Page tokeni bilan ishlaydi (u yangilanmaydi).
+        if (!meta.InstagramEnabled)
+        {
+            try { await CleanupAsync(db, ct); }
+            catch (Exception ex) { logger.LogError(ex, "Instagram navbatini tozalashda xatolik"); }
+            return;
+        }
 
         var telegram = scope.ServiceProvider.GetRequiredService<TelegramService>();
         try { await RefreshTokensAsync(scope.ServiceProvider, db, meta, telegram, ct); }

@@ -197,6 +197,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<IgKnowledge> IgKnowledges => Set<IgKnowledge>();
     public DbSet<IgOAuthState> IgOAuthStates => Set<IgOAuthState>();
 
+    /* ---------- Marketing: reklama lidlari (Meta Lead Ads) ---------- */
+    public DbSet<IgAdPage> IgAdPages => Set<IgAdPage>();
+    public DbSet<IgAdLead> IgAdLeads => Set<IgAdLead>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -353,6 +357,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<IgMessage>().HasIndex(m => m.IgMessageId);
         b.Entity<IgMessage>().Property(m => m.CommentId).HasMaxLength(200);
         b.Entity<IgMessage>().HasIndex(m => m.CommentId);
+
+        // REKLAMA LIDLARI (Meta Lead Ads).
+        // 1) `LeadgenId` — UNIKAL: Meta yetkazishni "at-least-once" kafolatlaydi va bir lidni
+        //    qayta yuborishi mumkin. Navbat yozuvlari 30 kunda tozalanadi, ya'ni dedupning
+        //    UZOQ MUDDATLI qavati aynan shu indeks — usiz eski hodisa qayta kelsa CRM'da
+        //    ikkinchi lid ochilardi.
+        // 2) `LeadId` — kanal tasnifi (`LeadOrigins`) va lid kartochkasidagi "qaysi reklamadan"
+        //    ma'lumoti shu bo'yicha izlanadi.
+        // 3) `CreatedTime` — hisobot va ro'yxat AYNAN shu ustun bo'yicha tartiblanadi.
+        b.Entity<IgAdLead>().Property(l => l.LeadgenId).HasMaxLength(200);
+        b.Entity<IgAdLead>().HasIndex(l => l.LeadgenId).IsUnique();
+        b.Entity<IgAdLead>().Property(l => l.LeadId).HasMaxLength(200);
+        b.Entity<IgAdLead>().HasIndex(l => l.LeadId);
+        b.Entity<IgAdLead>().HasIndex(l => l.CreatedTime);
+        b.Entity<IgAdPage>().Property(p => p.PageId).HasMaxLength(200);
+        b.Entity<IgAdPage>().HasIndex(p => p.PageId);
 
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<TeacherAiAnalysis>().HasIndex(a => new { a.TeacherId, a.Date });

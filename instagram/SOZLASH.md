@@ -29,6 +29,11 @@ Sabab: biz **Instagram Login** yo'lidan boramiz (Facebook Login emas).
 > ⚠️ Internetdagi va eski hujjatlardagi *"App Review 1–3 hafta kutiladi"* degan ma'lumot
 > **Facebook Login** yo'liga tegishli. Bizga taalluqli emas.
 
+> 🔴 **LEKIN — REKLAMA LIDLARI (Lead Ads) uchun bu ISTISNO ISHLAMAYDI.** Target reklamadagi
+> forma orqali kelgan lid Facebook **Page** obyektidan keladi va u uchun Facebook Page,
+> Business Verification **va App Review SHART**. Alohida qo'llanma:
+> [`REKLAMA-LIDLARI.md`](REKLAMA-LIDLARI.md).
+
 ---
 
 ## ☐ 0-qadam. Shartlar (2 daqiqa)

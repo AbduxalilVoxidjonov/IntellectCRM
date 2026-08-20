@@ -20,6 +20,40 @@ public static class IgConst
     public const string GraphRoot = "https://graph.instagram.com";
     public const string AuthorizeUrl = "https://www.instagram.com/oauth/authorize";
 
+    /* ---- REKLAMA LIDLARI (Meta Lead Ads) ----
+       ⚠️ Bu YAGONA joy, qayerda `graph.facebook.com` ISHLATILADI va bu ATAYIN: reklama lidi
+       FACEBOOK PAGE obyektiga tegishli va `graph.instagram.com` da bunday endpoint YO'Q
+       (`leads_retrieval` ham Page tokeni bilan ishlaydi). Izoh/DM esa avvalgidek
+       `GraphBase` orqali — ikkisini aralashtirib yubormaslik uchun nomlar ochiq ajratilgan. */
+
+    /// <summary>Facebook Graph API bazasi — FAQAT reklama lidlari uchun.</summary>
+    public const string FbGraphBase = "https://graph.facebook.com/v23.0";
+
+    /// <summary>Webhook payloadidagi obyekt turi: reklama lidi <c>page</c> obyektidan keladi
+    /// (izoh/DM esa <c>instagram</c> dan).</summary>
+    public const string ObjectPage = "page", ObjectInstagram = "instagram";
+
+    /// <summary>Page webhook maydoni — reklama formasi to'ldirilganda shu keladi.</summary>
+    public const string FieldLeadgen = "leadgen";
+
+    /// <summary>Sahifani ilovaga obuna qilishda so'raladigan maydonlar.</summary>
+    public const string LeadgenSubscribeFields = "leadgen";
+
+    /// <summary>
+    /// Reklama lidini o'qishda so'raladigan maydonlar (<c>GET /{leadgen_id}</c>).
+    ///
+    /// <para>⚠️ Ro'yxatda BO'LMAGAN maydon so'ralsa Graph butun so'rovni rad etadi
+    /// (<c>code 100</c>) — ya'ni bitta ortiqcha nom tufayli lidlar UMUMAN kelmay qo'yadi.
+    /// Shuning uchun bu yerda faqat lid tugunida haqiqatan mavjud maydonlar turadi;
+    /// forma NOMI bu tugunda YO'Q va alohida olinadi
+    /// (<c>MetaAdsApi.FetchFormNameAsync</c>).</para>
+    /// </summary>
+    public const string LeadgenFields =
+        "id,created_time,field_data,form_id,ad_id,ad_name,adset_id,campaign_id,campaign_name,platform";
+
+    /// <summary>Bir so'rovda qaytariladigan reklama lidlari chegarasi (ro'yxat sahifasi).</summary>
+    public const int AdLeadsPageSize = 100;
+
     /// <summary>OAuth ruxsatlari — "Instagram Login" yo'lining YANGI nomlari
     /// (eski <c>pages_*</c> ruxsatlari Facebook Login yo'liga tegishli va bizga kerak emas).</summary>
     public const string Scopes = "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments";
