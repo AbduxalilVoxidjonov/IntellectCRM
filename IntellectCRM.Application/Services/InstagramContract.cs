@@ -81,7 +81,14 @@ public static class IgConst
 
     /// <summary>OAuth ruxsatlari — "Instagram Login" yo'lining YANGI nomlari
     /// (eski <c>pages_*</c> ruxsatlari Facebook Login yo'liga tegishli va bizga kerak emas).</summary>
-    public const string Scopes = "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments";
+    /// <summary>
+    /// OAuth ruxsatlari.
+    /// <para>⚠️ <c>instagram_business_content_publish</c> — KONTENT JOYLASH uchun (E2). U ro'yxatga
+    /// qo'shilgani bilan MAVJUD ulangan akkauntga avtomatik qo'llanmaydi: scope tokenga OAuth
+    /// paytida biriktiriladi, ya'ni admin Sozlamalardan «Qayta ulash» bosishi SHART. Aks holda
+    /// joylash <c>#200 ruxsat yetishmaydi</c> bilan yiqiladi va sabab ekranda ko'rinmasdi.</para>
+    /// </summary>
+    public const string Scopes = "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish";
 
     public const string ChannelComment = "comment", ChannelDm = "dm", ChannelPrivateReply = "private_reply";
     public const string StatusBot = "bot", StatusOperator = "operator", StatusClosed = "closed";

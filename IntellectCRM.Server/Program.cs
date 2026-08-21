@@ -346,6 +346,17 @@ builder.Services.AddHttpClient<IntellectCRM.Application.Services.MetaAdsApi>();
 // Hodisani qayta ishlaydi (Graph → IgAdLead → CRM Lead → Telegram). Scoped: `IAppDbContext`ga
 // bog'liq va uni pipeline O'Z scope'idan oladi.
 builder.Services.AddScoped<IntellectCRM.Application.Services.MetaLeadgenService>();
+// MARKETING — REKLAMA STATISTIKASI (Ads Insights), CAPI va KONTENT JOYLASH.
+// ⚠️ Uchala mijoz ham AYRI typed HttpClient: har birining O'Z hosti va O'Z tokeni bor
+// (Insights/CAPI — `graph.facebook.com` + System User/dataset tokeni, Publish —
+// `graph.instagram.com` + Instagram Login tokeni). Tokenlarni chalkashtirish
+// "OAuthException 190" bo'lib chiqadi va sababini topish juda qiyin.
+builder.Services.AddHttpClient<IntellectCRM.Application.Services.MetaInsightsApi>();
+builder.Services.AddScoped<IntellectCRM.Application.Services.MetaInsightsService>();
+builder.Services.AddHttpClient<IntellectCRM.Application.Services.MetaCapiApi>();
+builder.Services.AddScoped<IntellectCRM.Application.Services.MetaCapiService>();
+builder.Services.AddHttpClient<IntellectCRM.Application.Services.InstagramPublishApi>();
+builder.Services.AddScoped<IntellectCRM.Application.Services.InstagramPublishService>();
 
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();

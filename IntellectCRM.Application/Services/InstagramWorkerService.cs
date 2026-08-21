@@ -32,6 +32,15 @@ public class InstagramWorkerService(
     ILogger<InstagramWorkerService> logger) : BackgroundService
 {
     private DateOnly _lastDaily = DateOnly.MinValue;
+    /// <summary>Reklama statistikasi oxirgi marta qaysi kuni sinxronlangani (xotirada).</summary>
+    private DateOnly _lastAdsSync = DateOnly.MinValue;
+    /// <summary>CAPI skani oxirgi marta qaysi kuni bajarilgani (xotirada).</summary>
+    private DateOnly _lastCapiScan = DateOnly.MinValue;
+    /// <summary>Kontent joylash tsikli oxirgi marta qachon ishlagani.</summary>
+    private DateTime _lastPublishTick = DateTime.MinValue;
+
+    /// <summary>Kontent joylash tsikli oralig'i (soniya) — navbat tsiklidan sekinroq.</summary>
+    private const int PublishTickSeconds = 30;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -47,37 +56,80 @@ public class InstagramWorkerService(
     private async Task TickAsync(CancellationToken ct)
     {
         using var scope = services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<IAppDbContext>();
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        // ⚠️ IKKI MUSTAQIL MODUL, bitta navbat: avtojavob (izoh/DM) va reklama lidlari
-        // (Lead Ads) ayri yoqiladi. Faqat `InstagramEnabled` ga qaralsa, AI agentini
-        // ishlatmaydigan markazda reklama lidlari navbatda TURIB QOLARDI va sababi hech qayerda
-        // ko'rinmasdi. Har bir hodisa turining O'Z darvozasi bor: izoh/DM — `InstagramPipeline`,
-        // reklama lidi — `MetaLeadgenService`.
-        if (meta is null || (!meta.InstagramEnabled && !meta.InstagramLeadAdsEnabled)) return;
+        if (meta is null) return;
 
-        await ProcessQueueAsync(scope.ServiceProvider, db, ct);
+        // ⚠️ BIR NECHTA MUSTAQIL MODUL, bitta fon xizmati. Har birining O'Z bayrog'i bor va
+        // biri o'chiq bo'lgani boshqasini to'xtatmasligi SHART. Ilgari bu yerda yalang
+        // `if (!meta.InstagramEnabled) return;` turardi — AI agentini ishlatmaydigan markazda
+        // reklama lidlari navbatda TURIB QOLARDI. Yangi vazifa qo'shsangiz uni ham ALOHIDA
+        // darvoza ostiga qo'ying, umumiy `return` ga qo'shmang.
+        //
+        //   InstagramEnabled        → izoh/DM avtojavobi + token yangilash
+        //   InstagramLeadAdsEnabled → reklama formasi lidlari (webhook navbati)
+        //   InstagramPublishEnabled → kontent joylash (har 30 soniyada)
+        //   InstagramAdsStatsEnabled→ reklama statistikasi (kuniga bir marta, belgilangan soatda)
+        //   InstagramCapiEnabled    → lid sifatini Meta'ga qaytarish (kuniga bir marta)
 
-        // Kunlik vazifalar (idempotentlik `CenterAiSchedulerService` bilan bir xil naqshda).
+        // ── 1) WEBHOOK NAVBATI (izoh/DM va reklama lidlari umumiy navbatda) ──
+        if (meta.InstagramEnabled || meta.InstagramLeadAdsEnabled)
+            await ProcessQueueAsync(sp, db, ct);
+
+        // ── 2) KONTENT JOYLASH — har 30 soniyada ──
+        // Navbat tsikli 2 soniyada bir marta aylanadi; joylash bundan tez-tez kerak emas va
+        // `content_publishing_limit` so'rovi bekorga sarflanardi.
+        if (meta.InstagramPublishEnabled && (AppClock.Now - _lastPublishTick).TotalSeconds >= PublishTickSeconds)
+        {
+            _lastPublishTick = AppClock.Now;
+            try { await sp.GetRequiredService<InstagramPublishService>().ProcessDueAsync(ct); }
+            catch (Exception ex) { logger.LogError(ex, "Instagram kontentini joylashda xatolik"); }
+        }
+
+        // ── 3) REKLAMA STATISTIKASI — kuniga bir marta, `InstagramAdsSyncHour` da ──
+        // ⚠️ Soat tekshiruvi SHU YERDA, servisda emas: servis qo'lda ham chaqiriladi
+        // («Yangilash» tugmasi) va u yerda soatning ahamiyati yo'q.
+        // Marker XOTIRADA: qayta ishga tushirilsa o'sha soat ichida yana bir marta ishlashi
+        // mumkin, lekin sinxronizatsiya upsert bo'lgani uchun bu zararsiz (dublikat yaratmaydi).
+        if (meta.InstagramAdsStatsEnabled
+            && _lastAdsSync != AppClock.Today
+            && AppClock.Now.Hour == Math.Clamp(meta.InstagramAdsSyncHour, 0, 23))
+        {
+            _lastAdsSync = AppClock.Today;
+            try { await sp.GetRequiredService<MetaInsightsService>().SyncAsync(ct); }
+            catch (Exception ex) { logger.LogError(ex, "Reklama statistikasini sinxronlashda xatolik"); }
+        }
+
+        // ── 4) CAPI — kuniga bir marta ──
+        // Kechikish muhim emas: hodisa vaqti CRM'dagi haqiqiy sana bo'yicha qo'yiladi,
+        // Meta esa 7 kungacha eski hodisani qabul qiladi (`MetaCapiPayload.MaxEventAgeDays`).
+        if (meta.InstagramCapiEnabled && _lastCapiScan != AppClock.Today)
+        {
+            _lastCapiScan = AppClock.Today;
+            try { await sp.GetRequiredService<MetaCapiService>().ScanAndSendAsync(ct); }
+            catch (Exception ex) { logger.LogError(ex, "CAPI hodisalarini yuborishda xatolik"); }
+        }
+
+        // ── 5) KUNLIK: token yangilash + navbatni tozalash ──
         var today = AppClock.Today;
         if (_lastDaily == today) return;
         _lastDaily = today;
 
-        // Token yangilash — FAQAT avtojavob moduli yoqilganda: u Instagram Login tokeniga
-        // tegishli, reklama lidlari esa Page tokeni bilan ishlaydi (u yangilanmaydi).
-        if (!meta.InstagramEnabled)
-        {
-            try { await CleanupAsync(db, ct); }
-            catch (Exception ex) { logger.LogError(ex, "Instagram navbatini tozalashda xatolik"); }
-            return;
-        }
-
-        var telegram = scope.ServiceProvider.GetRequiredService<TelegramService>();
-        try { await RefreshTokensAsync(scope.ServiceProvider, db, meta, telegram, ct); }
-        catch (Exception ex) { logger.LogError(ex, "Instagram tokenini yangilashda xatolik"); }
+        // Tozalash HAR DOIM bajariladi — navbat jadvali qaysi modul yoqilganidan qat'i nazar
+        // o'sadi (webhook hodisani modul o'chiq bo'lsa ham qabul qiladi).
         try { await CleanupAsync(db, ct); }
         catch (Exception ex) { logger.LogError(ex, "Instagram navbatini tozalashda xatolik"); }
+
+        // Token yangilash — FAQAT avtojavob moduli yoqilganda: u Instagram Login tokeniga
+        // tegishli. Reklama lidlari/statistikasi Page va System User tokenlari bilan ishlaydi,
+        // ular bu yerda yangilanmaydi (System User tokeni muddatsiz).
+        if (!meta.InstagramEnabled) return;
+
+        var telegram = sp.GetRequiredService<TelegramService>();
+        try { await RefreshTokensAsync(sp, db, meta, telegram, ct); }
+        catch (Exception ex) { logger.LogError(ex, "Instagram tokenini yangilashda xatolik"); }
     }
 
     /* ═════════════════════════ 1) Navbat ═════════════════════════ */
