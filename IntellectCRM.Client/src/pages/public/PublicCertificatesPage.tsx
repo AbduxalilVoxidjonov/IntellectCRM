@@ -241,10 +241,11 @@ export function PublicCertificatesPage() {
             </div>
             
             <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-4 leading-tight">
-              O'quvchilarimizning Sertifikatlari Katalogi
+              O'quvchilarimizning Yutuqlari Katalogi
             </h1>
             <p className="max-w-2xl mx-auto text-gray-400 text-base sm:text-lg">
-              Intellect Kokand o'quv markazining IELTS, Multilevel (CEFR), SAT va Milliy Sertifikat topshirgan o'quvchilarining rasmiy natijalari.
+              Intellect Kokand o'quv markazi o'quvchilarining rasmiy natijalari: IELTS, Multilevel (CEFR),
+              SAT va Milliy Sertifikat — hamda oliygohga kirish (grant) yutuqlari.
             </p>
 
             {/* SEARCH & FILTERS */}
