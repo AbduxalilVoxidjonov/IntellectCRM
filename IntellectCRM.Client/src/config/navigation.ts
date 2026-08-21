@@ -169,6 +169,8 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Bilim bazasi', to: '/admin/marketing/knowledge', perm: 'marketing.knowledge' },
         { label: 'Analitika', to: '/admin/marketing/analytics', perm: 'marketing.analytics' },
         { label: 'Reklama lidlari', to: '/admin/marketing/reklama-lidlari', perm: 'marketing.leadads' },
+        { label: 'Reklama statistikasi', to: '/admin/marketing/reklama-statistikasi', perm: 'marketing.adsstats' },
+        { label: 'Kontent', to: '/admin/marketing/kontent', perm: 'marketing.content' },
         { label: 'Sozlamalar', to: '/admin/marketing/settings', perm: 'marketing.settings' },
       ],
     },

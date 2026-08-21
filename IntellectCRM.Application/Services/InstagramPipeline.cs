@@ -126,6 +126,24 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         var now = AppClock.Now;
         var nowIso = AppClock.Iso();
 
+        // ── 0.0) META SIYOSATI OGOHLANTIRISHI (E6.7) ──
+        // Dedupdan ham OLDIN: bu suhbat hodisasi emas, butun modulga tegishli signal.
+        if (inc.Kind == InstagramEventParser.KindPolicy)
+        {
+            await HandlePolicyAsync(db, telegram, meta, inc, ct);
+            return;
+        }
+
+        // ── 0.1) MIJOZ XABARNI O'CHIRDI (E6.4) ──
+        // ⚠️ DEDUPDAN OLDIN turishi SHART: o'chirish hodisasi asl xabarning `mid` i bilan keladi
+        // va `AlreadyHandledAsync` uni "allaqachon ishlangan" deb tashlab yuborardi — ya'ni matn
+        // bazada QOLIB KETARDI (Platform Terms buzilishi).
+        if (inc.Kind == InstagramEventParser.KindDeleted || inc.IsDeleted)
+        {
+            await HandleDeletedAsync(db, inc, ct);
+            return;
+        }
+
         // ── 0) HODISA DARAJASIDAGI DEDUP (navbat kalitidan MUSTAQIL) ──
         if (await AlreadyHandledAsync(db, inc, ct))
         {
@@ -161,16 +179,37 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
 
         var channel = inc.Kind == IgConst.KindComment ? IgConst.ChannelComment : IgConst.ChannelDm;
 
+        // ── 0.5) REKLAMA ATRIBUTSIYASI (E3) — TAXMINIY, yiqilsa oqim DAVOM ETADI ──
+        var ad = await TryAttributeAdAsync(db, inc, ct);
+        if (ad.Found && conv.AdId.Length == 0)
+        {
+            // Suhbat darajasida BIRINCHI teginish saqlanadi (keyingi izohlar boshqa reklama
+            // ostida bo'lsa ham manba o'zgarmaydi — `Lead` dagi first-touch qoidasi bilan bir xil).
+            conv.AdId = ad.AdId;
+            conv.AdCampaignId = ad.CampaignId;
+        }
+
+        // ── 0.6) STORY / ULASHILGAN POST KONTEKSTI (E6.1–E6.3) ──
+        // Kontekst xabar MATNIGA qo'shiladi: story id/url uchun alohida ustun yo'q (bu bosqichda
+        // migratsiya qilinmaydi), AI esa "nimaga javob yozilyapti" ni bilmasa mazmunsiz javob
+        // beradi. Konteksti bo'lmagan oddiy xabarda satr BO'SH — mavjud xulq o'zgarmaydi.
+        var context = InstagramEventParser.ContextNote(inc);
+        var storedText = context.Length == 0
+            ? inc.Text
+            : (inc.Text.Length == 0 ? context : context + "\n" + inc.Text);
+
         // ── 1) Kiruvchi xabar HAR DOIM yoziladi (javob berilmasa ham tarix qoladi) ──
         db.IgMessages.Add(new IgMessage
         {
             ConversationId = conv.Id,
             Direction = IgConst.DirIn,
             Channel = channel,
-            Text = inc.Text,
+            Text = storedText,
             MediaId = inc.MediaId,
             CommentId = inc.CommentId,
             IgMessageId = inc.IgMessageId,
+            AdId = ad.AdId,
+            AdCampaignId = ad.CampaignId,
             ActorName = inc.Username.Length > 0 ? "@" + inc.Username : "Mijoz",
             CreatedAt = nowIso,
         });
@@ -184,15 +223,20 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         // sukut). Shuning uchun faqat "mantiqiy" oraliqdagi vaqt qabul qilinadi, aks holda
         // joriy vaqt (eski xulq).
         conv.LastInboundAt = SaneInboundAt(inc.SentAtIso, now) ?? nowIso;
-        conv.LastMessageText = InstagramContract.Trim(inc.Text, 300);
+        conv.LastMessageText = InstagramContract.Trim(storedText, 300);
         conv.MessageCount += 1;
         conv.Unread = true;
 
         // ── 2) MATNSIZ xabar (rasm/stiker/ovoz) — jimgina yo'qolmaydi ──
         if (string.IsNullOrWhiteSpace(inc.Text))
         {
-            Escalate(conv, "Matnsiz xabar keldi (rasm/stiker/ovozli xabar) — AI javob bera olmaydi");
-            conv.LastMessageText = "[matnsiz xabar]";
+            Escalate(conv, "Matnsiz xabar keldi (rasm/stiker/ovozli xabar) — AI javob bera olmaydi"
+                           + (context.Length > 0 ? " " + context : ""));
+            // Konteksti bor bo'lsa (story mention, ulashilgan post) operator ro'yxatda AYNAN
+            // nima kelganini ko'rsin — "[matnsiz xabar]" dan foydaliroq.
+            conv.LastMessageText = context.Length > 0
+                ? InstagramContract.Trim(context, 300)
+                : "[matnsiz xabar]";
             await db.SaveChangesAsync(ct);
             await NotifyAdminsAsync(db, telegram, meta, $"📎 Instagram: @{conv.Username} matnsiz xabar yubordi — operator ko'rsin.", ct);
             return;
@@ -284,8 +328,10 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
                 .ToListAsync(ct);
             history.Reverse();
 
+            // ⚠️ AI'ga KONTEKSTLI matn beriladi (`storedText`): story'ga yozilgan "Salom!" javobi
+            // kontekstsiz umuman tushunarsiz bo'lardi. Tarix ham bazadan shu ko'rinishda keladi.
             var (aiOk, aiOut, aiErr) = await InstagramAgentService.AskAsync(
-                db, config, channel, conv.Username, caption, inc.Text, history, ct);
+                db, config, channel, conv.Username, caption, storedText, history, ct);
 
             if (aiOk && aiOut is not null)
             {
@@ -505,6 +551,196 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Instagram: operator qo'lda javob berdi — bot {Min} daqiqaga pauzada (@{User})",
             IgConst.OperatorPauseMinutes, conv.Username);
+    }
+
+    /* ═════════════════════════ E6.4 — mijoz xabarni o'chirdi ═════════════════════════ */
+
+    /// <summary>Matni o'chirilgan xabar o'rnida turadigan belgi (ro'yxatda bo'shliq qolmasin).</summary>
+    private const string DeletedText = "[o'chirilgan]";
+
+    /// <summary>
+    /// Mijoz Instagram'da xabarini o'chirdi (<c>message.is_deleted</c>).
+    ///
+    /// <para>🔴 <b>Mazmun HAQIQATAN o'chiriladi</b> — faqat UI'dan yashirish YETARLI EMAS
+    /// (Meta Platform Terms talabi: foydalanuvchi o'chirgan mazmunni saqlab qololmaymiz).
+    /// Yozuvning O'ZI qoladi: suhbat lentasida "shu yerda xabar bor edi" ko'rinib tursin,
+    /// aks holda operator uchun tarix uzilib qolardi.</para>
+    ///
+    /// <para>Yozuv topilmasa jimgina qaytadi: o'chirish hodisasi biz yozib ulgurmagan xabarga
+    /// tegishli bo'lishi mumkin (modul o'chiq bo'lgan davr) — bu xato emas.</para>
+    /// </summary>
+    private async Task HandleDeletedAsync(IAppDbContext db, IgIncomingEvent inc, CancellationToken ct)
+    {
+        if (inc.IgMessageId.Length == 0) return;
+
+        var rows = await db.IgMessages.Where(m => m.IgMessageId == inc.IgMessageId).ToListAsync(ct);
+        if (rows.Count == 0) return;
+
+        var oldTexts = rows.Select(r => r.Text).Where(t => t.Length > 0).ToHashSet(StringComparer.Ordinal);
+        foreach (var m in rows) m.Text = DeletedText;
+
+        // Suhbatdagi DENORMALIZATSIYA ham tozalanadi — aks holda o'chirilgan matn inbox
+        // ro'yxatida "oxirgi xabar" bo'lib turaverardi.
+        var convIds = rows.Select(r => r.ConversationId).Distinct().ToList();
+        var convs = await db.IgConversations.Where(c => convIds.Contains(c.Id)).ToListAsync(ct);
+        foreach (var c in convs)
+            if (oldTexts.Contains(c.LastMessageText)) c.LastMessageText = DeletedText;
+
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Instagram: mijoz xabarni o'chirdi — mazmun tozalandi ({Mid})", inc.IgMessageId);
+    }
+
+    /* ═════════════════════════ E6.7 — Meta siyosati ogohlantirishi ═════════════════════════ */
+
+    /// <summary>
+    /// <c>messaging_policy_enforcement</c> — Meta cheklov qo'yishidan OLDINGI ogohlantirishi.
+    /// Modulning eng yuqori qiymatli signali, shuning uchun ikki narsa DARHOL bajariladi:
+    /// <list type="number">
+    ///   <item><b>Avtomatika pauza qilinadi</b> — <c>InstagramAutoReplyComments</c> va
+    ///     <c>InstagramAutoReplyDm</c> o'chiriladi;</item>
+    ///   <item><b>Telegram alert</b> — admin sababni ko'rib, qo'lda qayta yoqadi.</item>
+    /// </list>
+    ///
+    /// <para>⚠️ <c>InstagramEnabled</c> ATAYIN O'CHIRILMAYDI. Sabab ikkita: (1) u MASTER darvoza —
+    /// o'chirilsa <see cref="NotifyAdminsAsync"/> ham jim bo'lardi va ogohlantirish hech kimga
+    /// yetmasdi; (2) u bilan birga navbat qayta ishlash ham to'xtardi, ya'ni kelayotgan
+    /// xabarlar tarixga yozilmay qolardi. Pauza faqat AVTOMATIK JAVOBGA tegadi — operator
+    /// qo'lda javob bera oladi.</para>
+    ///
+    /// <para>⚠️ Qayta yoqish ATAYIN QO'LDA: "N soatdan keyin o'zi yonsin" varianti sababni
+    /// tekshirmasdan o'sha xatoni takrorlashga olib kelardi.</para>
+    /// </summary>
+    private async Task HandlePolicyAsync(
+        IAppDbContext db, TelegramService telegram, CenterMeta? meta, IgIncomingEvent inc, CancellationToken ct)
+    {
+        var action = inc.PolicyAction.Length > 0 ? inc.PolicyAction : "warning";
+        var reason = InstagramContract.Trim(inc.PolicyReason, 300);
+        logger.LogWarning(
+            "[instagram] META SIYOSATI OGOHLANTIRISHI — amal: {Action}, sabab: {Reason}", action, reason);
+
+        var paused = false;
+        if (meta is not null && (meta.InstagramAutoReplyComments || meta.InstagramAutoReplyDm))
+        {
+            meta.InstagramAutoReplyComments = false;
+            meta.InstagramAutoReplyDm = false;
+            paused = true;
+            await db.SaveChangesAsync(ct);
+            logger.LogWarning("[instagram] avtomatik javoblar (izoh va DM) siyosat ogohlantirishi tufayli o'chirildi");
+        }
+
+        var lines = new List<string>
+        {
+            "🚨 Instagram: META SIYOSATI OGOHLANTIRISHI",
+            $"Amal: {action}",
+        };
+        if (reason.Length > 0) lines.Add($"Sabab: {reason}");
+        lines.Add(paused
+            ? "⛔ Avtomatik javoblar (izoh va DM) VAQTINCHA O'CHIRILDI."
+            : "ℹ️ Avtomatik javoblar allaqachon o'chiq edi.");
+        lines.Add("Sababni tekshirmasdan qayta yoqmang — keyingi qadam akkauntni cheklash bo'lishi mumkin.");
+
+        await NotifyAdminsAsync(db, telegram, meta, string.Join("\n", lines), ct);
+    }
+
+    /* ═════════════════════════ E3 — reklama atributsiyasi ═════════════════════════ */
+
+    /// <summary>Reklama iyerarxiyasi bazada BORMI — tekshiruv natijasi shuncha daqiqa keshlanadi.</summary>
+    private const int AdsPresenceCacheMinutes = 5;
+
+    /// <summary>Oxirgi tekshiruv vaqti (ISO) va natijasi. <c>InstagramPipeline</c> singleton va
+    /// navbat KETMA-KET qayta ishlanadi, shuning uchun qulf kerak emas (eng yomon holatda
+    /// tekshiruv bir marta ortiqcha bajariladi).</summary>
+    private string _adsCheckedAt = "";
+    private bool _adsExist;
+
+    /// <summary>
+    /// Izoh QAYSI REKLAMA ostida yozilganini TAXMIN qiladi (E3).
+    ///
+    /// <para>🔴 <b>TAXMINIY:</b> Instagram Login yo'lidagi <c>comments</c> webhook'ida
+    /// <c>ad_id</c> umuman yo'q, shuning uchun bog'lanish <c>media.id</c> ni
+    /// <c>IgAdEntity.CreativeStoryId</c> bilan solishtirish orqali TIKLANADI. Boostlangan
+    /// organik postda ishlaydi; <b>dark post</b> (chop etilmagan reklama) va <b>dinamik
+    /// katalog</b> reklamasida ishlamaydi. Bo'sh natija "organik" degani EMAS — "aniqlanmadi".</para>
+    ///
+    /// <para>⚠️ Bu QO'SHIMCHA baza so'rovi, ya'ni yordamchi vazifa. Yiqilsa asosiy vazifa
+    /// (mijozga javob berish va xabarni yozib qo'yish) BARIBIR bajariladi — modulning
+    /// "har bosqich alohida try/catch" qoidasi.</para>
+    ///
+    /// <para>⚠️ MODUL DARVOZASI: reklama statistikasi ulanmagan markazda <c>IgAdEntities</c>
+    /// bo'sh bo'ladi. Har izohda bekorga so'rov ketmasin — mavjudlik tekshiruvi
+    /// <see cref="AdsPresenceCacheMinutes"/> daqiqaga keshlanadi.</para>
+    /// </summary>
+    private async Task<IgAdAttribution.AdMatch> TryAttributeAdAsync(
+        IAppDbContext db, IgIncomingEvent inc, CancellationToken ct)
+    {
+        var media = (inc.MediaId ?? "").Trim();
+        if (media.Length == 0) return IgAdAttribution.AdMatch.None;
+
+        try
+        {
+            if (!await AdsPresentAsync(db, ct)) return IgAdAttribution.AdMatch.None;
+
+            // ⚠️ SQL faqat NOMZODLARNI toraytiradi, QARORNI sof funksiya qabul qiladi:
+            // `EndsWith` da `_` ba'zi provayderlarda LIKE joker belgisi bo'lib qoladi, ya'ni
+            // ro'yxatga ortiqcha qator tushishi mumkin — `IgAdAttribution.Matches` har birini
+            // qayta tekshiradi (ortiqcha moslik kirib ketmaydi).
+            var suffix = "_" + IgAdAttribution.MediaPart(media);
+            var raw = await db.IgAdEntities.AsNoTracking()
+                .Where(a => a.CreativeStoryId != ""
+                            && (a.CreativeStoryId == media || a.CreativeStoryId.EndsWith(suffix)))
+                .OrderBy(a => a.ExternalId)
+                .Take(IgAdAttribution.MaxCandidates)
+                .Select(a => new { a.ExternalId, a.Level, a.ParentId, a.CreativeStoryId })
+                .ToListAsync(ct);
+            if (raw.Count == 0) return IgAdAttribution.AdMatch.None;
+
+            var candidates = raw
+                .Select(a => new IgAdAttribution.AdRow(a.ExternalId, a.Level, a.ParentId, a.CreativeStoryId))
+                .ToList();
+
+            var found = IgAdAttribution.FindAd(media, candidates);
+            if (found is null) return IgAdAttribution.AdMatch.None;
+
+            // Kampaniya — ota tugun orqali (`ad → adset → campaign`). Ota topilmasa e'lon id'si
+            // baribir saqlanadi: yarim ma'lumot hech qanaqasidan yaxshiroq.
+            var parents = new List<IgAdAttribution.AdRow>();
+            var parentId = (found.Value.ParentId ?? "").Trim();
+            if (parentId.Length > 0)
+            {
+                var p = await db.IgAdEntities.AsNoTracking()
+                    .Where(a => a.ExternalId == parentId)
+                    .Select(a => new { a.ExternalId, a.Level, a.ParentId, a.CreativeStoryId })
+                    .FirstOrDefaultAsync(ct);
+                if (p is not null)
+                    parents.Add(new IgAdAttribution.AdRow(p.ExternalId, p.Level, p.ParentId, p.CreativeStoryId));
+            }
+
+            var match = new IgAdAttribution.AdMatch(
+                found.Value.ExternalId, IgAdAttribution.CampaignOf(found.Value, parents));
+
+            logger.LogInformation(
+                "Instagram: izoh reklama ostida deb TAXMIN qilindi (media {Media} → e'lon {Ad})",
+                media, match.AdId);
+            return match;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Instagram: reklama atributsiyasi bajarilmadi ({Media}) — izoh organik deb qoladi", media);
+            return IgAdAttribution.AdMatch.None;
+        }
+    }
+
+    /// <summary>Reklama iyerarxiyasi sinxronlanganmi (keshlangan tekshiruv).</summary>
+    private async Task<bool> AdsPresentAsync(IAppDbContext db, CancellationToken ct)
+    {
+        if (_adsCheckedAt.Length > 0
+            && InstagramContract.TryIso(_adsCheckedAt, out var checkedAt)
+            && (AppClock.Now - checkedAt).TotalMinutes < AdsPresenceCacheMinutes)
+            return _adsExist;
+
+        _adsExist = await db.IgAdEntities.AsNoTracking().AnyAsync(a => a.CreativeStoryId != "", ct);
+        _adsCheckedAt = AppClock.Iso();
+        return _adsExist;
     }
 
     /* ═════════════════════════ Yordamchilar ═════════════════════════ */

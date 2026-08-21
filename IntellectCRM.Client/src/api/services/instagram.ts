@@ -95,6 +95,18 @@ export interface IgSettings {
   instagramLeadAdsEnabled: boolean
   /** Reklama formasidan kelgan lidning manba nomi (`Lead.Source`). */
   instagramAdsLeadSource: string
+  /**
+   * REKLAMA STATISTIKASI (Ads Insights) yoqilganmi.
+   * ⚠️ Qolgan bayroqlardan MUSTAQIL: statistika System User tokeni bilan ishlaydi va AI
+   * agentiga ham, lid webhook'iga ham bog'liq emas.
+   */
+  instagramAdsStatsEnabled: boolean
+  /**
+   * KONTENT JOYLASH yoqilganmi.
+   * ⚠️ Yoqilgani YETMAYDI: Instagram akkaunt `instagram_business_content_publish` scope'i bilan
+   * QAYTA ulangan bo'lishi va media ochiq HTTPS manzilda turishi kerak.
+   */
+  instagramPublishEnabled: boolean
 }
 
 /**
@@ -515,6 +527,8 @@ export async function getIgAdLeads(params: {
   to?: string
   q?: string
   status?: 'all' | 'ok' | 'failed'
+  /** Kampaniya id — «Reklama statistikasi» jadvalidan kelgan `?campaign=` havolasi uchun. */
+  campaign?: string
   page?: number
 }): Promise<IgAdLeadList> {
   const { data } = await api.get<IgAdLeadList>('/admin/instagram/ads/leads', {

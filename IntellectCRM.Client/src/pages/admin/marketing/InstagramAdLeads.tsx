@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage } from '@/lib/utils'
 import {
@@ -36,14 +36,29 @@ export function InstagramAdLeads() {
   const [status, setStatus] = useState<'all' | 'ok' | 'failed'>('all')
   const [page, setPage] = useState(1)
 
+  /**
+   * `?campaign=` — «Reklama statistikasi» jadvalidagi «Lidlarni ko'rish →» havolasidan keladi.
+   * ⚠️ Havola manzilda QOLADI (state'ga ko'chirilmaydi): foydalanuvchi sahifani yangilasa yoki
+   * havolani nusxa qilib bersa filtr saqlanib qolsin. Tozalash — «Kampaniya filtri» chipidagi
+   * «×» tugmasi orqali.
+   */
+  const [params, setParams] = useSearchParams()
+  const campaign = params.get('campaign') ?? ''
+
+  const clearCampaign = () => {
+    params.delete('campaign')
+    setParams(params, { replace: true })
+    setPage(1)
+  }
+
   const load = useCallback(() => {
     setLoading(true)
     setError('')
-    getIgAdLeads({ from, to, q, status, page })
+    getIgAdLeads({ from, to, q, status, campaign, page })
       .then(setData)
       .catch((e) => setError(apiErrorMessage(e, "Reklama lidlarini yuklab bo'lmadi")))
       .finally(() => setLoading(false))
-  }, [from, to, q, status, page])
+  }, [from, to, q, status, campaign, page])
 
   useEffect(load, [load])
 
@@ -100,6 +115,18 @@ export function InstagramAdLeads() {
             ))}
           </div>
         </div>
+
+        {campaign && (
+          <div className="mk-alert" style={{ marginBottom: 16 }}>
+            <Icon name="filter" style={{ width: 18, height: 18, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              Faqat bitta kampaniyaning lidlari ko'rsatilyapti (reklama statistikasidan o'tildi).
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={clearCampaign}>
+              <Icon name="close" /> Filtrni olib tashlash
+            </button>
+          </div>
+        )}
 
         {loading && <MkLoading />}
         {!loading && error && <MkError text={error} onRetry={load} />}

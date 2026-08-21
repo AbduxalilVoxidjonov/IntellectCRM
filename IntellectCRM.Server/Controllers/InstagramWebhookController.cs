@@ -122,6 +122,7 @@ public class InstagramWebhookController(
         }
 
         var json = Encoding.UTF8.GetString(raw);
+        LogPolicyEnforcement(json, "instagram");
 
         // (3) NAVBATGA. Hodisa kaliti qayta ishlashdan OLDIN kerak (unikal indeks dedupni shu
         // yerda, bitta INSERT bilan bajaradi — alohida "bormi?" so'rovi poygaga ochiq bo'lardi).
@@ -216,6 +217,7 @@ public class InstagramWebhookController(
         }
 
         var json = Encoding.UTF8.GetString(raw);
+        LogPolicyEnforcement(json, "leadgen");
 
         db.IgWebhookEvents.Add(new IgWebhookEvent
         {
@@ -278,6 +280,32 @@ public class InstagramWebhookController(
     }
 
     private static string Sha256Hex(byte[] data) => Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
+
+    /// <summary>
+    /// <c>messaging_policy_enforcement</c> kelgan bo'lsa DARHOL logga yozadi (E6.7).
+    ///
+    /// <para>Haqiqiy ish (avtomatikani pauza qilish + Telegram alert) avvalgidek fon xizmatida —
+    /// bu yerda HECH QANDAY og'ir ish bajarilmaydi (5 soniya qoidasi). Lekin bu Meta'ning
+    /// cheklovdan OLDINGI yagona ogohlantirishi: navbat kechiksa yoki modul o'chiq bo'lsa u
+    /// hech qayerda ko'rinmay qolardi, log esa har doim qoladi.</para>
+    ///
+    /// <para>Sabab matni logga YOZILMAYDI — u Meta'dan keladigan xom matn; sabab admin ko'radigan
+    /// Telegram xabarida va navbat yozuvida bor.</para>
+    /// </summary>
+    private void LogPolicyEnforcement(string json, string source)
+    {
+        try
+        {
+            if (!InstagramEventParser.ContainsPolicyEnforcement(json)) return;
+            logger.LogWarning(
+                "[{Source}] ⚠️ META SIYOSATI OGOHLANTIRISHI keldi — navbatda qayta ishlanadi "
+                + "(avtomatik javoblar pauza qilinadi)", source);
+        }
+        catch
+        {
+            // Log yozish webhook qabul qilishni HECH QACHON buzmaydi.
+        }
+    }
 
     /// <summary>
     /// Body'ni to'liq baytlar sifatida o'qiydi (chegaradan oshsa <c>null</c>).

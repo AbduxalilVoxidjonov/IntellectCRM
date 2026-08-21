@@ -158,3 +158,66 @@ adashish yo'q: `"students-arxiv"` ruxsati `"students"` ni ochmaydi.
    darvozalar shu uchun).
 3. **`uploads/certificates`** — hech kimga statik yo'ldan berilmaydi (hatto adminga ham), faqat
    avtorizatsiyalangan download endpointlari orqali.
+
+## OCHIQ MEDIA — `uploads/marketing-public/` (Instagram kontent moduli)
+
+Bu **yagona istisno**: `/uploads` ostidagi bitta papka **login TALAB QILMAYDI**. Qoidaning
+o'zi buzilmadi — istisno alohida papka, alohida marshrut va alohida qulf bilan chegaralangan.
+
+### Nega ochiq bo'lishi SHART edi
+
+Instagram (Meta) postni joylashda media faylni **O'ZI yuklab oladi**: manzil **ochiq HTTPS**
+bo'lishi kerak — autentifikatsiya, IP cheklov va redirect **ishlamaydi**
+(`KENGAYTIRISH-PROMPT.md` §5.6). `UploadsGuard` ortidagi fayl Meta uchun 404 bo'lgani uchun
+har post `2207052` («Media yuklab bo'lmadi») bilan yiqilardi — ya'ni **busiz butun kontent
+moduli ishlamaydi**. Landing rasmlaridagi bilan bir xil mantiq: markaz bu faylni **O'ZI
+ommaga chiqarmoqchi**, farqi shundaki ko'rsatuvchi bizning saytimiz emas, Instagram.
+
+### Nima TUSHADI / nima TUSHMAYDI
+
+| | |
+|---|---|
+| **Tushadi** | FAQAT rejalashtirilgan post uchun yuklangan JPEG rasm yoki MP4/MOV video |
+| **Tushmaydi** | hujjat, shartnoma, sertifikat, selfi, o'quvchi surati, CV, ovoz yozuvi — **hech narsa**. Boshqa modullar bu papkaga yozmaydi |
+
+Yozadigan yagona joy — `POST /api/admin/instagram/content/media`
+(`InstagramController.Media.cs`, ruxsat `marketing.content`). O'chirish —
+`DELETE .../content/media`.
+
+### Qanday chegaralangan (qatlamlar)
+
+| Qatlam | Nima beradi |
+|---|---|
+| Statik marshrut **shu jismoniy papkaga ildizlangan** (`Program.cs`) | `uploads/` ning qolgani, `uploads/certificates` va `uploads/face` bu provayder uchun **umuman mavjud emas** |
+| Marshrut **`UploadsGuard` dan OLDIN**, lekin darvoza joyida | fayl topilsa shu yerda yakunlanadi; topilmasa so'rov darvozaga tushib 404 bo'ladi |
+| `ServeUnknownFileTypes = false` + **yopiq MIME xaritasi** (`.jpg/.jpeg/.mp4/.mov`) | papkaga tasodifan tushgan `.html`/`.svg` **berilmaydi** — aks holda bu bizning domenimizda saqlangan XSS bo'lardi |
+| Fayl nomi `{Guid:N}{kengaytma}` | 128 bit tasodifiylik; asl nom saqlanmaydi (`UploadGuard.SafeName` naqshi) |
+| Yuklashda **uchta mustaqil tekshiruv** | kengaytma · `Content-Type` · fayl boshidagi **sehrli baytlar**. Uchalasi mos kelishi SHART — faqat kengaytmaga ishonish `.jpg` nomli HTML qo'yish yo'lini ochib berardi |
+| Hajm chegarasi | `IgPublishConst.MaxImageBytes` / `MaxReelsBytes` — Meta'niki bilan bitta joydan |
+| O'chirishda `MarketingPublicMedia.SafeStoredName` | "nima ruxsat etilgan" naqshi (**32 hex + ruxsat etilgan kengaytma**): `..`, absolut yo'l, teskari chiziq, papka ajratkichi va begona papka manzili o'z-o'zidan rad etiladi. Ustiga `Path.GetFullPath` bilan qayta tekshiruv |
+| Sarlavhalar | `Cache-Control: public` (**ataylab** — Meta/CDN keshlashi mumkin), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` |
+| Audit | yozuv bor, lekin **fayl manzili/nomi YOZILMAYDI** (§1: manzil ochiq — tarixni ko'rgan har kim faylni abadiy olib qolardi). `EntityId` — o'zgarmas `content-media` |
+
+⚠️ **ZAXIRA:** papka `uploads/` ichida, ya'ni tungi arxivga **o'z-o'zidan kiradi** — alohida ish
+kerak emas (`uploads/face` dan farqli: u ATAYIN `--exclude` qilingan).
+
+⚠️ **Qabul qilingan xavf:** manzilni bilgan har kim (Meta ham, boshqa ham) faylni oladi va uni
+`Cache-Control: public` sababli oraliqdagi kesh saqlab qolishi mumkin. Bu **ataylab**: fayl
+baribir Instagram'da ommaga chiqadi. Shu sababdan bu papkaga **ommaviy bo'lmasligi mumkin
+bo'lgan hech narsa** qo'yilmaydi.
+
+⚠️ **Qabul qilingan xavf (symlink):** `PhysicalFileProvider` symlink'ni kuzatadi. Papkaga
+symlink qo'yish uchun serverda shell kerak (u holda baribir hamma narsa ochiq), yozish oqimimiz
+esa faqat GUID nomli oddiy fayl yaratadi — shuning uchun qo'shimcha chora ko'rilmadi.
+
+### Yangi OCHIQ marshrut qo'shishdan oldin
+
+1. **Fayl haqiqatan OMMAVIYmi?** "Login qilgan hamma ko'rishi mumkin" ≠ "internetdagi hamma
+   ko'rishi mumkin". Javob "yo'q" bo'lsa — imzolangan vaqtinchalik URL yoki avtorizatsiyalangan
+   download endpointi (Variant B).
+2. **Marshrut ildizi ANIQ bitta papkami?** Hech qachon `uploads/` ildizini ochmang.
+3. **MIME ro'yxati yopiqmi?** `ServeUnknownFileTypes` yoqilgan ochiq marshrut = XSS yuzasi.
+4. **Fayl nomini KIM belgilaydi?** Faqat server (GUID). Foydalanuvchi nomi hech qachon.
+5. **`MarketingPublicMediaTests` ni yangilang** — u darvozasiz `UseStaticFiles` bloklari
+   AYNAN BITTA ekanini qulflaydi va ikkinchisi qo'shilsa qizaradi. Bu **ataylab**: yangi ochiq
+   marshrut jimgina paydo bo'lmasin, qaror ko'rib chiqilsin.

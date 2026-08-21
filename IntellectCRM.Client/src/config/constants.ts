@@ -102,6 +102,8 @@ export const adminPermissions: AdminPermSection[] = [
       { key: 'marketing.knowledge', label: 'Bilim bazasi' },
       { key: 'marketing.analytics', label: 'Analitika' },
       { key: 'marketing.leadads', label: 'Reklama lidlari' },
+      { key: 'marketing.adsstats', label: 'Reklama statistikasi' },
+      { key: 'marketing.content', label: 'Kontent' },
       { key: 'marketing.settings', label: 'Sozlamalar' },
     ],
   },

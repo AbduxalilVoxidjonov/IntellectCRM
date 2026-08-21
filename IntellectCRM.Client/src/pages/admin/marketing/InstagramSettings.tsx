@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { usePerm } from '@/lib/permissions'
-import { apiErrorMessage } from '@/lib/utils'
+import { apiErrorMessage, formatDateTime } from '@/lib/utils'
 import {
   disconnectIg, disconnectIgAdPage, getIgAdStatus, getIgConnectUrl, getIgSettings, getIgStatus,
   refreshIgToken, saveIgAdPage, saveIgSettings, testIgAgent,
   type IgAdStatus, type IgChannel, type IgSettings, type IgStatus, type IgTestAgentResult,
 } from '@/api/services/instagram'
+import {
+  disconnectAdsStatsAccount, getAdsStatsStatus, getCapiStatus, getContentStatus,
+  saveAdsStatsAccount, saveCapiSettings, sendCapiNow, syncAdsStatsNow,
+  type IgAdsStatsStatus, type IgCapiStatus, type IgContentStatus,
+} from '@/api/services/instagramCapi'
 import {
   ChannelIcon, Icon, MarketingPage, MkCopyRow, MkError, MkLoading, MkStatusCard,
 } from './mk'
@@ -156,8 +161,10 @@ export function InstagramSettings() {
           </div>
         )}
 
-        {/* ── AKKAUNT ── */}
-        <div className="card card-pad" style={{ marginBottom: 18 }}>
+        {/* ── AKKAUNT ──
+            `id` — «Kontent joylash» kartasidagi «akkauntni qayta ulang» havolasi shu yerga
+            olib keladi (yangi ruxsat FAQAT qayta ulashda so'raladi). */}
+        <div className="card card-pad" id="ig-account-card" style={{ marginBottom: 18 }}>
           <div className="section-head">
             <div className="section-title">Instagram akkaunt</div>
             {status.connected && canEdit && (
@@ -395,6 +402,15 @@ export function InstagramSettings() {
           onPatch={patch}
         />
 
+        {/* ── REKLAMA STATISTIKASI (Ads Insights) ── */}
+        <AdsStatsBlock canEdit={canEdit} enabled={form.instagramAdsStatsEnabled} onPatch={patch} />
+
+        {/* ── CAPI: LID SIFATINI META'GA QAYTARISH ── */}
+        <CapiBlock canEdit={canEdit} />
+
+        {/* ── KONTENT JOYLASH ── */}
+        <ContentBlock canEdit={canEdit} enabled={form.instagramPublishEnabled} onPatch={patch} />
+
         {/* ── SINOV ── */}
         <TestBlock canEdit={canEdit} />
       </div>
@@ -623,6 +639,617 @@ function LeadAdsBlock({
           />
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * REKLAMA STATISTIKASI (Meta Ads Insights) — «reklamaga qancha pul ketdi va u qancha lid
+ * berdi» savoliga javob beradigan modulning ULANISHI.
+ *
+ * 🔴 **ENG KO'P VAQT YEYDIGAN TUZOQ — TOKEN.** Yuqoridagi «Reklama lidlari» kartasidagi
+ * **Page Access Token bu yerga YARAMAYDI**: unda `ads_read` ruxsati yo'q va Meta so'rovni
+ * rad etadi. Token **Business Manager → System User** dan, **`ads_read`** ruxsati bilan
+ * olinadi — u **MUDDATSIZ**, ya'ni bir marta kiritiladi va yangilash mexanizmi kerak emas.
+ * Buni ekranda ochiq yozib qo'yilgan: aks holda admin "token noto'g'ri" xatosi bilan bir
+ * necha kun ovora bo'lardi.
+ *
+ * ⚠️ Token HECH QACHON ko'rsatilmaydi — faqat "sozlangan/sozlanmagan". Maydon bo'sh
+ * yuborilsa serverda mavjudi saqlanadi (akkaunt ID'sini tuzatish uchun tokenni qayta
+ * yozish shart emas — `ads/page` bilan bir xil naqsh).
+ *
+ * ⚠️ Modul bayrog'i (`InstagramAdsStatsEnabled`) — SAHIFANING umumiy formasida (`IgSettings`),
+ * shuning uchun u `onPatch` orqali yuqoriga uzatiladi va tepadagi «Saqlash» tugmasi bilan
+ * saqlanadi. Akkaunt/token esa O'Z endpointida (`adsstats/account`) — ya'ni bu kartada
+ * ikkita ayri saqlash yo'li bor va bu ATAYIN: bayroq arzon o'zgaradi, akkaunt esa
+ * saqlashdan oldin Meta'da tekshiriladi.
+ */
+function AdsStatsBlock({
+  canEdit, enabled, onPatch,
+}: {
+  canEdit: boolean
+  enabled: boolean
+  onPatch: (p: Partial<IgSettings>) => void
+}) {
+  const [status, setStatus] = useState<IgAdsStatsStatus | null>(null)
+  const [accountId, setAccountId] = useState('')
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [done, setDone] = useState('')
+
+  const load = useCallback(() => {
+    getAdsStatsStatus()
+      .then((st) => { setStatus(st); setAccountId(st.adAccountId) })
+      .catch((e) => setError(apiErrorMessage(e, "Reklama statistikasi holatini yuklab bo'lmadi")))
+  }, [])
+
+  useEffect(load, [load])
+
+  const connect = async () => {
+    setBusy('save'); setError(''); setDone('')
+    try {
+      const st = await saveAdsStatsAccount(accountId.trim(), token.trim())
+      setStatus(st)
+      setAccountId(st.adAccountId)
+      setToken('')   // token ekranda saqlanib qolmasin
+      setDone(`Akkaunt ulandi: ${st.name || st.adAccountId}. Endi «Hoziroq sinxronlash» bilan ma'lumotni oling.`)
+    } catch (e) {
+      setError(apiErrorMessage(e, "Akkauntni ulab bo'lmadi"))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const disconnect = async () => {
+    if (!window.confirm("Akkaunt uziladi va statistika yangilanmaydi (yig'ilgani saqlanib qoladi). Davom etamizmi?")) return
+    setBusy('disconnect'); setError(''); setDone('')
+    try {
+      setStatus(await disconnectAdsStatsAccount())
+      setToken('')
+      setDone('Reklama akkaunti uzildi.')
+    } catch (e) {
+      setError(apiErrorMessage(e, "Uzib bo'lmadi"))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  /**
+   * ⚠️ Server xatoda ham HTTP **200** qaytaradi (sinxronizatsiya QISMAN bajarilishi mumkin) —
+   * shuning uchun `ok` bayrog'i qo'lda tekshiriladi, `catch` ga tayanib bo'lmaydi.
+   */
+  const sync = async () => {
+    setBusy('sync'); setError(''); setDone('')
+    try {
+      const res = await syncAdsStatsNow()
+      setStatus(res.status)
+      if (res.ok) setDone(`Sinxronizatsiya tugadi — ${res.rows} ta qator yangilandi.`)
+      else setError(res.error || 'Sinxronizatsiya bajarilmadi.')
+    } catch (e) {
+      setError(apiErrorMessage(e, "Sinxronizatsiya bajarilmadi"))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 18 }}>
+      <div className="section-head">
+        <div>
+          <div className="section-title">Reklama statistikasi (Ads Insights)</div>
+          <div className="page-sub">
+            Meta reklama akkauntidan sarf, ko'rsatish va lid raqamlari — «qaysi reklama pulni
+            qaytardi» hisoboti shundan quriladi
+          </div>
+        </div>
+        {status?.connected && canEdit && (
+          <button
+            className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }}
+            onClick={disconnect} disabled={busy === 'disconnect'}
+          >
+            <Icon name="unlink" /> Uzish
+          </button>
+        )}
+      </div>
+
+      <Toggle
+        name="Reklama statistikasi yoqilgan"
+        desc="O'chirilgan bo'lsa Meta'ga hech qanday so'rov ketmaydi va statistika yangilanmaydi."
+        on={enabled}
+        disabled={!canEdit}
+        onToggle={() => onPatch({ instagramAdsStatsEnabled: !enabled })}
+      />
+
+      {error && <div style={{ marginTop: 12 }}><MkError text={error} /></div>}
+      {done && !error && (
+        <div className="mk-alert" style={{ borderColor: 'var(--success)', background: 'var(--success-soft)', color: '#0d6b4b' }}>
+          <Icon name="check" style={{ width: 18, height: 18, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>{done}</div>
+        </div>
+      )}
+
+      {status && (
+        <div className="mk-status-grid" style={{ marginTop: 16 }}>
+          <MkStatusCard
+            label="Modul"
+            ok={status.enabled}
+            value={status.enabled ? 'Yoqilgan' : "O'chirilgan"}
+            hint={status.enabled === enabled
+              ? (status.enabled ? undefined : "O'chiq bo'lsa avtomatik sinxronizatsiya ishlamaydi")
+              : 'Saqlanmagan — tepadagi «Saqlash» tugmasini bosing'}
+          />
+          <MkStatusCard
+            label="Reklama akkaunti"
+            ok={status.connected}
+            value={status.connected ? (status.name || status.adAccountId) : 'Ulanmagan'}
+            hint={status.connected ? status.adAccountId : undefined}
+          />
+          <MkStatusCard label="Access Token" ok={status.tokenSet} hint="Qiymat ko'rsatilmaydi" />
+          <MkStatusCard
+            label="Valyuta va vaqt zonasi"
+            ok={status.connected && !!status.currency}
+            value={status.connected ? `${status.currency || '—'} · ${status.timezoneName || '—'}` : '—'}
+            hint="Statistika kunlari AYNAN reklama akkauntining zonasida kesiladi"
+          />
+          <MkStatusCard
+            label="Oxirgi sinxronizatsiya"
+            ok={!!status.lastSyncAt}
+            warn={!status.lastSyncAt && status.connected}
+            value={status.lastSyncAt ? formatDateTime(status.lastSyncAt) : 'Hali bo‘lmagan'}
+            hint={status.lastStatDate ? `Statistika ${status.lastStatDate} gacha` : undefined}
+          />
+          <MkStatusCard
+            label="Yuklangan qatorlar"
+            ok={status.insightRows > 0}
+            warn={status.insightRows === 0 && status.connected}
+            value={`${status.insightRows} ta kunlik qator`}
+            hint={`Reklama obyektlari: ${status.entityRows} ta`}
+          />
+          <MkStatusCard
+            label="Avtomatik yangilash"
+            ok={status.enabled}
+            value={`Har kuni soat ${status.syncHour}:00`}
+            hint={`Birinchi yuklashda ${status.backfillDays} kunlik tarix olinadi`}
+          />
+          <MkStatusCard
+            label="Oxirgi xato"
+            ok={!status.lastError}
+            value={status.lastError ? 'Bor' : "Yo‘q"}
+            hint={status.lastError ? 'Matni pastda' : undefined}
+          />
+        </div>
+      )}
+
+      {status?.lastError && (
+        <div style={{ marginTop: 14 }}>
+          <MkError text={'Oxirgi xato: ' + status.lastError} />
+        </div>
+      )}
+
+      <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="field">
+          <label className="field-label">Reklama akkaunti ID (Ad Account ID)</label>
+          <input
+            className="input" value={accountId} disabled={!canEdit}
+            onChange={(e) => setAccountId(e.target.value)}
+            placeholder="masalan: act_1234567890"
+          />
+          <div className="field-hint">
+            Ads Manager manzilidagi raqam. <code>act_</code> prefiksisiz (faqat raqamlar)
+            kiritilsa ham bo'ladi — server uni o'zi to'ldiradi.
+          </div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">Access Token</label>
+          <input
+            className="input" type="password" value={token} disabled={!canEdit}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={status?.tokenSet ? 'sozlangan — o‘zgartirish uchun yangisini kiriting' : 'EAAG…'}
+            autoComplete="new-password"
+          />
+          <div className="field-hint">
+            🔴 <b>Business Manager → System User</b> tokeni, <b>`ads_read`</b> ruxsati bilan —
+            u <b>muddatsiz</b>. ⚠️ Yuqoridagi «Reklama lidlari» kartasidagi <b>Page Access
+            Token bu yerga YARAMAYDI</b> (unda `ads_read` yo'q va Meta so'rovni rad etadi).
+            Bo'sh qoldirilsa mavjud token o'zgarmaydi.
+          </div>
+        </div>
+      </div>
+
+      {canEdit && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" onClick={connect} disabled={busy !== '' || !accountId.trim()}>
+            <Icon name="link" /> {busy === 'save' ? 'Tekshirilmoqda…' : 'Ulash va tekshirish'}
+          </button>
+          <button className="btn btn-outline" onClick={sync} disabled={busy !== '' || !status?.connected}>
+            <Icon name="refresh" /> {busy === 'sync' ? 'Sinxronlanmoqda…' : 'Hoziroq sinxronlash'}
+          </button>
+          <div className="field-hint" style={{ flex: 1, minWidth: 220 }}>
+            ⚠️ Birinchi sinxronizatsiya <b>bir necha daqiqa</b> davom etishi mumkin
+            ({status?.backfillDays ?? 90} kunlik tarix yuklanadi) — sahifani yopmang.
+            «Ulash va tekshirish» esa token va akkauntni <b>saqlashdan OLDIN</b> Meta'da
+            tekshiradi: xato bo'lsa hech narsa saqlanmaydi.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * CAPI — «lid sifatini Meta'ga QAYTARISH». Hozir Meta faqat "lid keldi"ni biladi; bu modul
+ * unga "bu lid sifatli bo'ldi / pul to'ladi"ni ham aytadi va Meta reklamani **haqiqiy mijoz
+ * keltiradigan** auditoriyaga optimallashtiradi.
+ *
+ * 🔴 **ASOSIY TUZOQ — HODISA NOMLARI.** `event_name` — ERKIN MATN va u **Events Manager'dagi
+ * bosqich nomi bilan AYNAN bir xil** bo'lishi shart (harfma-harf). Mos kelmasa Meta hodisani
+ * tanimaydi va u hech qayerda ko'rinmaydi — xato ham bermaydi. Shu sabab nomlar kodga
+ * yozilmagan, sozlamada turibdi.
+ *
+ * ⚠️ Dataset ID ham, token ham QIYMAT sifatida javobga tushmaydi (maxfiylik) — forma har
+ * safar bo'sh ochiladi. Shu sabab ikkalasi ham **bo'sh yuborilsa serverda mavjudi
+ * saqlanadi**: faqat bayroqni yoki bosqich nomini o'zgartirish uchun ularni qayta yozish
+ * shart emas.
+ *
+ * ⚠️ Maxfiylik: Meta'ga xom telefon KETMAYDI — faqat SHA-256 hash.
+ */
+function CapiBlock({ canEdit }: { canEdit: boolean }) {
+  const [status, setStatus] = useState<IgCapiStatus | null>(null)
+  const [enabled, setEnabled] = useState(false)
+  const [datasetId, setDatasetId] = useState('')
+  const [token, setToken] = useState('')
+  const [stageQualified, setStageQualified] = useState('')
+  const [stageWon, setStageWon] = useState('')
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [done, setDone] = useState('')
+
+  /** Serverdan kelgan holatni formaga yoyadi. ⚠️ Dataset ID va token QAYTMAYDI (bayroq bor, qiymat yo'q). */
+  const apply = (st: IgCapiStatus) => {
+    setStatus(st)
+    setEnabled(st.enabled)
+    setStageQualified(st.stageQualified)
+    setStageWon(st.stageWon)
+  }
+
+  const load = useCallback(() => {
+    getCapiStatus()
+      .then(apply)
+      .catch((e) => setError(apiErrorMessage(e, "CAPI holatini yuklab bo'lmadi")))
+  }, [])
+
+  useEffect(load, [load])
+
+  const save = async () => {
+    // Dataset ID ham, token ham BO'SH yuborilsa serverda mavjudi saqlanadi — ya'ni faqat
+    // bayroq yoki bosqich nomini o'zgartirish uchun ularni qayta yozish shart emas.
+    setBusy('save'); setError(''); setDone('')
+    try {
+      apply(await saveCapiSettings({
+        enabled,
+        datasetId: datasetId.trim(),
+        token: token.trim(),
+        stageQualified: stageQualified.trim(),
+        stageWon: stageWon.trim(),
+      }))
+      setToken('')       // token ekranda saqlanib qolmasin
+      setDatasetId('')   // qiymat qaytmaydi — maydonni "kiritilmagan" holatida qoldiramiz
+      setDone('CAPI sozlamalari saqlandi.')
+    } catch (e) {
+      setError(apiErrorMessage(e, "Saqlab bo'lmadi"))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  /** ⚠️ Xatoda ham HTTP 200 keladi — `ok` bayrog'i qo'lda tekshiriladi. */
+  const send = async () => {
+    setBusy('send'); setError(''); setDone('')
+    try {
+      const res = await sendCapiNow()
+      if (res.ok) setDone(`Yuborildi — yangi hodisa: ${res.created}, jo'natilgan: ${res.sent}.`)
+      else setError(res.error || 'Hodisalarni yuborib bo‘lmadi.')
+      setStatus(await getCapiStatus())
+    } catch (e) {
+      setError(apiErrorMessage(e, "Yuborib bo'lmadi"))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 18 }}>
+      <div className="section-head">
+        <div>
+          <div className="section-title">Lid sifatini Meta'ga qaytarish (CAPI)</div>
+          <div className="page-sub">
+            «Bu lid sifatli bo'ldi / pul to'ladi» hodisasi Meta'ga qaytariladi — reklama
+            haqiqiy mijoz keltiradigan auditoriyaga optimallashadi
+          </div>
+        </div>
+        {canEdit && (
+          <button className="btn btn-outline btn-sm" onClick={send} disabled={busy !== ''}>
+            <Icon name="send" /> {busy === 'send' ? 'Yuborilmoqda…' : 'Hoziroq yuborish'}
+          </button>
+        )}
+      </div>
+
+      <Toggle
+        name="CAPI yoqilgan"
+        desc="O'chirilgan bo'lsa navbat to'ldirilmaydi va Meta'ga hech qanday so'rov ketmaydi."
+        on={enabled}
+        disabled={!canEdit}
+        onToggle={() => setEnabled((v) => !v)}
+      />
+
+      {error && <div style={{ marginTop: 12 }}><MkError text={error} /></div>}
+      {done && !error && (
+        <div className="mk-alert" style={{ borderColor: 'var(--success)', background: 'var(--success-soft)', color: '#0d6b4b' }}>
+          <Icon name="check" style={{ width: 18, height: 18, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>{done}</div>
+        </div>
+      )}
+
+      {status && (
+        <div className="mk-status-grid" style={{ marginTop: 16 }}>
+          <MkStatusCard label="Modul" ok={status.enabled} value={status.enabled ? 'Yoqilgan' : "O'chirilgan"} />
+          <MkStatusCard label="Dataset ID" ok={status.datasetIdSet} hint="Qiymat ko'rsatilmaydi" />
+          <MkStatusCard label="Access Token" ok={status.tokenSet} hint="Qiymat ko'rsatilmaydi" />
+          <MkStatusCard
+            label="Navbatda"
+            ok={status.pending === 0}
+            warn={status.pending > 0}
+            value={`${status.pending} ta kutmoqda`}
+            hint="Kuniga bir marta worker o'zi yuboradi"
+          />
+          <MkStatusCard
+            label="Yuborilgan"
+            ok={status.sent > 0}
+            warn={status.sent === 0}
+            value={`${status.sent} ta`}
+            hint={status.lastSentAt ? `Oxirgisi: ${formatDateTime(status.lastSentAt)}` : 'Hali yuborilmagan'}
+          />
+          <MkStatusCard
+            label="Xato bilan qolgan"
+            ok={status.failed === 0}
+            value={`${status.failed} ta`}
+            hint={status.failed > 0 ? 'Sabab pastda' : undefined}
+          />
+          <MkStatusCard
+            label="O'tkazib yuborilgan"
+            ok
+            value={`${status.skipped} ta`}
+            hint="Masalan: lid Meta'niki emas yoki hodisa 7 kundan eski"
+          />
+          <MkStatusCard
+            label="Oxirgi xato"
+            ok={!status.lastError}
+            value={status.lastError ? 'Bor' : "Yo‘q"}
+            hint={status.lastError ? 'Matni pastda' : undefined}
+          />
+        </div>
+      )}
+
+      {status?.lastError && (
+        <div style={{ marginTop: 14 }}>
+          <MkError text={'Oxirgi xato: ' + status.lastError} />
+        </div>
+      )}
+
+      <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="field">
+          <label className="field-label">Dataset ID</label>
+          <input
+            className="input" value={datasetId} disabled={!canEdit}
+            onChange={(e) => setDatasetId(e.target.value)}
+            placeholder={status?.datasetIdSet ? 'sozlangan — o‘zgartirish uchun qaytadan kiriting' : 'Events Manager → Dataset ID'}
+          />
+          <div className="field-hint">
+            Events Manager'dagi dataset (piksel) ID'si. Maxfiylik uchun qiymati ekranga
+            qaytarilmaydi — <b>bo'sh qoldirilsa mavjudi o'zgarmaydi</b>.
+          </div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">Access Token</label>
+          <input
+            className="input" type="password" value={token} disabled={!canEdit}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={status?.tokenSet ? 'sozlangan — o‘zgartirish uchun yangisini kiriting' : 'EAAG…'}
+            autoComplete="new-password"
+          />
+          <div className="field-hint">
+            Events Manager → Dataset → «Generate access token». Bo'sh qoldirilsa mavjud token
+            o'zgarmaydi. ⚠️ Bu <b>dataset</b> tokeni — Page tokeni ham, System User tokeni ham emas.
+          </div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">Hodisa nomi — «Sifatli lid»</label>
+          <input
+            className="input" value={stageQualified} disabled={!canEdit}
+            onChange={(e) => setStageQualified(e.target.value)}
+            placeholder="Sifatli lid"
+          />
+          <div className="field-hint">
+            Lid sifatli bosqichga o'tganda (yoki o'quvchiga aylanganda) yuboriladi.
+          </div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">Hodisa nomi — «To'lov qildi»</label>
+          <input
+            className="input" value={stageWon} disabled={!canEdit}
+            onChange={(e) => setStageWon(e.target.value)}
+            placeholder="To'lov qildi"
+          />
+          <div className="field-hint">
+            Birinchi o'quv to'lovi tushganda yuboriladi (summa va valyuta bilan).
+          </div>
+        </div>
+      </div>
+
+      {/* 🔴 Nomlar mos kelmasa Meta hodisani JIMGINA tanimaydi — bu eng qimmat xato. */}
+      <div className="mk-alert" style={{ borderColor: 'var(--warning)', background: 'var(--warning-soft)' }}>
+        <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <div className="mk-alert-title">Hodisa nomlari harfma-harf mos bo'lishi SHART</div>
+          <div>
+            Bu nomlar <b>Events Manager'da sozlangan bosqich nomlari bilan AYNAN bir xil</b>
+            {' '}bo'lishi kerak (katta-kichik harf, bo'sh joy, apostrof — hammasi). Mos kelmasa
+            Meta hodisani tanimaydi va u hisobotlarda umuman ko'rinmaydi — xato ham bermaydi.
+          </div>
+        </div>
+      </div>
+
+      {/* Meta'ning «Conversion Leads» talablari — admin buni oldindan bilsin. */}
+      <div className="field" style={{ marginTop: 6 }}>
+        <label className="field-label">Meta talablari (Conversion Leads optimizatsiyasi uchun)</label>
+        <ul className="field-hint" style={{ paddingLeft: 18, margin: 0, lineHeight: 1.7 }}>
+          <li>Oyiga kamida <b>200 ta lid</b> (Instant Form orqali kelgan).</li>
+          <li>Lidning maqsadli bosqichga o'tishi <b>28 kun ichida</b> sodir bo'lishi.</li>
+          <li>Konversiya darajasi <b>1% – 40%</b> oralig'ida bo'lishi.</li>
+          <li>Ma'lumot kuniga kamida bir marta yuborilishi (worker buni o'zi bajaradi).</li>
+        </ul>
+        <div className="field-hint" style={{ marginTop: 6 }}>
+          ⚠️ Talablar bajarilmasa Meta «Conversion Leads» optimizatsiyasini <b>yoqmaydi</b>,
+          lekin hodisalarni yuborish <b>baribir foydali</b> — atributsiya hisobotlarida
+          "qaysi reklama pul keltirdi" ko'rinadi.
+        </div>
+        <div className="field-hint" style={{ marginTop: 6 }}>
+          🔒 <b>Maxfiylik:</b> Meta'ga xom telefon raqami <b>KETMAYDI</b> — faqat uning
+          <b> SHA-256 hash</b>i va Meta'ning o'z lid ID'si. Ism, izoh va suhbat matni umuman
+          yuborilmaydi.
+        </div>
+      </div>
+
+      {canEdit && (
+        <button className="btn btn-primary" onClick={save} disabled={busy !== ''}>
+          <Icon name="check" /> {busy === 'save' ? 'Saqlanmoqda…' : 'CAPI sozlamalarini saqlash'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * KONTENT JOYLASH — rejalashtirilgan postlar modulining QISQA holati (to'liq boshqaruv
+ * «Kontent» sahifasida).
+ *
+ * 🔴 **ASOSIY TUZOQ — `scopeGranted` `null` bo'lishi mumkin.** OAuth'da berilgan ruxsatlar
+ * bazada SAQLANMAYDI, ya'ni "joylash ruxsati bormi" savoliga aniq javob yo'q. Bunday holatda
+ * jimgina "hammasi joyida" deb ko'rsatish xato bo'lardi: post joylash paytida ruxsat
+ * yo'qligi ma'lum bo'lib, sabab tushunarsiz qolardi. Shuning uchun `null` da ochiq
+ * ogohlantirish chiqadi — **akkauntni QAYTA ULASH** kerak (yangi ruxsat aynan qayta ulashda
+ * so'raladi).
+ *
+ * ⚠️ Media manzili **ochiq HTTPS** bo'lishi shart — Meta faylni O'ZI yuklab oladi va
+ * login ortidagi `/uploads/...` manzilini ocholmaydi.
+ */
+function ContentBlock({
+  canEdit, enabled, onPatch,
+}: {
+  canEdit: boolean
+  enabled: boolean
+  onPatch: (p: Partial<IgSettings>) => void
+}) {
+  const [status, setStatus] = useState<IgContentStatus | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    getContentStatus()
+      .then(setStatus)
+      .catch((e) => setError(apiErrorMessage(e, "Kontent moduli holatini yuklab bo'lmadi")))
+  }, [])
+
+  /** Akkaunt kartasi shu sahifaning tepasida — havola o'rniga aniq o'sha yerga olib boramiz. */
+  const goToAccount = () => {
+    document.getElementById('ig-account-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 18 }}>
+      <div className="section-head">
+        <div>
+          <div className="section-title">Kontent joylash</div>
+          <div className="page-sub">Rejalashtirilgan postlar — to'liq boshqaruv «Kontent» sahifasida</div>
+        </div>
+        <Link className="btn btn-outline btn-sm" to="/admin/marketing/kontent">
+          <Icon name="arrowRight" /> Kontent sahifasi
+        </Link>
+      </div>
+
+      <Toggle
+        name="Kontent joylash yoqilgan"
+        desc="Yoqilgani yetmaydi — akkaunt `instagram_business_content_publish` ruxsati bilan QAYTA ulangan bo'lishi kerak."
+        on={enabled}
+        disabled={!canEdit}
+        onToggle={() => onPatch({ instagramPublishEnabled: !enabled })}
+      />
+
+      {error && <div style={{ marginTop: 12 }}><MkError text={error} /></div>}
+
+      {status && (
+        <>
+          <div className="mk-status-grid" style={{ marginTop: 16 }}>
+            <MkStatusCard
+              label="Modul"
+              ok={status.enabled}
+              value={status.enabled ? 'Yoqilgan' : "O'chirilgan"}
+              hint={status.enabled === enabled
+                ? (status.enabled ? undefined : 'Rejalashtirilgan postlar joylanmaydi')
+                : 'Saqlanmagan — tepadagi «Saqlash» tugmasini bosing'}
+            />
+            <MkStatusCard
+              label="Instagram akkaunt"
+              ok={status.accountConnected}
+              value={status.accountConnected ? 'Ulangan' : 'Ulanmagan'}
+            />
+            <MkStatusCard
+              label="Joylash ruxsati"
+              /* ⚠️ `null` — "noma'lum": yashil ham, qizil ham emas (sariq). */
+              ok={status.scopeGranted === true}
+              warn={status.scopeGranted === null}
+              value={status.scopeGranted === true ? 'Berilgan'
+                : status.scopeGranted === false ? 'Berilmagan' : "Noma'lum"}
+              hint={status.publishScope}
+            />
+            <MkStatusCard
+              label="Navbat"
+              ok={status.failed === 0}
+              warn={status.failed === 0 && status.processing > 0}
+              value={`${status.scheduled} rejada · ${status.processing} jarayonda · ${status.failed} xato`}
+              hint={`Shu haftada joylangan: ${status.publishedThisWeek} ta`}
+            />
+          </div>
+
+          {status.scopeGranted === null && (
+            <div className="mk-alert" style={{ marginTop: 14, borderColor: 'var(--warning)', background: 'var(--warning-soft)' }}>
+              <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div className="mk-alert-title">Kontent joylash uchun yangi ruxsat kerak</div>
+                <div>
+                  Berilgan ruxsatlar saqlanmagani uchun <b><code>{status.publishScope}</code> bor-yo'qligini
+                  aniqlab bo'lmaydi</b>. Post joylash ishlamasa — <b>Instagram akkauntini QAYTA
+                  ULANG</b> (yuqoridagi «Instagram akkaunt» kartasi): yangi ruxsat aynan qayta
+                  ulash paytida so'raladi.
+                </div>
+              </div>
+              <button className="btn btn-outline btn-sm" onClick={goToAccount}>
+                <Icon name="link" /> Akkaunt kartasiga
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="field-hint" style={{ marginTop: 14 }}>
+        ⚠️ <b>Media manzili ochiq HTTPS bo'lishi SHART:</b> Meta rasm/videoni <b>o'zi yuklab
+        oladi</b>, ya'ni login talab qiladigan manzil (odatdagi <code>/uploads/…</code>),
+        IP cheklov yoki redirect <b>ishlamaydi</b> — post «xato» holatida qoladi.
+      </div>
     </div>
   )
 }

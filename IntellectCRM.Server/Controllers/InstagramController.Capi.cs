@@ -100,7 +100,12 @@ public partial class InstagramController
         var token = (payload.Token ?? "").Trim();
 
         meta.InstagramCapiEnabled = payload.Enabled;
-        meta.InstagramCapiDatasetId = (payload.DatasetId ?? "").Trim();
+        // ⚠️ Dataset ID ham TOKEN BILAN BIR XIL qoidada: BO'SH kelsa mavjudi SAQLANADI.
+        // Sabab: qiymat javobga tushmaydi (faqat `DatasetIdSet` bayrog'i), ya'ni forma har safar
+        // BO'SH ochiladi. Shartsiz yozilsa, faqat toggle'ni o'zgartirib "Saqlash" bosgan admin
+        // Dataset ID'ni BILMASDAN o'chirib qo'yardi va CAPI jimgina ishlamay qolardi.
+        var datasetId = (payload.DatasetId ?? "").Trim();
+        if (datasetId.Length > 0) meta.InstagramCapiDatasetId = datasetId;
         if (token.Length > 0) meta.InstagramCapiToken = token;
         if (!string.IsNullOrWhiteSpace(payload.StageQualified))
             meta.InstagramCapiStageQualified = payload.StageQualified.Trim();

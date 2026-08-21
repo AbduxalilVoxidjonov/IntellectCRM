@@ -920,6 +920,58 @@ if (!IntellectCRM.Application.Services.AppSecrets.FaceVectorKeyConfigured)
         + "moduli O'CHIQ. Kalit yaratish: openssl rand -base64 32");
 
 // ---------------------------------------------------------------------------------------------
+// OCHIQ MEDIA — `uploads/marketing-public/` (Instagram kontent moduli, §5.6 Variant A).
+//
+// NEGA OCHIQ: Instagram postni joylashda media faylni O'ZI yuklab oladi — manzil ochiq HTTPS
+// bo'lishi SHART (auth, IP cheklov va redirect ishlamaydi). `/uploads` esa `UploadsGuard`
+// ortida, ya'ni login talab qiladi va har post `2207052` («Media yuklab bo'lmadi») bilan
+// yiqilardi. Busiz butun kontent moduli ishlamaydi.
+//
+// 🔴 BU MARSHRUTDAN BOSHQA HECH QANDAY FAYL CHIQMAYDI. Uch qatlam:
+//   1) FileProvider AYNAN shu jismoniy papkaga ildizlangan — `uploads/` ning qolgan qismi,
+//      `uploads/certificates` va `uploads/face` bu provayder uchun UMUMAN mavjud emas
+//      (`..` bilan yuqoriga chiqish ham `PhysicalFileProvider` da rad etiladi);
+//   2) `ServeUnknownFileTypes = false` + YOPIQ MIME xaritasi (JPEG/MP4/MOV) — papkaga
+//      tasodifan tushgan boshqa fayl (masalan `.html`) berilmaydi. Bu papka BIZNING
+//      domenimizda, ya'ni u yerdan HTML chiqishi saqlangan XSS bo'lardi;
+//   3) fayl nomi faqat `{Guid:N}{kengaytma}` (yuklash endpointi, `MarketingPublicMedia`).
+//
+// MARSHRUT DARVOZADAN OLDIN turadi: statik middleware faylni topsa so'rovni SHU YERDA
+// yakunlaydi, ya'ni `UploadsGuard` ga umuman yetib bormaydi. Fayl topilmasa so'rov pastga
+// tushadi va darvoza uni odatdagidek 404 qiladi.
+//
+// ZAXIRA: papka `uploads/` ichida — tungi arxivga o'z-o'zidan kiradi, alohida ish kerak emas
+// (`uploads/face` dan farqli — u ATAYIN `--exclude` qilingan).
+var marketingPublicDir = Path.Combine(
+    uploadsDir, IntellectCRM.Application.Services.MarketingPublicMedia.FolderName);
+Directory.CreateDirectory(marketingPublicDir);
+
+var marketingPublicTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider(
+    new Dictionary<string, string>(
+        IntellectCRM.Application.Services.MarketingPublicMedia.ContentTypes,
+        StringComparer.OrdinalIgnoreCase));
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(marketingPublicDir),
+    RequestPath = IntellectCRM.Application.Services.MarketingPublicMedia.RequestPath,
+    ContentTypeProvider = marketingPublicTypes,
+    ServeUnknownFileTypes = false,
+    OnPrepareResponse = ctx =>
+    {
+        var h = ctx.Context.Response.Headers;
+        // ATAYIN `public`: Meta faylni yuklab oladi va CDN'da keshlashi mumkin — bu papka
+        // ommaviy (qolgan `/uploads` esa `private`, chunki u yerda maxfiy hujjatlar bor).
+        h.CacheControl = "public,max-age=86400";
+        // Sarlavhalar yuqoridagi umumiy middleware'da ham qo'yiladi; bu yerda TAKROR
+        // qo'yilishi ataylab — marshrut ochiq bo'lgani uchun u boshqa qatlamga bog'liq
+        // qolmasin (MIME-sniffing va manzilning "Referer" orqali sizib chiqishi).
+        h["X-Content-Type-Options"] = "nosniff";
+        h["Referrer-Policy"] = "no-referrer";
+    },
+});
+
+// ---------------------------------------------------------------------------------------------
 // `/uploads` DARVOZASI — yuklangan fayllar login talab qiladi (batafsil: UploadsGuard).
 // DIQQAT: statik fayllar pipeline'da `UseAuthentication` dan OLDIN turadi, shuning uchun bu yerda
 // `HttpContext.User` hali bo'sh — token QO'LDA tekshiriladi (xuddi `/ws` dagidek).

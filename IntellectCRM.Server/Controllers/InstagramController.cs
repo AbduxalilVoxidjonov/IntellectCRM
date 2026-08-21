@@ -163,6 +163,8 @@ public partial class InstagramController(
         meta.InstagramAdsLeadSource = string.IsNullOrWhiteSpace(payload.InstagramAdsLeadSource)
             ? MetaLeadBridge.DefaultSource
             : payload.InstagramAdsLeadSource.Trim();
+        meta.InstagramAdsStatsEnabled = payload.InstagramAdsStatsEnabled;
+        meta.InstagramPublishEnabled = payload.InstagramPublishEnabled;
 
         // ⚠️ Auditga faqat "nima yoqildi/o'chirildi" yoziladi — App ID ham, matnlar ham emas.
         var summary = "Instagram agenti sozlamalari o'zgartirildi — modul: "
@@ -170,7 +172,9 @@ public partial class InstagramController(
                       + ", izohlarga avto-javob: " + (meta.InstagramAutoReplyComments ? "ha" : "yo'q")
                       + ", DM'ga avto-javob: " + (meta.InstagramAutoReplyDm ? "ha" : "yo'q")
                       + ", kunlik chegara: " + meta.InstagramDailyReplyLimit
-                      + ", reklama lidlari: " + (meta.InstagramLeadAdsEnabled ? "YOQILGAN" : "O'CHIRILGAN");
+                      + ", reklama lidlari: " + (meta.InstagramLeadAdsEnabled ? "YOQILGAN" : "O'CHIRILGAN")
+                      + ", reklama statistikasi: " + (meta.InstagramAdsStatsEnabled ? "YOQILGAN" : "O'CHIRILGAN")
+                      + ", kontent joylash: " + (meta.InstagramPublishEnabled ? "YOQILGAN" : "O'CHIRILGAN");
         audit.Record(AuditEntity, "settings", "update", summary);
         await db.SaveChangesAsync(ct);
 
@@ -185,7 +189,8 @@ public partial class InstagramController(
         m.InstagramPrivateReplyEnabled, m.InstagramAppId, m.InstagramAiModel,
         m.InstagramLeadSource, m.InstagramNotifyTelegram, m.InstagramReplyDelaySeconds,
         m.InstagramDailyReplyLimit, m.InstagramGreeting,
-        m.InstagramLeadAdsEnabled, m.InstagramAdsLeadSource);
+        m.InstagramLeadAdsEnabled, m.InstagramAdsLeadSource,
+        m.InstagramAdsStatsEnabled, m.InstagramPublishEnabled);
 
     // =============================================================================================
     //  AKKAUNTNI ULASH / UZISH
@@ -1128,9 +1133,16 @@ public partial class InstagramController(
     [HttpGet("ads/leads")]
     public async Task<ActionResult<IgAdLeadListDto>> AdLeads(
         [FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? q,
-        [FromQuery] string? status, [FromQuery] int page = 1, CancellationToken ct = default)
+        [FromQuery] string? status, [FromQuery] string? campaign, [FromQuery] int page = 1,
+        CancellationToken ct = default)
     {
         var query = db.IgAdLeads.AsNoTracking().AsQueryable();
+
+        // Kampaniya bo'yicha filtr — "Reklama statistikasi" jadvalidagi «Lidlarni ko'rish →»
+        // havolasi shu parametr bilan keladi. Usiz havola ochilar, lekin ro'yxat FILTRLANMASDAN
+        // to'liq chiqar va foydalanuvchi "nega hammasi ko'rinyapti" deb chalkashardi.
+        if (!string.IsNullOrWhiteSpace(campaign))
+            query = query.Where(l => l.CampaignId == campaign);
 
         if (!string.IsNullOrWhiteSpace(from)) query = query.Where(l => l.CreatedTime.CompareTo(from) >= 0);
         // `to` KUN sifatida keladi — kunning oxirigacha cho'ziladi (audit.md §5 bilan bir xil).
@@ -1273,7 +1285,11 @@ public record IgSettingsDto(
     bool InstagramPrivateReplyEnabled, string InstagramAppId, string InstagramAiModel,
     string InstagramLeadSource, bool InstagramNotifyTelegram,
     int InstagramReplyDelaySeconds, int InstagramDailyReplyLimit, string InstagramGreeting,
-    bool InstagramLeadAdsEnabled, string InstagramAdsLeadSource);
+    bool InstagramLeadAdsEnabled, string InstagramAdsLeadSource,
+    // ⚠️ Bu ikki bayroq SHU YERDA bo'lishi SHART. Ular `CenterMeta` da bor edi, lekin hech qaysi
+    // `PUT` da o'zlashtirilmasdi — ya'ni modullarni UI'dan YOQIB BO'LMASDI va admin ularni faqat
+    // bazadan qo'lda yoqishi mumkin edi. Sozlamalar sahifasi aynan shu DTO'ni o'qiydi.
+    bool InstagramAdsStatsEnabled, bool InstagramPublishEnabled);
 
 /* ---------------- REKLAMA LIDLARI (Meta Lead Ads) ---------------- */
 
