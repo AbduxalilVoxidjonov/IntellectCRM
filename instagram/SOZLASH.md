@@ -330,3 +330,138 @@ yig'ilmaydi, kim bilan bo'lishiladi va qanday o'chiriladi.
 | Meta webhook javobini kutishi | **5 soniya** |
 
 Protokol tafsilotlari: [`TEXNIK.md`](TEXNIK.md).
+
+---
+---
+
+# QO'SHIMCHA MODULLAR (2026-08)
+
+> Yuqoridagi 9 qadam **izoh va DM agenti**ni ishga tushiradi. Marketing bo'limida undan tashqari
+> yana uchta mustaqil modul bor va ularning **har biri o'z bayrog'i, o'z tokeni va o'z
+> qo'llanmasi** bilan keladi:
+
+| Modul | Nima beradi | To'liq qo'llanma |
+|---|---|---|
+| **Reklama lidlari** | Reklamadagi forma to'ldirilsa lid CRM'ga tushadi | [`REKLAMA-LIDLARI.md`](REKLAMA-LIDLARI.md) |
+| **Reklama statistikasi** | Xarajat · lid narxi · **ROI** (kim pul to'lagani bilan) | [`REKLAMA-STATISTIKASI.md`](REKLAMA-STATISTIKASI.md) |
+| **Kontent joylash** | Post/Reels/Story'ni CRM'dan rejalashtirib joylash | [`KONTENT.md`](KONTENT.md) |
+| **CAPI** | "Bu lid mijoz bo'ldi" ni Meta'ga qaytarish (reklama optimallashadi) | [`CAPI.md`](CAPI.md) |
+
+⚠️ **Barcha yangi bayroqlar default O'CHIQ** — yoqilmaguncha tashqariga bitta ham so'rov
+ketmaydi. Modullar bir-biridan mustaqil: birini yoqmasdan ikkinchisini ishlatish mumkin.
+
+---
+
+## ☐ A-qadam. System User tokeni (muddatsiz) — reklama modullari uchun
+
+Reklama lidlari, reklama statistikasi va CAPI **OAuth'dan foydalanmaydi**: token
+Business Manager'dan **qo'lda** olinadi va CRM sozlamalariga kiritiladi. Sabab —
+**System User tokeni MUDDATSIZ**, ya'ni bir marta olinadi va 60 kunda o'lmaydi.
+
+### A.1. Sistema foydalanuvchisini yaratish (bir marta)
+
+1. `business.facebook.com` → **Business settings → Users → System users** → **Add**;
+2. Nom bering (masalan `IntellectCRM`), rolni **Admin** qiling.
+
+⚠️ Bitta sistema foydalanuvchisi **uchala modul uchun** ham yetadi — har biriga alohida
+yaratish shart emas.
+
+### A.2. Kerakli obyektlarni biriktirish (**Add assets**)
+
+🔴 **Eng ko'p unutiladigan qadam.** Token qaysi obyektga huquq berilmagan bo'lsa, o'sha
+obyektni **umuman ko'rmaydi** va xato "Ruxsat yetishmaydi" (`#200`/`#10`) bo'lib chiqadi.
+
+| Modul | Qaysi asset biriktiriladi |
+|---|---|
+| Reklama lidlari | **Page** (Instagram akkaunt bog'langan sahifa) |
+| Reklama statistikasi | **Ad account** (reklama kabineti) |
+| CAPI | **Dataset** (Events Manager) |
+
+Har biriga **to'liq huquq** bering.
+
+### A.3. Token generatsiya qilish
+
+**Generate new token** → ilovangizni tanlang → kerakli ruxsatlarni belgilang:
+
+| Modul | Ruxsatlar |
+|---|---|
+| Reklama lidlari | `leads_retrieval` · `pages_show_list` · `pages_manage_ads` · `pages_read_engagement` |
+| **Reklama statistikasi** | **`ads_read`** (+ `business_management`) |
+| **CAPI** | **`ads_management`** (Dataset ustidan) |
+
+⚠️ **Token faqat BIR MARTA ko'rsatiladi** — darhol nusxa oling.
+
+⚠️ **`ads_management` ni statistika uchun so'ramang:** CRM reklamani boshqarmaydi, faqat
+o'qiydi. Ortiqcha ruxsat App Review talabini oshiradi.
+
+🔴 **HAR MODUL O'Z TOKENINI TALAB QILADI.** Ular bir-birining o'rnini **BOSMAYDI**, chunki
+har xil obyektga tegishli:
+
+| Token | Qaysi obyekt | Almashtirilsa nima bo'ladi |
+|---|---|---|
+| Instagram Login tokeni | Instagram akkaunt | — (u OAuth bilan o'zi olinadi) |
+| Page Access Token | **Page** | Statistika so'ralsa `OAuthException 190`/`200` |
+| System User (`ads_read`) | **Ad account** | Lid olinmaydi (`leads_retrieval` yo'q) |
+| Dataset tokeni (`ads_management`) | **Dataset** | CAPI `190`/`803` |
+
+⚠️ Bitta System User tokeniga **hamma ruxsatni birga** berish texnik jihatdan mumkin, lekin
+**tavsiya etilmaydi**: bitta token bekor qilinsa uchala modul birdan to'xtaydi va sababini
+topish qiyinlashadi.
+
+### A.4. Qayerga kiritiladi
+
+CRM → **Marketing → Sozlamalar**, har modulning **o'z kartochkasi**ga.
+
+⚠️ **Token hech qachon ekranda ko'rsatilmaydi** — faqat «Sozlangan / Sozlanmagan». Forma har
+safar bo'sh ochiladi va **bo'sh yuborilgan maydon mavjud qiymatni O'CHIRMAYDI** (ya'ni faqat
+id'ni tuzatish uchun tokenni qayta yozish shart emas).
+
+---
+
+## ☐ B-qadam. `content_publish` ruxsati va AKKAUNTNI QAYTA ULASH
+
+Kontent joylash moduli uchun Instagram Login tokeniga **yangi scope** kerak:
+
+```
+instagram_business_content_publish
+```
+
+🔴 **Yangi scope mavjud tokenga AVTOMATIK qo'llanmaydi.** OAuth ruxsatlari token olingan paytda
+muzlatiladi — ilgari ulangan akkauntda bu ruxsat **yo'q** va har post
+«Ruxsat yetishmaydi» bilan yiqiladi.
+
+**Nima qilish kerak:**
+
+1. CRM → **Marketing → Sozlamalar** → Instagram kartochkasi → **«Qayta ulash»**;
+2. Instagram login oynasida ruxsatlar ro'yxatida **kontent joylash** ham ko'rinadi — tasdiqlang;
+3. Ulanish tugagach yangi token saqlanadi va modul ishlay boshlaydi.
+
+⚠️ **Qayta ulash boshqa hech narsani buzmaydi:** suhbatlar tarixi, lidlar, qoidalar va bilim
+bazasi joyida qoladi. Yangilanadigan narsa — token, akkaunt id'lari va webhook obunasi.
+
+⚠️ **CRM sizda bu ruxsat bor-yo'qligini ANIQ ayta olmaydi.** Berilgan scope'lar ro'yxati
+saqlanmaydi, shuning uchun kontent bo'limi diagnostikasida bu maydon **«noma'lum»** deb turadi
+— yolg'on "ha" dan ko'ra ochiq "bilmayman" yaxshiroq. Ruxsat yo'qligi birinchi postda ma'lum
+bo'ladi.
+
+✅ **Qanday tekshiriladi:** Marketing → Kontent sahifasida bitta rasm posti yarating va
+«Hoziroq joylash» bosing. Xato chiqmasa — ruxsat berilgan.
+
+❌ **Xato bo'lsa:**
+
+| Alomat | Sabab |
+|---|---|
+| «Ruxsat yetishmaydi … instagram_business_content_publish» | Akkaunt hali eski token bilan ulangan — B-qadamni takrorlang |
+| «Instagram tokeni muddati tugagan» | Token o'lgan — «Qayta ulash» |
+| `2207052` («Media yuklab bo'lmadi») | Bu **ruxsat masalasi EMAS** — server tashqaridan HTTPS bilan ochiq emas ([`KONTENT.md`](KONTENT.md) 3-qadam) |
+
+---
+
+## 🔧 Qo'shimcha modullar — tez diagnostika
+
+| Alomat | Qaysi qo'llanma |
+|---|---|
+| Reklama lidi kelmayapti | [`REKLAMA-LIDLARI.md`](REKLAMA-LIDLARI.md) → «Nosozliklar» |
+| Statistika bo'sh / `#200` / `190` | [`REKLAMA-STATISTIKASI.md`](REKLAMA-STATISTIKASI.md) → «Nosozliklar» |
+| Post joylanmayapti / `2207052` | [`KONTENT.md`](KONTENT.md) → «Nosozliklar» |
+| CAPI hodisalari Events Manager'da ko'rinmayapti | [`CAPI.md`](CAPI.md) → «Nosozliklar» |

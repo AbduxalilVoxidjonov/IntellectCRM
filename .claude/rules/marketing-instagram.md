@@ -498,3 +498,633 @@ Har kelgan lid auditga yozilmaydi — u `IgAdLead` ro'yxatida va `LeadEvent` da 
 | `MetaLeadBridgeTests` | yangi lid, **first-touch**, boshqa formatdagi telefon bilan dedup, telefonsiz lid, bo'sh manba |
 | `LeadOriginsAdsTests` | reklama DM'dan ustun, qo'lda kiritilgan reklamadan ustun |
 
+
+## 17. REKLAMA STATISTIKASI (Meta Ads Insights + ROI)
+
+Migratsiya: `AddMarketingExpansion` (§17–§20 ning HAMMASI shu bitta migratsiyada).
+Sahifa: **Marketing → Reklama statistikasi** (`/admin/marketing/reklama-statistikasi`),
+ruxsat `marketing.adsstats`. Sozlash qo'llanmasi: `instagram/REKLAMA-STATISTIKASI.md`.
+
+Modul Meta'dagi **xarajat**ni CRM'dagi **lid → o'quvchi → to'lov** zanjiri bilan birlashtiradi.
+Bu Ads Manager'da **YO'Q** narsa: Meta lidning SONINI biladi, CRM esa o'sha lid PUL to'laganini.
+
+### 17.1. ⚠️ UCHINCHI TOKEN — eng ko'p vaqt yo'qotadigan chalkashlik
+
+| Modul | Token | Ruxsat | Entity |
+|---|---|---|---|
+| Izoh · DM | Instagram Login (OAuth) | `instagram_business_*` | `IgAccount` |
+| Reklama lidlari (§16) | Page Access Token | `leads_retrieval` | `IgAdPage` |
+| **Reklama statistikasi** | **System User tokeni** | **`ads_read`** | **`IgAdAccount`** |
+
+🔴 **`IgAdPage.AccessToken` bu yerda YARAMAYDI** — Page tokenida `ads_read` yo'q, chunki
+Insights **Ad Account** obyektiga tegishli. Aynan shu sababdan token AYRI entity'da va mijoz
+AYRI sinfda: **`MetaInsightsApi`** (`MetaAdsApi` ga TEGILMAYDI — u lid uchun). Host esa
+ikkalasida bir xil — `IgConst.FbGraphBase`.
+
+### 17.2. Entitylar
+
+| Entity | Vazifasi | Unikal kalit |
+|---|---|---|
+| `IgAdAccount` | Ulangan reklama kabineti: `AdAccountId` (**`act_` prefiksi bilan**), `Currency`, `CurrencyOffset`, `TimezoneName`, `AccessToken`, `LastSyncAt`, `LastError` | `AdAccountId` |
+| `IgAdEntity` | campaign / adset / ad iyerarxiyasi + `CreativeStoryId` (§20 uchun) | `ExternalId` |
+| `IgAdInsight` | Kunlik faktlar (bitta obyekt × kun × platforma) | `(Level, ExternalId, StatDate, Platform)` |
+
+`CenterMeta`: `InstagramAdsStatsEnabled` (**default false**), `InstagramAdsSyncHour` (5),
+`InstagramAdsBackfillDays` (90).
+
+⚠️ **Migratsiyadagi `defaultValue` lar QO'LDA tuzatilgan** (`books.md` §4 sabog'i): EF entity
+initsializatorini MAVJUD qatorlarga qo'llamaydi, ya'ni ishlab turgan markazda `SyncHour` va
+`BackfillDays` **0** bo'lib qolib, birinchi backfill UMUMAN bajarilmasdi.
+
+⚠️ Akkaunt uzilganda **qator O'CHIRILMAYDI** (`IsActive=false` + token tozalanadi) — o'tgan
+oylarning hisoboti buzilmasin. Reklama Meta'da o'chirilsa ham `IgAdEntity` qatori qoladi.
+
+⚠️ **YIG'ILADI, LEKIN HALI ISHLATILMAYDI** (bila turib qoldirilgan, chunki qayta sinxronizatsiya
+qimmat — keyin kerak bo'lsa bazadan hisoblanadi):
+
+| Maydon | Nima | Nega hozircha ko'rsatilmaydi |
+|---|---|---|
+| `IgAdInsight.MsgStarted` | `messaging_conversation_started_7d` | Click-to-Direct kampaniyalari uchun; ROI hisobotida ustun yo'q |
+| `IgAdInsight.AttributionSetting` | Ad set'ning atributsiya oynasi | Har ad set'da har xil — hisobotni to'g'ri o'qish uchun kerak bo'ladi |
+| `IgAdInsight.ActionsJson` | XOM `actions` massivi | Yangi `action_type` kerak bo'lsa **qayta sinxronizatsiyasiz** hisoblash uchun (`ActionValueFromJson`) |
+| `cost_per_action_type` | So'raladi, lekin **parse qilinmaydi** | CPL biz tomonda CRM lidlari bo'yicha hisoblanadi |
+
+### 17.3. 🔴 PUL BIRLIGI ASSIMETRIYASI — №1 xato manbai
+
+| Nima | Format | Misol |
+|---|---|---|
+| Byudjet (`daily_budget`, `lifetime_budget`) | **butun son, MINOR unit** | `5000` = 50.00 |
+| Insights `spend` | **MATN, MAJOR unit** | `"312.45"` = 312.45 |
+
+Bazada hamma narsa **minor** (`long`): kasrli `decimal` ustunlar yig'indida yaxlitlash xatosi
+to'plardi. O'girish YAGONA joyda — `MetaCurrency` (sof, testlangan).
+
+🔴 **`currency_offset` maydoni Meta'da YO'Q** — Ad Account tugunida u umuman qaytmaydi (u
+eskirgan `Currency` tugunida edi) va **so'ralsa Graph BUTUN so'rovni `code 100` bilan rad
+etadi**, ya'ni statistika umuman kelmay qo'yadi. Offset bizning tomonda: `MetaCurrency.OffsetOf`
+(zero-decimal ro'yxati → 0, qolgani va noma'lum kod → **2**; UZS ham 2).
+
+⚠️ `Math.Pow` o'rniga JADVAL (`Factors`) — `double` aylanishi katta summalarda bir tiyinlik
+farq berardi. Parse `InvariantCulture` bilan: server `ru-RU` da `"312.45"` nuqtasini guruh
+ajratgichi deb o'qib, natijani **100 barobar** buzardi.
+
+### 17.4. Sinxronizatsiya siyosati (`MetaInsightsService`)
+
+| Qachon | Oraliq | Nega |
+|---|---|---|
+| Birinchi ulanish (`LastSyncAt` bo'sh) | `InstagramAdsBackfillDays` (90), **`ChunkDays` = 10** kunlik bo'laklarda | `level=ad` + `time_increment=1` + `publisher_platform` bilan 90 kun ≈ 9000 qator — `MaxPages` to'sig'idan ham, `100/1487534` xatosidan ham o'tolmasdi |
+| Har kuni `InstagramAdsSyncHour` da | oxirgi **`ReloadDays` = 7** kun QAYTA | Meta atributsiyani **48 soatgacha** tuzatadi — bir marta yozilgan kun keyin ham o'zgaradi |
+| Qo'lda | tanlangan oraliq, ≤ `MaxRangeDays` (365) | |
+
+Upsert `(Level, ExternalId, StatDate, Platform)` — bazadagi unikal indeks bilan AYNAN bir xil,
+shuning uchun qayta yuklash dublikat yaratmaydi.
+
+⚠️ **Kalitga `AdAccountId` KIRMAYDI** (indeksda ham yo'q) — mavjud qatorlar akkauntga
+qaramasdan qidiriladi, aks holda takroriy yuklash unikal indeksni buzardi.
+
+⚠️ **`LastSyncAt` faqat TO'LIQ muvaffaqiyatda yangilanadi.** Backfill yarmida yiqilsa ertaga u
+BOSHIDAN takrorlanadi — upsert buni zararsiz qiladi, "yarim yuklangan tarix" esa hisobotda
+**jimgina teshik** qoldirardi.
+
+⚠️ **Har bo'lak O'Z tranzaksiyasida saqlanadi** — 90 kunni bitta ulkan `SaveChanges` bilan
+yozib, oxirida yiqilsa hammasi yo'qolardi.
+
+⚠️ **Sana AKKAUNT vaqt zonasida** (`TodayInAccountZone`), `AppClock.Today` (Toshkent) EMAS.
+Aralashsa "kechagi sarf 0" holati chiqadi. Zona serverda tanilmasa (tzdata yo'q konteyner)
+Toshkent kuniga qaytiladi — bir kunlik siljish ehtimoli bor, lekin chegaraviy kunlar baribir
+qayta yuklanadi. `IgAdInsight.StatDate` Meta bergan holicha yoziladi, **surilmaydi**.
+
+### 17.5. Rate limit siyosati — MAJBURIY
+
+Sarlavhalar har javobdan o'qiladi (`MetaInsightsParser.ParseThrottle`):
+`X-FB-Ads-Insights-Throttle` va `X-Business-Use-Case-Usage` (kalit — **business id**, ya'ni
+oldindan noma'lum: barcha kalitlar ko'riladi, faqat `type == "ads_insights"` olinadi).
+
+Kvota formulasi: `600 + 400 × aktiv reklama − 0.001 × xatolar`.
+🔴 **Bizning 4xx xatolarimiz kvotani KAMAYTIRADI** — shuning uchun:
+
+| Kod | Qayta urinish |
+|---|---|
+| `190` (token), `200`/`10`/`299` (ruxsat), `100` (parametr), `803` | ❌ **hech qachon** |
+| `80000`/`80004` (BUC limiti) | ❌ Meta ochiq aytadi: to'xtatish kerak, davom etilsa blok **UZAYADI** |
+| `4`, `17`, `32`, `613`, `2` va 5xx/429 | ✅ 1s → 2s → 4s (3 urinish) |
+| `100` subcode `1487534` | ❌ backoff yordam bermaydi → **oraliq ikkiga bo'linadi** (`MaxSplits` = 24) |
+
+⚠️ Kvota **≥95%** (`QuotaStopPct`) bo'lsa sinxronizatsiya **o'z ixtiyorimiz bilan** to'xtaydi;
+≥80% da muvaffaqiyatdan keyin `LastError` ga **ogohlantirish** yoziladi (xato emas).
+
+⚠️ **`Classify` qarori (`Stop` / `Shrink` / `Fatal`) — avval Meta KODI bo'yicha, kod
+bo'lmasa MATN bo'yicha.** Kod `MetaInsightsApi.LastErrorCode` / `LastErrorSubcode` dan olinadi.
+
+🔴 **Nega kod birinchi:** `MapError` dagi matn foydalanuvchiga ko'rsatiladigan jumla, ya'ni uni
+tahrirlash NORMAL ish. Qaror faqat matnga tayansa (`Contains("qisqartiring")`), **bitta so'z
+o'zgarishi bilan backfill hech qachon BO'LINMAY qolardi** va sabab hech qayerda ko'rinmasdi.
+Kod esa Meta bilan **shartnoma**.
+
+| Kod | Qaror |
+|---|---|
+| `100` + subcode `1487534` | `Shrink` — oraliq ikkiga bo'linadi |
+| `190`, `200`, `10`, `299` | `Fatal` — odam aralashuvi + Telegram signali |
+| `80000`, `80004`, `4`, `17`, `32`, `613` | `Stop` — keyingi ishga qoldiriladi |
+
+⚠️ **Matn baribir ZAXIRA:** tarmoq uzilishi/timeout'da Meta kodi umuman bo'lmaydi (0) va qaror
+matndan olinadi. Ikkalasi ham tanimasa — `Stop`, ya'ni **XAVFSIZ tomon** (kutamiz, davom etib
+blokni uzaytirmaymiz).
+
+⚠️ **Sahifalash to'sig'i `MaxPages` = 20** va oshgani **JIM KESILMAYDI**: `LogWarning` + metod
+`Ok=false` qaytaradi. Yarim yuklangan kunni "to'liq" deb yozib qo'yish hisobotni sekin-asta
+buzardi va buni hech kim sezmasdi.
+
+⚠️ `paging.next` ga faqat **`https://`** bo'lsa ergashiladi — manzil ichida `access_token` bor,
+begona xostga ergashish tokenni sizdirardi.
+
+### 17.6. ROI qoidalari (`MetaAdsRoi`)
+
+🔴 **DARAJALAR ARALASHMAYDI.** `IgAdInsight` da uch daraja bitta jadvalda yotadi va kampaniya
+qatori o'z e'lonlari yig'indisi bilan bir xil — birga sanalsa **sarf ikki-uch barobar**
+ko'rinardi. Hisobot HAR DOIM **bitta darajadan** yig'iladi (`PickLevel`: ad → adset → campaign,
+eng maydasi ustun), qolganlari `ParentId` orqali yuqoriga ko'tariladi.
+
+🔴 **QAMROV QO'SHILMAYDI.** `publisher_platform` qatorlari Meta tomonidan **dedup
+QILINMAGAN** (bir odam ikki kunda ham, ikki platformada ham sanaladi), ya'ni `SUM(Reach)` —
+qamrov emas. Ikki **halol chegara** beriladi: `Reach` = **MAX** (quyi), `ReachUpper` = **SUM**
+(yuqori), `ReachApprox = true`. UI'da «≈» bilan chiziladi.
+
+| Qoida | Nega |
+|---|---|
+| **CPL/CAC/ROI `null` bo'lishi mumkin** | Bo'luvchi 0 bo'lsa `0` YOZILMAYDI — "lid tekinga tushdi" bilan "hisoblab bo'lmadi" bir xil ko'rinardi. UI «—» chizadi |
+| ROI daromad 0 bo'lganda **`-1`** | Bu HAQIQIY qiymat (butun pul kuydi), `null` EMAS |
+| **Konversiya LID bo'yicha, daromad O'QUVCHI bo'yicha** dedup | Ikki lid bitta o'quvchiga ulansa: 2 konversiya, lekin pul **BIR marta** — aks holda "daromad ikki barobar" |
+| To'liq qaytarilgan to'lov | `Math.Max(0, …)` — daromadga **manfiy qo'shilmaydi** (`LeadFormService.Funnel` bilan bir xil qoida) |
+| "To'ladi" = faqat `tuition` | Kitob savdosi `FinanceTransaction` ga yozilmaydi (`books.md` §7) |
+| Manba — **`LeadOutcome`** | "To'ladi" so'zi lid formalari, daraja testi va shu hisobotda BIR XIL ma'no anglatishi shart |
+| Nomi topilmagan tugun | id'ning O'ZI chiziladi — sun'iy "Noma'lum" bazadagi haqiqiy tugundan ajratib bo'lmasdi, id esa Ads Manager'da qidirsa bo'ladigan qiymat |
+| `Platform == "all"` qatorlar platforma tanlanganda **KIRMAYDI** | "Instagram sarfi" deb Facebook pulini qo'shish hisobotni yolg'on qilardi; natijasi `Notes` da aytiladi |
+| `DayEnd(day)` = `"…T23:59:59.999"` | `IgAdLead.CreatedTime` zona qo'shimchasi bilan kelishi mumkin (`…+0000`) va oddiy `T23:59:59` chegarasida oxirgi soniya tushib qolardi |
+
+⚠️ **`Notes[]` — foydalanuvchiga OCHIQ aytiladigan ogohlantirishlar** (taqqoslanmaydigan
+o'lchov, taxminiy qamrov, Meta≠CRM farqi, o'chirilgan lidlar, valyuta, vaqt zonasi). Ular
+hisobotni **noto'g'ri o'qishdan** saqlaydi va UI'da chizilishi SHART.
+
+⚠️ Chegaralar: `MaxCampaigns` = 200, `MaxChildren` = 100 — oshgani **JIM tashlanmaydi**,
+`Notes` ga qator qo'shiladi va **jamlanma BARCHASI bo'yicha** qoladi.
+
+### 17.7. Kesh va endpointlar
+
+**Kesh:** `DataCache`, kalit `marketing:ads-roi:{from}:{to}:{platform}:{campaign}`, TTL 10 daq,
+bog'liq turlar: `IgAdAccount`, `IgAdInsight`, `IgAdEntity`, `IgAdLead`, `Lead`, `LeadStage`,
+`StudentGroup`, `FinanceTransaction`.
+
+⚠️ **Kampaniya ham KALITGA kiradi** (spetsifikatsiyadagi kalitga qo'shimcha): jamlanma filtrga
+bog'liq hisoblanadi, aks holda "jadval bitta kampaniya, tepadagi KPI esa hammasi" bo'lardi.
+⚠️ **`IgAdAccount` ham bog'liqlikda**: akkaunt ulangan zahoti hisobot 10 daqiqa "ulanmagan" deb
+turib qolmasin.
+
+| Verb + route | Ruxsat | Nima |
+|---|---|---|
+| `GET adsstats/status` | klass | Diagnostika: bayroq, akkaunt, `tokenSet`, oxirgi sinxronizatsiya/xato, qatorlar soni |
+| `PUT adsstats/account` | `marketing.settings` | Ulash — **saqlashdan OLDIN `FetchAccountAsync` bilan tekshiriladi**, o'tmasa hech narsa saqlanmaydi |
+| `DELETE adsstats/account` | `marketing.settings` | Uzish (`IsActive=false`, token tozalanadi) |
+| `POST adsstats/sync` | `marketing.settings` | Qo'lda; ⚠️ **muvaffaqiyatsizlikda ham HTTP 200** — sinxronizatsiya QISMAN bajarilishi mumkin va buni 400 ifodalay olmaydi |
+| `GET adsstats/overview` · `campaigns` · `roi` | klass | Uchalasi ham **AYNAN bitta** hisobotdan (`MetaAdsRoi.BuildAsync`) — bir ekranning uch bo'lagi uch xil raqam ko'rsatmasin |
+
+⚠️ Akkaunt ulanmagan bo'lsa hisobot **200 + `connected:false`** qaytaradi (400/500 EMAS):
+"xato" bilan "hali sozlanmagan" ni aralashtirish foydalanuvchini bekorga qo'rqitardi.
+
+⚠️ `POST adsstats/sync` da **audit yozuvi sinxronizatsiyadan KEYIN** qo'shiladi: servis o'z
+`SaveChangesAsync` ini chaqiradi va tranzaksiya bir xil `DbContext` da — oldin yozilgan audit
+qatori yarim yo'lda saqlanib, "qilindi" deb yozilgan bo'lardi.
+
+⚠️ Telegram signali `InstagramPipeline.NotifyAdminsAsync` dan **qayta ishlatilmadi**: u
+`InstagramEnabled` bilan darvozalangan, bu modul esa undan MUSTAQIL — AI agentini ishlatmaydigan
+markazda "token o'lgan" signali **jimgina yo'qolardi**. Signal faqat `Fatal` (token/ruxsat)
+xatosida va faqat **xato matni O'ZGARGANDA** yuboriladi (kvota xatosi o'zi tiklanadi, bir xil
+matnni har kuni yuborish signalni shovqinga aylantirardi).
+
+### 17.8. Testlar
+
+| Test sinfi | Nimani qulflaydi |
+|---|---|
+| `MetaInsightsParserTests` (31) | Valyuta offseti (UZS 2 / JPY 0 / noma'lum 2), `spend` matndan minorga va yaxlitlash, `actions` da yo'q tur → 0, `action_breakdowns` da takrorlangan tur **yig'iladi**, `lead` turi hisobga olinmasligi, buzuq JSON → bo'sh, `paging.next` faqat `https`, `end_time`/`stop_time`, `creative.effective_object_story_id`, akkaunt id normalizatsiyasi, throttle sarlavhalari |
+| `MetaInsightsServiceTests` (7) | **Modul o'chiq bo'lsa tashqariga so'rov ketmasligi**, qayta sinxronda dublikat yo'qligi, birinchi ulanishda oraliq bo'laklarga bo'linishi, token xatosida qayta urinilmasligi, **xato KODI matndan ustunligi**, kod yo'q bo'lsa matnga tushilishi, noma'lum xato to'xtatishi |
+| `MetaAdsRoiTests` (22) | Qaytarilgan to'lov, kitob savdosi daromadga qo'shilmasligi, Meta≠CRM ikkalasi qaytishi, **kampaniya va e'lon qatorlari QO'SHILMASLIGI**, qamrovning ikki chegarasi, platforma/kampaniya filtri, akkauntsiz bo'sh javob, CPL/ROI `null` qoidalari |
+
+---
+
+## 18. KONTENT JOYLASH (Instagram Content Publishing)
+
+Migratsiya: `AddMarketingExpansion`. Sahifa: **Marketing → Kontent**
+(`/admin/marketing/kontent`), ruxsat `marketing.content`.
+Sozlash qo'llanmasi: `instagram/KONTENT.md`.
+
+Entity — `IgScheduledPost`. `CenterMeta.InstagramPublishEnabled` (**default false**).
+Sof qoidalar — `InstagramPublishContract` + `IgPublishConst`, HTTP — `InstagramPublishApi`,
+oqim — `InstagramPublishService`.
+
+### 18.1. 🔴 NATIVE REJALASHTIRISH YO'Q
+
+`POST /{ig-user-id}/media` da **`scheduled_publish_time` parametri MAVJUD EMAS** (u faqat
+Facebook Page `/feed` da), konteyner esa **24 soatda o'ladi**. Demak:
+
+- vaqt **bizning** navbatda (`IgScheduledPost.ScheduledAt`), navbat **DB jadvalida**;
+- konteyner **oldindan YARATILMAYDI** — faqat chop etish payti. Aks holda "ertaga ertalabga"
+  yaratilgan konteyner vaqti kelganda `EXPIRED` bo'lib, **post jimgina yo'qolardi**.
+
+⚠️ `/me` ga **TAYANILMAYDI**: Overview'da `/me` aliasi tasdiqlangan, endpoint reference'da esa
+`/{ig-user-id}/media` — ikkisi zid. Har chaqiruvda `IgAccount.IgUserId` dan aniq yo'l
+ishlatiladi; u bo'sh bo'lsa metod tarmoqqa umuman chiqmaydi.
+
+### 18.2. Oqim va poll
+
+```
+worker (30 s) → validatsiya → limit → POST /media → GET /{container} → POST /media_publish
+```
+
+| Qoida | Tafsilot |
+|---|---|
+| Poll jadvali | **30 → 60 → 120 → 300 s**, keyin 300 da to'xtaydi (Meta: daqiqada bir marta, 5 daqiqadan ko'p emas) |
+| Poll muddati | **10 daqiqa** (`PollTimeoutSeconds`), keyin `failed` |
+| Bir tsiklda | **3 ta** post, ULARNING ICHIDA `processing` BIRINCHI — aks holda boshlangan ish oxiriga yetmasdi |
+| Urinishlar | **3**, keyin `failed` + Telegram signali |
+
+🔴 **POLL WORKER'NI BLOKLAMAYDI.** `ContinueAsync` da `Task.Delay` **YO'Q**: konteyner
+`IN_PROGRESS` bo'lsa post `processing` da QOLADI va keyingi tsiklda davom etadi. Aks holda
+bitta video butun navbatni 10 daqiqaga to'xtatib qo'yardi.
+
+⚠️ Konteyner yaratilgach **darhol birinchi poll** qilinadi — rasm konteyneri odatda darhol
+`FINISHED` bo'ladi va oddiy post AYNI tsiklda joylanadi (30 soniya kutilmaydi).
+
+⚠️ SQL faqat QO'POL saralash qiladi (satr taqqoslash), yakuniy qaror sof funksiyada
+(`IsDue`) — buzuq sana yozilgan qator SQL filtridan o'tib ketishi mumkin, qoida esa BITTA
+joyda turishi kerak (`contacts.md` §3.6 yondashuvi).
+
+### 18.3. 🔴 `PublishAsync` da QAYTA URINISH YO'Q + POYGA QULFI
+
+Chop etilgan IG media'ni API orqali **tahrirlab ham, o'chirib ham bo'lmaydi**. Shuning uchun:
+
+| Himoya | Nima bo'lardi busiz |
+|---|---|
+| `PublishAsync(retry: false)` | Meta postni joylab, javobni yetkaza olmasa (5xx/timeout) takror **IKKINCHI POST** yaratardi — profilda abadiy qoladigan dublikat |
+| `SemaphoreSlim Gate` (jarayon ichida) | Worker tsikli va «Hoziroq joylash» bir vaqtda bir postni ko'rsa **ikkita konteyner** yaratilib, post ikki marta chiqardi |
+| Konteyner `PUBLISHED` bo'lsa **qayta chop etilmaydi** | Avvalgi urinishda javob yo'qolgan bo'lishi mumkin; ikkinchi marta chop etish dublikat berardi. Holat `published` deb yopiladi va sabab ochiq yoziladi |
+
+Noaniq holatda post `failed` bo'ladi va xato matnida **"Instagram'da tekshiring"** deyiladi —
+qayta urinish qarorini **ODAM** qabul qiladi.
+
+⚠️ Poll holati (`Polls`) **XOTIRADA**: `IgScheduledPost` da "oxirgi so'rov vaqti" ustuni yo'q
+va migratsiya bu ish doirasidan tashqarida. Bu faqat TEZLIK maslahati — yo'qolsa post keyingi
+tsiklda darhol so'raladi (eng yomon oqibat: bitta ortiqcha so'rov). Haqiqiy holat
+(`Status`, `ContainerId`, `ContainerStatus`) BAZADA.
+
+### 18.4. Darvozalar va "yumshoq" xatolar
+
+| Holat | Post nima bo'ladi | Nega |
+|---|---|---|
+| Modul o'chiq | tegilmaydi | Tashqariga hech qanday so'rov ketmaydi |
+| **Token o'lgan / akkaunt ulanmagan** | `failed` EMAS — sabab `Error` ga yoziladi, navbat to'xtaydi | Sabab ULANISHDA, postda emas. Admin qayta ulaganda navbat o'zi davom etadi. ⚠️ Jimgina "hech narsa bo'lmayapti" holati eng yomoni — shuning uchun sabab ro'yxatda ko'rinadi |
+| **Kunlik limit to'lgan** | `scheduled` bo'lib qoladi, `Attempts` **oshmaydi** | Limit sutkalik va o'zi bo'shaydi; aks holda post uch tsiklda "xato" bo'lib yonardi |
+| Limit so'rovi **javob bermadi** | ish TO'XTAMAYDI, urinish "kuymaydi" | Limit tekshiruvi MASLAHAT xarakterida — haqiqiy limitni Meta `media_publish` da o'zi tekshiradi (`2207042`) |
+| Validatsiya / buzuq `MediaJson` | DARHOL `failed` (`hard`) | Qayta urinishdan o'zi tuzalmaydi. ⚠️ Tarmoqqa **umuman chiqilmaydi** |
+| Konteyner 24 soatdan oshgan | `scheduled` ga qaytadi, yangi konteyner | Kutishning ma'nosi yo'q |
+
+⚠️ `quota_total` **KODGA YOZILMAYDI** — Meta hujjatlari zid (qo'llanmada **100**, reference
+namunasida **50**). Qiymat ish vaqtida `config.quota_total` dan o'qiladi; **0 = noma'lum** va
+`QuotaExceeded` postni to'xtatmaydi. UI'da ham "noma'lum" yoziladi, taxminiy son ko'rsatilmaydi.
+
+⚠️ Noma'lum `status_code` **`IN_PROGRESS`** ga tushadi, `ERROR` ga emas: yangi/kutilmagan
+qiymat tufayli tayyor bo'layotgan post o'chirilib ketmasin (poll baribir 10 daqiqada to'xtaydi).
+
+⚠️ `IsContainerExpired` / `IsPollExpired` buzuq sanada **`true`** qaytaradi ("bilmasak, cheksiz
+kutmaymiz"), `IsDue` esa **`false`** (buzuq yozuv navbatni band qilmasin).
+
+### 18.5. 🔴 `record` DESERIALIZATSIYA TUZOG'I (.NET 8 STJ)
+
+`MediaJson`/`OptionsJson` `IgMediaItem`/`IgPublishOptions` **record**'lariga to'g'ridan-to'g'ri
+deserializatsiya **QILINMAYDI**. Sabab: .NET 8 dagi `System.Text.Json` **konstruktor
+parametrlarining STANDART QIYMATINI e'tiborsiz qoldiradi** va yo'q maydonga `default(T)` beradi:
+
+- `thumbOffsetMs` JSON'da bo'lmasa record'dagi **`-1` ("berilmagan")** o'rniga **`0`
+  ("videoning birinchi kadri")** tushardi va Meta'ga ortiqcha `thumb_offset=0` ketardi;
+- `kind` **`null`** bo'lib, `ValidateMedia` ichidagi `item.AltText.Length` **NullReference**
+  bilan yiqilardi.
+
+Shuning uchun oraliq **o'zgaruvchan sinflar** — `IgMediaJson` / `IgOptionsJson` (xossa
+initializatorlari HAR DOIM ishlaydi), o'qish-yozish esa `IgPublishPayload` da (sof, testlangan).
+
+⚠️ `thumb_offset` da **0 ham HAQIQIY qiymat** — "berilmagan" belgisi `-1`.
+⚠️ `share_to_feed` faqat **Reels**da yuboriladi, `alt_text` faqat **yakka rasm**da, story'da
+**caption yo'q** — ortiqcha parametr Graph'da `code 100` berishi mumkin.
+⚠️ `video` turi ATAYIN **`REELS`** ga aylanadi (Meta feed videosini baribir Reels qilib
+joylaydi), `image` uchun esa `media_type` **umuman yuborilmaydi**.
+⚠️ Karusel BOLASIDA caption Meta tomonidan **jimgina e'tiborsiz qoldiriladi** — shuning uchun
+CRM buni **XATO** deb qaytaradi; nisbat esa faqat **BIRINCHI** element bo'yicha tekshiriladi
+(qolganlarini Instagram shunga qirqadi, ularni rad etish foydalanuvchini bekorga to'sardi).
+
+### 18.6. Ochiq media marshruti (§5.6, Variant A)
+
+🔴 **Meta faylni O'ZI yuklab oladi** — manzil ochiq HTTPS bo'lishi SHART; `/uploads`
+`UploadsGuard` ortida va har post `2207052` bilan yiqilardi. Yechim: **alohida papka +
+alohida marshrut** — `uploads/marketing-public/`.
+
+**To'liq qoida `uploads-security.md` da** («OCHIQ MEDIA» bo'limi) — bu yerda TAKRORLANMAYDI.
+Kod yozayotganda bilish shart bo'lgan uch narsa:
+
+1. **`Program.cs` da darvozasiz `UseStaticFiles` bloki AYNAN BITTA** bo'lishi kerak va u shu
+   papkaga ildizlangan — `MarketingPublicMediaTests` buni qulflaydi (ikkinchisi qo'shilsa test
+   qizaradi);
+2. MIME xaritasi **YOPIQ** (`.jpg/.jpeg/.mp4/.mov`) + `ServeUnknownFileTypes=false` — bu papka
+   bizning domenimizda, u yerdan `.html`/`.svg` chiqishi **saqlangan XSS** bo'lardi;
+3. **auditga fayl manzili/nomi YOZILMAYDI**, `EntityId` — o'zgarmas `"content-media"`.
+
+⚠️ **`Uri.TryCreate(s, UriKind.Absolute, …)` TUZOG'I:** UNIX'da u `/uploads/...` kabi ODDIY
+YO'LNI ham qabul qiladi va uni **`file:` sxemasi** deb biladi. Shartsiz ishlatilsa bizning O'Z
+manzilimiz "begona sxema" deb rad etilardi va **o'chirish umuman ishlamasdi** — Windows'da esa
+bu sezilmasdi (u yerda `/…` absolut URI emas). Shuning uchun `SafeStoredName` da avval
+**`"://"` borligi** tekshiriladi.
+
+⚠️ Dev muhitida (http) manzil HTTPS bo'lmaydi va `ValidateMediaUrl` uni **ATAYIN rad etadi** —
+"lokalda ishladi, serverda ishlamadi" holatini jimgina yaratmaslik uchun.
+
+### 18.7. API
+
+| Verb + route | Ruxsat | Izoh |
+|---|---|---|
+| `GET content/posts`, `content/posts/{id}` | klass | Jamlanma **BUTUN topilma** bo'yicha; noma'lum `status` filtri **qo'llanmaydi** (ro'yxat bo'shab qolmasin) |
+| `POST content/posts` | `marketing.content` | ⚠️ Validatsiya **SAQLASHDA** — aks holda xato 10 daqiqalik poll'dan keyin ko'rinardi |
+| `PUT content/posts/{id}` | `marketing.content` | **FAQAT `scheduled`** holatida |
+| `DELETE content/posts/{id}` | `marketing.content` | `scheduled` → **bekor**; `published` → faqat CRM yozuvi (⚠️ javobda OCHIQ yoziladi); `processing` → rad |
+| `POST content/posts/{id}/publish` | `marketing.content` | Kutmaydi; audit **har doim** yoziladi (xatoda ham) |
+| `GET content/limit`, `content/status` | klass | `total=0` → `unknown=true`; `ScopeGranted` ATAYIN **`null`** |
+| `POST\|DELETE content/media` | `marketing.content` | Ochiq papkaga yuklash/o'chirish |
+
+⚠️ `content/status` dagi **`ScopeGranted` har doim `null` ("noma'lum")**: berilgan OAuth
+ruxsatlari ro'yxati saqlanmaydi, ya'ni `instagram_business_content_publish` olinganini ishonch
+bilan ayta olmaymiz. **Yolg'on "ha" dan ko'ra ochiq "noma'lum" yaxshi** — UI shu holatda
+«Qayta ulash» maslahatini ko'rsatadi.
+
+⚠️ Scope `IgConst.Scopes` ga qo'shilgan, lekin u **mavjud tokenga qo'llanmaydi** — akkauntni
+**QAYTA ULASH** shart.
+
+### 18.8. Testlar
+
+| Test sinfi | Nimani qulflaydi |
+|---|---|
+| `InstagramPublishContractTests` (57) | Caption chegaralari (2200/30/20), JPEG-only, hajm/davomiylik/nisbat har tur uchun, o'lcham noma'lum bo'lsa nisbat tekshirilmasligi, karusel 2–10 va **bolasidagi caption XATO**, nisbat faqat birinchi element bo'yicha, konteyner so'rovi (image'da `media_type` yo'q, story'da caption yo'q), poll jadvali, 24 soat/10 daqiqa muddatlari, `QuotaExceeded` noma'lum limitda to'xtatmasligi, xato kodlari va **noma'lum kod jim yutilmasligi** |
+| `InstagramPublishServiceTests` (26) | **Modul o'chiq → so'rov yo'q**, limit to'lganda `scheduled`, noma'lum limit ishni to'xtatmasligi, `IN_PROGRESS` **workerni bloklamasligi**, chop etilgan post qayta joylanmasligi, 3 urinishdan keyin `failed`, buzuq JSON, **validatsiyadan o'tmagan post tarmoqqa chiqmasligi**, o'lik token, karusel oqimi, **chop etish xatosida qayta urinilmasligi**, bir tsiklda 3 ta post |
+| `IgPublishPayloadTests` | Buzuq JSON istisno otmasligi, **yo'q maydonlar standart qiymatga tushishi**, **nol `thumbOffset` saqlanishi**, yozib-o'qish davri |
+| `MarketingPublicMediaTests` (33) | **Darvozasiz statik blok AYNAN BITTA**, sertifikat/selfi papkalari yopiqligi, MIME xaritasi yopiqligi, `AllowAnonymous` yo'qligi, **yo'ldan chiqish himoyasi**, auditga manzil yozilmasligi, `.jpg` niqobidagi HTML rad etilishi, JPEG o'lchami va MP4 davomiyligi parseri |
+
+---
+
+## 19. CAPI — LID SIFATINI META'GA QAYTARISH
+
+Migratsiya: `AddMarketingExpansion`. Entity `IgCapiEvent`, servis `MetaCapiService`,
+mijoz `MetaCapiApi`, sof funksiyalar `MetaCapiHash` + `MetaCapiPayload`.
+Sozlash qo'llanmasi: `instagram/CAPI.md`.
+
+`CenterMeta`: `InstagramCapiEnabled` (**default false**), `InstagramCapiDatasetId`,
+`InstagramCapiToken`, `InstagramCapiStageQualified` (`"Sifatli lid"`),
+`InstagramCapiStageWon` (`"To'lov qildi"`).
+
+### 19.1. 🔴 YANGI HOOK YOZILMAYDI — KUNLIK SKAN
+
+`Lead.Stage` o'zgarishini ushlash uchun hodisa tinglovchisi qo'shish vasvasasi bor, lekin lid
+holati bir necha joydan o'zgaradi (kanban, konvertatsiya, kassa) va **bittasi tushib qolsa
+hodisa JIMGINA yo'qolardi**. Kunlik skan "hozirgi holat"ni qayta hisoblaydi — o'tkazib
+yuborilgan o'zgarish keyingi kuni o'z-o'zidan tuziladi.
+
+Skan oynasi `ScanWindowDays` = **90 kun** (Meta talabi 28 kun — uch barobar zaxira).
+
+⚠️ FAQAT **reklama formasidan** kelgan lidlar (`IgAdLead.LeadgenId` bor): `lead_id` siz Meta
+hodisani hech qanday e'longa bog'lay olmaydi. DM/izoh lidi bu navbatga **umuman tushmaydi**.
+⚠️ `CreatedTime` bo'sh/buzuq bo'lsa `ReceivedAt` bo'yicha ham tekshiriladi — vaqti yozilmagan
+lid jimgina tushib qolmasin.
+⚠️ Bitta CRM lidiga bir necha reklama lidi to'g'ri kelsa **FIRST-TOUCH**: eng birinchisi
+olinadi (`LeadIntake` bilan bir xil qoida), ya'ni konversiya BIRINCHI e'longa yoziladi.
+
+### 19.2. 🔴 DEDUP KALITI — `(LeadId, EventName)`, `EventId` EMAS
+
+`EventId` = `"{leadgenId}_{unix}"`, ya'ni **ichida VAQT bor** va u har kuni boshqacha chiqadi.
+Agar dedup unga tayansa **bir xil holat HAR KUNI qayta yuborilardi** va unikal indeks ham
+saqlamasdi. Shuning uchun:
+
+| Qavat | Kalit | Vazifasi |
+|---|---|---|
+| 1 (skan) | `(LeadId, EventName)` | Bir xil holat ikkinchi marta navbatga tushmaydi |
+| 2 (baza) | `IgCapiEvent.EventId` **unikal indeksi** | Poyga holati (`DbUpdateException` **ushlanadi va XATO EMAS**) |
+| 3 (Meta) | `event_name` + `event_id`, **48 soat** | Qayta yuborish xavfsiz — Meta takrorni o'zi tashlaydi |
+
+⚠️ Unikal indeks buzilganda qator **`Remove` bilan kuzatuvdan chiqariladi**: muvaffaqiyatsiz
+`Added` yozuv qolib ketsa keyingi HAR BIR `SaveChanges` yiqilardi (`Entry()` `IAppDbContext`
+da yo'q).
+
+### 19.3. 🔴 VAQT TUZOQLARI
+
+**`AppClock.Now` `Kind=Unspecified`** — "devor soati"ni qaytaradi. Uni to'g'ridan-to'g'ri
+`DateTimeOffset` ga bersak .NET **SERVER mintaqasini** qo'llaydi; Docker'da bu **UTC**, ya'ni
+natija **5 soatga kelajakka** siljib, Meta hodisani rad etardi. Shuning uchun Toshkent ofseti
+(`+05:00`) `MetaCapiPayload.ToUnix` da **QO'LDA** biriktiriladi.
+
+**`event_time` 7 kundan eski bo'lsa BUTUN so'rov rad etiladi:**
+
+| Chegara | Qiymat | Nega |
+|---|---|---|
+| Eng eski | 7 kun **− 1 soat zaxira** | Meta chegarani O'Z soati bo'yicha tekshiradi; "roppa-rosa 7 kun" dagi hodisa yo'lda (navbat + qayta urinish) chegaradan chiqib ketardi |
+| Kelajak | +5 daqiqa | Server soatining siljishi |
+
+Eskirgan qator **`skipped`** bo'ladi (`failed` EMAS — admin muammo izlab yurmasin) va yuborish
+paytida ham paketdan **chiqarib tashlanadi**: aks holda u o'zi bilan qolgan 999 tasini
+yiqitardi.
+
+⚠️ **"Sifatli lid" vaqti — SKAN vaqti** (bosqichga o'tishning aniq soati saqlanmaydi, eng ko'p
+24 soat kechikish), **"To'lov qildi" vaqti — BIRINCHI TO'LOV SANASI** (kun boshi, Toshkent):
+Meta hodisani atributsiya oynasiga aynan shu vaqt bo'yicha joylashtiradi. Demak modul birinchi
+marta yoqilganda **eski to'lovlar ATAYIN yuborilmaydi** — "bugun to'ladi" deb yuborish yolg'on
+ma'lumot bo'lardi. Kun OXIRI olinmaydi: bugungi to'lov kelajakda turib qolardi.
+
+### 19.4. 🔴 HASHLASH VA U+02BB APOSTROF TUZOG'I
+
+SHA-256 → hex → **kichik harf**. Meta hashni bayt-ma-bayt solishtiradi: bir belgi farq qilsa
+moslik **0** bo'ladi va nosozlik **jimgina** yuz beradi (200 OK keladi, hodisa hech kimga
+bog'lanmaydi).
+
+| Maydon | Normallashtirish |
+|---|---|
+| `ph` | faqat raqamlar, boshidagi nollar olib tashlanadi, **9 xonali raqamga `998` qo'shiladi**; uzunlik 10–15 bo'lmasa **bo'sh** qaytadi |
+| `em` | trim + lowercase + eng oddiy shakl tekshiruvi |
+| **`lead_id`** | 🔴 **HASHLANMAYDI**, `long` ga aylanmasa maydon **umuman qo'shilmaydi** (satr ko'rinishidagi `lead_id` butun so'rovni yiqitardi) |
+
+⚠️ **`PhoneUtil.Key` bu yerda ISHLATILMAYDI** — u ataylab oxirgi 9 raqamni (mamlakat kodisiz)
+beradi, CAPI uchun esa talab AYNAN TESKARI.
+
+🔴 **`char.IsLetterOrDigit('ʻ')` → TRUE.** U+02BB (o'zbek klaviaturasining asosiy apostrofi) va
+U+02BC Unicode'da **`ModifierLetter`**, ya'ni HARF hisoblanadi va oddiy filtrdan **o'tib
+ketadi**. Natijada `To'lqin` (ASCII) va `To’lqin` (U+2019) tashlanardi-yu, `Toʻlqin`
+tashlanmasdi — bitta odam **uchta xil hash** berardi. Shuning uchun `IsNameChar` modifikator
+harflarni ATAYIN chiqarib tashlaydi.
+
+⚠️ **`fn`/`ln` YUBORILMAYDI:** O'zbekistonda formaga "Familiya Ism" ham, "Ism Familiya" ham
+yoziladi va tartibni aniqlashning ishonchli yo'li yo'q. Noto'g'ri joylashgani moslikni
+**oshirmaydi**, lekin Meta hisobotida "sifatsiz integratsiya" bo'lib ko'rinardi.
+
+🔴 **MAXFIYLIK — tuzilma darajasidagi kafolat:** `IgCapiEvent.PayloadJson` faqat
+`MetaCapiPayload.BuildEvent` orqali quriladi, u esa **`MetaCapiUserData`** (hashlangan record)
+dan boshqasini qabul qilmaydi — ya'ni xom PII yozishning **texnik imkoni yo'q**. Xom telefon/
+email faqat `Lead` jadvalida qoladi (DPA aynan shuni tekshiradi).
+⚠️ `access_token` **tanaga qo'shilmaydi** — u manzilda ketadi (payload log/bazaga tushishi
+mumkin, token esa hech qachon).
+⚠️ `test_event_code` produksiyada **berilmaydi**: u bilan kelgan hodisalar faqat sinov oynasida
+ko'rinadi va optimizatsiyaga umuman qo'shilmaydi — modul "ishlayotgandek" ko'rinib, aslida
+hech narsa qilmasdi.
+
+### 19.5. Hodisa xaritasi va nomlar
+
+| CRM'da nima bo'ldi | Hodisa | Vaqt |
+|---|---|---|
+| Reklama lidi yaratildi | ❌ **yuborilmaydi** (Meta buni allaqachon biladi) | — |
+| `ConvertedStudentId` to'ldi **YOKI** kanban bosqichi "sifatli" | `InstagramCapiStageQualified` | skan vaqti |
+| Birinchi `tuition` to'lovi | `InstagramCapiStageWon` + `value` + `currency: UZS` | **birinchi to'lov sanasi** |
+
+🔴 **`event_name` — ERKIN MATN** (qat'iy enum faqat Business Messaging CAPI'da). Yagona shart:
+Events Manager'dagi bosqich nomi bilan **AYNAN** bir xil. Shuning uchun nomlar `CenterMeta`
+sozlamasida — markaz nomni o'zgartirsa kod qayta yig'ilmaydi. Bo'sh sozlamada default nom
+ishlatiladi (bo'sh `event_name` bilan ketgan so'rovni Meta rad etardi).
+
+⚠️ Kanban bosqichi **NOM bo'yicha** taniladi (`IsQualifiedStage`: `sifatli`, `sinov`, `trial`,
+`qualified`, `aylantir`, `convert`): `LeadStage` da "tur" ustuni YO'Q, ya'ni id bo'yicha
+bog'lab bo'lmaydi. Markaz boshqacha nomlagan bo'lsa hodisa baribir `ConvertedStudentId` orqali
+yuboriladi — ro'yxat **qo'shimcha signal**, yagona shart emas.
+
+⚠️ Ikki manba (konvertatsiya va bosqich) **BITTA** hodisa beradi — Events Manager'da ham
+bosqich bitta.
+
+### 19.6. Navbat va API
+
+Holatlar: `pending` · `sent` · `failed` · `skipped` (`MaxAttempts` = 3,
+`MaxPerRun` = 5 × 1000, bir so'rovda ≤ **1000** hodisa).
+
+⚠️ **Xato bo'lgan paket YO'QOLMAYDI** — qatorlar `pending` bo'lib qoladi va keyingi ishga
+tushishda qayta yuboriladi (deterministik `event_id` buni xavfsiz qiladi).
+⚠️ Yuboriladigan hodisa **`PayloadJson` dan TIKLANADI**, xom ma'lumotdan emas: lidning
+telefoni/summasi orada o'zgargan bo'lsa ham hodisa o'zgarmaydi — aks holda `event_id` bir xil,
+mazmuni boshqa hodisa ketardi.
+⚠️ `fbtrace_id` **muvaffaqiyatda ham** logga yoziladi: Meta qo'llab-quvvatlash xizmati usiz
+gaplashmaydi ("hodisa yuborilgan, lekin ko'rinmayapti").
+⚠️ Meta **200 qaytarib**, hodisalarning bir qismini jimgina tashlashi mumkin —
+`events_received < yuborilgan` bo'lsa `LogWarning`.
+
+| Verb + route | Ruxsat |
+|---|---|
+| `GET capi/status`, `GET capi/events` | klass (⚠️ Dataset ID va token **QIYMATI qaytmaydi**, `PayloadJson` ham) |
+| `PUT capi/settings` | `marketing.settings` |
+| `POST capi/send` | `marketing.settings` (xatoda ham **HTTP 200**) |
+
+⚠️ **`PUT capi/settings` da Dataset ID token bilan BIR XIL qoidada:** bo'sh kelsa mavjudi
+saqlanadi. Ilgari u SHARTSIZ yozilardi, qiymat esa javobga tushmaydi (forma har safar bo'sh
+ochiladi) — faqat toggle'ni o'zgartirgan admin Dataset ID'ni **bilmasdan o'chirib qo'yardi** va
+CAPI jimgina ishlamay qolardi.
+⚠️ Auditga **token yozilmaydi**, **Dataset ID yoziladi** (sir emas, Page ID bilan bir xil
+maqom): "qaysi datasetga ulandik" savoli tarixdan javobsiz qolmasin.
+
+### 19.7. Testlar
+
+| Test sinfi | Nimani qulflaydi |
+|---|---|
+| `MetaCapiHashTests` | Telefon ma'lum SHA-256 qiymati, turli formatdagi raqam **bir xil hash**, email trim+lowercase, **apostrofli ism** (uchala apostrof), yaroqsiz qiymat → bo'sh satr |
+| `MetaCapiPayloadTests` | **`lead_id` hashlanmasligi va xom raqam bo'lishi**, raqam bo'lmasa payloadga tushmasligi, **payloadda xom telefon/email yo'qligi**, bo'sh maydon qo'shilmasligi, `event_id` deterministikligi, **tanada token yo'qligi**, 7 kun va kelajak chegarasi, **`ToUnix` Toshkent ofseti**, 1000 talik bo'laklar |
+| `MetaCapiServiceTests` (9) | **Modul o'chiq → so'rov yo'q**, to'lov hodisasi yaratilishi, **lid yaratilgani uchun hodisa YO'Q**, sinov darsi bosqichi, **bir xil holat ikki marta yuborilmasligi**, eski hodisa `skipped` bo'lib **paketni yiqitmasligi**, `SendPending` yangi qator yaratmasligi |
+
+---
+
+## 20. REKLAMA IZOHI ATRIBUTSIYASI (E3) VA E6 YAXSHILANISHLARI
+
+### 20.1. 🔴 ATRIBUTSIYA — TAXMINIY, hech qayerda "aniq" deb ko'rsatilmaydi
+
+**Muammo:** Instagram Login yo'lidagi `comments` webhook'ida **`ad_id` UMUMAN YO'Q** — u faqat
+Facebook Login yo'lidagi payloadda bor (`value.media.ad_id`). Bizda faqat `value.media.id`.
+
+**Yechim (bilvosita):** §17 dagi iyerarxiya sinxronizatsiyasi har e'lon uchun
+`IgAdEntity.CreativeStoryId` (= `effective_object_story_id`) ni saqlaydi — bu reklama ostidagi
+HAQIQIY post identifikatori. Izoh kelganda `media.id` shu ustun bilan solishtiriladi va
+topilsa `IgConversation`/`IgMessage` ga `AdId` + `AdCampaignId` yoziladi.
+
+| Holat | Ishlaydimi | Nega |
+|---|---|---|
+| **Boostlangan organik post** | ✅ | Post bizning media ro'yxatimizda bor, creative aynan unga ishora qiladi |
+| **Dark post** (chop etilmagan reklama) | ❌ | Bunday post akkaunt lentasida yo'q |
+| **Dinamik (katalog) reklama** | ❌ | Meta hujjati ochiq aytadi: dinamik reklamada `ad_id` **umuman qaytarilmaydi** |
+
+🔴 **Bo'sh natija "reklamadan kelmagan" degani EMAS, "aniqlanmadi" degani.** Shuning uchun bu
+qiymat hech qayerda "aniq atributsiya" sifatida ko'rsatilmasligi kerak — chizilganda yoniga
+**"taxminiy"** deb yozilishi SHART.
+
+⚠️ **HOZIRGI HOLAT:** `AdId`/`AdCampaignId` bazaga **yoziladi**, lekin hali hech qanday DTO'ga
+chiqmaydi va Inbox'da ko'rinmaydi (spetsifikatsiyadagi 📢 belgisi va «Reklama izohidan kelgan
+lidlar» kesimi hali qilinmagan). Ya'ni ma'lumot **yig'ilmoqda**, ko'rsatilmayapti. Uni ekranga
+chiqaradigan odam uchun qoida: **"taxminiy" belgisisiz chizmang.**
+
+⚠️ `effective_object_story_id` odatda **`"{page_id}_{post_id}"`** ko'rinishida, webhook'dagi
+`media.id` esa **yalang id** — to'g'ridan-to'g'ri solishtirish HECH QACHON mos kelmasdi.
+`MediaPart` oxirgi `_` dan keyingi qismni oladi; `Matches` uch xil moslikni qabul qiladi
+(aynan teng · prefiksli creative · prefiksli media).
+
+⚠️ **Tanlov DETERMINISTIK:** bitta post bir necha e'londa bo'lishi mumkin (A/B test, qayta
+boost). Avval `ad` darajasi, keyin `ExternalId` bo'yicha **ordinal** tartibda birinchisi
+olinadi — aks holda bir xil izoh har safar boshqa e'longa biriktirilib, hisobot **beqaror**
+bo'lardi.
+
+⚠️ **Bu QO'SHIMCHA baza so'rovi, ya'ni YORDAMCHI vazifa** — yiqilsa asosiy ish (mijozga javob
+berish va xabarni yozib qo'yish) BARIBIR bajariladi (§11 "xatolarga chidamlilik").
+⚠️ Reklama statistikasi ulanmagan markazda `IgAdEntities` bo'sh — har izohda bekorga so'rov
+ketmasin, **mavjudlik tekshiruvi 5 daqiqaga keshlanadi**; nomzodlar `MaxCandidates` = 50 bilan
+cheklangan.
+
+### 20.2. E6 — kiruvchi hodisalarning yangi turlari
+
+| Nima | Qayerdan | Nima qilinadi |
+|---|---|---|
+| **Story javobi** | `message.reply_to.story.{id,url}` | Kontekst xabar matniga qo'shiladi. ⚠️ `reply_to` ODATIY xabarga javobda ham keladi (u yerda faqat `mid`) — story konteksti FAQAT ichki `story` obyekti bo'lganda |
+| **Story mention** | `attachments[].type == "story_mention"` | Alohida belgilanadi: bu "javob" emas, **eslatish** — mijoz o'z story'sida bizni belgilagan |
+| **Ulashilgan post** | `attachments[].type == "ig_post"` | ⚠️ Eski **`share`** turi **2026-02-01 da OLIB TASHLANGAN** |
+| **Xabar o'chirildi** | `message.is_deleted` | Alohida hodisa turi; matn **HAQIQATAN o'chiriladi** (`IgMessage` va suhbatdagi denormalizatsiya ham) — Platform Terms talabi |
+| **Siyosat ogohlantirishi** | `messaging_policy_enforcement` | §20.3 |
+
+⚠️ Story rasmining CDN manzili **TEZ O'LADI** (story 24 soatda yo'qoladi, imzolangan havola
+undan ham tez) — manzil saqlanadi, lekin unga tayanib bo'lmaydi; operator hech bo'lmaganda
+"qaysi story haqida gap ketyapti" ni ko'radi. Story id/url uchun **alohida ustun YO'Q**
+(migratsiya bu ish doirasidan tashqarida) — kontekst matnga qo'shiladi, aks holda "Salom!"
+degan story javobi butunlay tushunarsiz bo'lardi.
+
+### 20.3. 🔴 `messaging_policy_enforcement` — cheklovdan OLDINGI YAGONA signal
+
+Kelganda **ikki narsa DARHOL** bajariladi:
+
+1. **Avtomatika pauza qilinadi** — `InstagramAutoReplyComments` va `InstagramAutoReplyDm`
+   o'chiriladi;
+2. **Telegram alert** — admin sababni ko'rib, **QO'LDA** qayta yoqadi.
+
+⚠️ **`InstagramEnabled` ATAYIN O'CHIRILMAYDI.** Ikki sabab: (1) u MASTER darvoza —
+o'chirilsa `NotifyAdminsAsync` ham jim bo'lardi va **ogohlantirish hech kimga yetmasdi**;
+(2) u bilan birga navbat qayta ishlash to'xtardi, ya'ni kelayotgan xabarlar **tarixga
+yozilmay** qolardi. Pauza faqat AVTOMATIK JAVOBGA tegadi — operator qo'lda javob bera oladi.
+
+⚠️ **Qayta yoqish QO'LDA:** "N soatdan keyin o'zi yonsin" varianti sababni tekshirmasdan o'sha
+xatoni takrorlashga olib kelardi.
+
+⚠️ **Maydon nomi bir xil emas:** Meta hujjatida `messaging_policy_enforcement`, hodisa obyekti
+esa `policy-enforcement` (**DEFIS** bilan) kaliti ostida keladi. Parser ATAYIN kechirimli —
+**uchala yozilishni** ham qabul qiladi. Bu hodisani boy berish — cheklovdan oldingi yagona
+ogohlantirishni yo'qotish degani.
+⚠️ Meta bu hodisada **`mid` bermaydi**, shuning uchun `EventKey` `action|reason` ning barqaror
+hash'idan quriladi (§5 deterministiklik qoidasi). Shakl kutilmagan bo'lsa ham signal
+qolishi uchun `action` bo'sh bo'lganda `"warning"` yoziladi.
+⚠️ `ContainsPolicyEnforcement` — **webhook controlleri** uchun arzon tekshiruv: so'rov kelgan
+zahoti logga yozish imkonini beradi (navbat fon xizmatida qayta ishlanadi, modul o'chiq bo'lsa
+esa umuman ishlanmaydi).
+
+### 20.4. Testlar
+
+| Test sinfi | Nimani qulflaydi |
+|---|---|
+| `IgAdAttributionTests` | `MediaPart` ajratishi (`{page}_{post}` va yalang id), buzuq `"abc_"` da to'liq qiymat qolishi, mos kelmagan/bo'sh kirishda **moslik BERILMASLIGI**, bir post bir necha e'londa bo'lganda **tanlovning DETERMINISTIKLIGI**, `ad → adset → campaign` zanjiri |
+| `InstagramEventParserTests` (E6 qismi) | Story javobi id+url bilan o'qilishi, **oddiy xabarga javob story deb hisoblanmasligi**, story mention ajratilishi, `ig_post` attachment, **eski `share` turi qabul qilinmasligi**, `is_deleted` alohida hodisa turi berishi |

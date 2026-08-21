@@ -134,3 +134,64 @@ To'liq bosqichma-bosqich qo'llanma: **[`SOZLASH.md`](SOZLASH.md)** (~30–40 daq
 | "Kod yozayotganda nimaga tegmaslik kerak?" | [`../.claude/rules/marketing-instagram.md`](../.claude/rules/marketing-instagram.md) |
 | "Lid qanday yoziladi?" | `.claude/rules/crm-leads.md` + `InstagramLeadBridge` |
 | "Audit qayerda ko'rinadi?" | `.claude/rules/audit.md`, `EntityType = "Instagram"` → bo'lim `marketing` |
+
+---
+
+## 6. Qo'shimcha modullar (2026-08 kengaytirishi)
+
+Yuqoridagi hamma narsa **izoh va DM agenti** haqida. Marketing bo'limida undan tashqari yana
+to'rtta **mustaqil** modul bor: har birining o'z bayrog'i (default **o'chiq**), o'z tokeni,
+o'z sahifasi va o'z qo'llanmasi.
+
+| Modul | Nima beradi | Sahifa | Ruxsat | Qo'llanma |
+|---|---|---|---|---|
+| **Reklama lidlari** | Reklamadagi forma (Instant Form) to'ldirilsa F.I.Sh. va telefon CRM lidiga tushadi | `/admin/marketing/reklama-lidlari` | `marketing.leadads` | [`REKLAMA-LIDLARI.md`](REKLAMA-LIDLARI.md) |
+| **Reklama statistikasi** | Xarajat · ko'rsatish · lid narxi (**CPL**) · **ROI** — "qaysi reklama pul keltirdi" | `/admin/marketing/reklama-statistikasi` | `marketing.adsstats` | [`REKLAMA-STATISTIKASI.md`](REKLAMA-STATISTIKASI.md) |
+| **Kontent joylash** | Rasm/Reels/Story/karuselni CRM'dan rejalashtirib joylash | `/admin/marketing/kontent` | `marketing.content` | [`KONTENT.md`](KONTENT.md) |
+| **CAPI** | "Bu lid mijoz bo'ldi va pul to'ladi" ni Meta'ga qaytarish — reklama shunga optimallashadi | Sozlamalar kartochkasi | `marketing.settings` | [`CAPI.md`](CAPI.md) |
+
+Migratsiya: **`AddMarketingExpansion`** (to'rttasi ham bitta migratsiyada).
+
+### Nima o'zgardi (bir qarashda)
+
+```
+Marketing bo'limi endi 8 sahifa:
+  Boshqaruv paneli · Inbox · Javob qoidalari · Bilim bazasi · Analitika
+  · Reklama lidlari · Reklama statistikasi · Kontent · Sozlamalar
+```
+
+- **Reklama izohlari** endi kampaniyaga bog'lanadi (🔴 **taxminiy** — boostlangan postda
+  ishlaydi, dark post va dinamik reklamada yo'q);
+- **Story javoblari**, story mention va ulashilgan post ajratib belgilanadi;
+- mijoz xabarni o'chirsa mazmun **haqiqatan o'chadi** (Meta Platform Terms talabi);
+- **`messaging_policy_enforcement`** — Meta cheklov qo'yishidan oldingi ogohlantirish:
+  avtomatik javoblar **pauza qilinadi** va Telegram'ga alert ketadi.
+
+### 🔴 Eng ko'p adashtiradigan narsa — TOKENLAR
+
+Modullar **to'rt xil token** bilan ishlaydi va ular bir-birining o'rnini **bosmaydi**:
+
+| Modul | Token | Ruxsat | Muddati |
+|---|---|---|---|
+| Izoh · DM | Instagram Login (OAuth bilan o'zi olinadi) | `instagram_business_*` | 60 kun, avtomatik yangilanadi |
+| Reklama lidlari | Page Access Token | `leads_retrieval` | muddatsiz (System User) |
+| Reklama statistikasi | System User tokeni | **`ads_read`** | muddatsiz |
+| CAPI | Dataset (Events Manager) tokeni | `ads_management` | muddatsiz |
+
+Almashtirib yuborilsa `OAuthException 190` yoki `#200` chiqadi va sababini topish qiyin.
+Umumiy qadamlar: [`SOZLASH.md`](SOZLASH.md) → «QO'SHIMCHA MODULLAR → A-qadam».
+
+⚠️ **Kontent joylash uchun akkauntni QAYTA ULASH shart** — yangi OAuth ruxsati
+(`instagram_business_content_publish`) mavjud tokenga avtomatik qo'llanmaydi
+([`SOZLASH.md`](SOZLASH.md) → B-qadam).
+
+### Qayerdan boshlash
+
+| Savol | Qayerga qarash |
+|---|---|
+| "Reklamaga qancha sarfladik, qaysi lid pul to'ladi?" | [`REKLAMA-STATISTIKASI.md`](REKLAMA-STATISTIKASI.md) |
+| "Postni CRM'dan qanday joylayman?" | [`KONTENT.md`](KONTENT.md) |
+| "Meta reklamani qanday yaxshiroq optimallashtiradi?" | [`CAPI.md`](CAPI.md) |
+| "Nega post `2207052` bilan yiqilyapti?" | [`KONTENT.md`](KONTENT.md) → «Xato kodlari» |
+| "Ochiq media papkasi xavfsizmi?" | [`../.claude/rules/uploads-security.md`](../.claude/rules/uploads-security.md) → «OCHIQ MEDIA» |
+| "Kod yozayotganda nimaga tegmaslik kerak?" | [`../.claude/rules/marketing-instagram.md`](../.claude/rules/marketing-instagram.md) §17–§20 |
