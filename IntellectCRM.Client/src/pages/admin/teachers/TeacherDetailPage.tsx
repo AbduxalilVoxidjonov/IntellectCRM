@@ -197,6 +197,34 @@ export function TeacherDetailPage() {
         )
       : 0
 
+  // JAMI MAOSH HISOB-KITOBI — sahifa tepasidagi asosiy javob: "beriladigan · berildi · qoldi".
+  // Yagona "jami hisoblangan" raqami savolga javob BERMAYDI: u har oy yig'ilib boraveradi va
+  // qarz bor-yo'qligi ko'rinmaydi. Uchala raqam faqat yonma-yon turganda ma'noga ega.
+  // Manba — `SalaryLedger` (server): `remaining = totalExpected − totalPaid`, ya'ni bu yerda
+  // hech narsa qayta hisoblanmaydi (Moliya modalidagi raqamlar bilan bir xil bo'lsin).
+  const salaryTotals = useMemo(() => {
+    const expected = salaryLedger?.totalExpected ?? 0
+    const paid = salaryLedger?.totalPaid ?? 0
+    const remaining = salaryLedger?.remaining ?? 0
+    // Manfiy qoldiq = ORTIQCHA berilgan (avans) — foizni 100 dan oshirmaymiz.
+    const pct = expected > 0 ? Math.min(100, Math.max(0, Math.round((paid / expected) * 100))) : 0
+    // Qarzli oylar — "qoldiq qaysi oylardan yig'ilgan" savoliga qisqa javob.
+    // 0.5 so'm — yaxlitlash chidami (foizli maoshda tiyinlar chiqadi).
+    const unpaidMonths = (salaryLedger?.months ?? []).filter((m) => m.remaining > 0.5).length
+    return { expected, paid, remaining, pct, unpaidMonths }
+  }, [salaryLedger])
+
+  // Davr yorlig'i — "bu raqamlar QAYSI oylar bo'yicha" (hisob o'qituvchining maosh boshlanish
+  // oyidan boshlanadi, ya'ni davr har o'qituvchida turlicha).
+  const salaryPeriodLabel = useMemo(() => {
+    const ms = salaryLedger?.months ?? []
+    if (ms.length === 0) return ''
+    const first = ms[0].month
+    const last = ms[ms.length - 1].month
+    const range = first === last ? formatMonth(first) : `${formatMonth(first)} — ${formatMonth(last)}`
+    return `${range} · ${ms.length} oy`
+  }, [salaryLedger])
+
   const loadSelMonth = (month: string) => {
     if (!id) return
     setSelMonthLoading(true)
@@ -901,7 +929,94 @@ export function TeacherDetailPage() {
       {/* SALARY TAB */}
       {tab === 'salary' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {/* ══ JAMI HISOB-KITOB — sahifaning eng tepasidagi javob:
+                "o'qituvchiga jami qancha beriladi · qanchasi berildi · qanchasi qoldi".
+                Ilgari bu yerda faqat "Jami hisoblangan" va "Jami berildi" turardi — raqam har oy
+                yig'ilib borardi, QOLDIQ esa umuman yo'q edi: ya'ni "qarzimiz bormi va qancha"
+                degan asosiy savolga javob berish uchun oylar jadvalini qo'lda qo'shib chiqish
+                kerak edi. Qolgan ma'lumotlar (oy kesimi, tushum, tarix) shu kartadan PASTDA. */}
+          <Card>
+            {salaryLoading && !salaryLedger ? (
+              <Loader label="Yuklanmoqda..." />
+            ) : (
+              <>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-semibold text-slate-700">Jami hisob-kitob</p>
+                  {salaryPeriodLabel && (
+                    <span className="text-xs text-slate-400">{salaryPeriodLabel}</span>
+                  )}
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <TotalTile
+                    label="O'qituvchiga jami beriladigan"
+                    value={formatMoney(salaryTotals.expected)}
+                    /* Jurnalga bog'langan maoshda "beriladigan" ALLAQACHON ushlanma ayrilgan
+                       summa — buni yozib qo'ymasak, raqam hisobdan kam ko'rinardi. */
+                    hint={
+                      salaryLedger?.journalLinked && (salaryLedger?.totalDeduction ?? 0) > 0
+                        ? `jurnal ushlanmasi ayrilgan: −${formatMoney(salaryLedger?.totalDeduction ?? 0)}`
+                        : undefined
+                    }
+                  />
+                  <TotalTile
+                    label="Berildi (tushdi)"
+                    value={formatMoney(salaryTotals.paid)}
+                    valueClass="text-emerald-600"
+                    hint={
+                      salaryLedger && salaryLedger.payments.length > 0
+                        ? `${salaryLedger.payments.length} ta to'lov`
+                        : "hali to'lov yo'q"
+                    }
+                  />
+                  <TotalTile
+                    /* Manfiy qoldiq = ortiqcha berilgan (avans) — "+" bilan va yashil. */
+                    label={salaryTotals.remaining < 0 ? 'Ortiqcha berilgan' : 'Qoldi'}
+                    value={
+                      salaryTotals.remaining < 0
+                        ? `+${formatMoney(-salaryTotals.remaining)}`
+                        : formatMoney(salaryTotals.remaining)
+                    }
+                    valueClass={
+                      salaryTotals.remaining > 0
+                        ? 'text-red-600'
+                        : salaryTotals.remaining < 0
+                          ? 'text-emerald-600'
+                          : 'text-slate-600'
+                    }
+                    hint={
+                      salaryTotals.remaining > 0
+                        ? `${salaryTotals.unpaidMonths} oy to'liq berilmagan`
+                        : salaryTotals.remaining < 0
+                          ? 'keyingi oylardan ayriladi'
+                          : "qarz yo'q"
+                    }
+                    hintClass={salaryTotals.remaining > 0 ? 'text-red-500' : 'text-slate-400'}
+                  />
+                </div>
+
+                {salaryTotals.expected > 0 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={cn(
+                          'h-full rounded-full',
+                          salaryTotals.remaining > 0 ? 'bg-amber-500' : 'bg-emerald-500',
+                        )}
+                        style={{ width: `${salaryTotals.pct}%` }}
+                      />
+                    </div>
+                    <span className="font-mono text-xs text-slate-500">
+                      {salaryTotals.pct}% berildi
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+
+          {/* Qolgan ko'rsatkichlar — jamlanmadan PASTDA */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatCard label="Guruhlar soni" value={groups.length} icon={Users} />
             <StatCard
               label="Joriy oy hisoblandi"
@@ -922,20 +1037,6 @@ export function TeacherDetailPage() {
               icon={Wallet}
               iconBg="bg-amber-50"
               iconColor="text-amber-600"
-            />
-            <StatCard
-              label="Jami hisoblangan"
-              value={formatMoney(salaryLedger?.totalExpected ?? 0)}
-              icon={Wallet}
-              iconBg="bg-sky-50"
-              iconColor="text-sky-600"
-            />
-            <StatCard
-              label="Jami berildi"
-              value={formatMoney(salaryLedger?.totalPaid ?? 0)}
-              icon={Wallet}
-              iconBg="bg-violet-50"
-              iconColor="text-violet-600"
             />
           </div>
 
@@ -1607,6 +1708,34 @@ export function TeacherDetailPage() {
  * Tanlangan oy kartochkasidagi bitta raqam (tushum yoki maosh). `hint` — raqam ostidagi kichik
  * izoh: "bo'lishi kerak" va "yig'ilmagan" kabi qiymatlar izohsiz bir-biri bilan adashtiriladi.
  */
+/**
+ * Jamlanma katagi — "beriladigan / berildi / qoldi". `MonthTile` dan farqi: raqam KATTA va chapga
+ * tekislangan (bu sahifaning eng birinchi o'qiladigan uch raqami), izoh esa doim ko'rinadi.
+ */
+function TotalTile({
+  label,
+  value,
+  valueClass = 'text-slate-800',
+  hint,
+  hintClass = 'text-slate-400',
+}: {
+  label: string
+  value: string
+  valueClass?: string
+  hint?: string
+  hintClass?: string
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={cn('mt-1 font-mono text-[22px] font-semibold leading-none', valueClass)}>
+        {value}
+      </p>
+      {hint && <p className={cn('mt-1.5 text-[11px] leading-tight', hintClass)}>{hint}</p>}
+    </div>
+  )
+}
+
 function MonthTile({
   label,
   value,
