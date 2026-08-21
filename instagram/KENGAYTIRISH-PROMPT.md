@@ -409,6 +409,14 @@ static long ParseSpendToMinor(string? spend, int offset)
     return (long)Math.Round(d * (decimal)Math.Pow(10, offset), MidpointRounding.AwayFromZero);
 }
 ```
+> ✅ **HAL QILINDI (2026-08-21).** Bu bo'limdagi da'vo `META-API-MALUMOTNOMA.md` §11.1 bilan ZID
+> edi (u yerda maydon so'raladigan qilib yozilgan). Ikkalasiga ham tayanmasdan, kod endi buni
+> **ish vaqtida aniqlaydi**: `currency_offset` bilan so'raladi, Meta uni rad etsa (`#100`,
+> qaror MATN emas KOD bo'yicha) bir marta maydonsiz qayta so'raladi va offset
+> `MetaCurrency.OffsetOf` dan olinadi. Manba (`meta` | `jadval`) `GET adsstats/status` da
+> ko'rinadi. Qoida: `.claude/rules/marketing-instagram.md` §17.3.
+> **Quyidagi matn tarixiy topshiriq sifatida o'z holida qoldirilgan.**
+
 🔴 **`currency_offset` — Ad Account node'da BUNDAY MAYDON YO'Q.**
 (U `Currency` node'ida, u ham eskirgan.) `GET /act_{id}?fields=currency` faqat ISO kodini beradi.
 

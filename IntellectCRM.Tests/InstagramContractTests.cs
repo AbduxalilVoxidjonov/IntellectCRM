@@ -440,4 +440,46 @@ public class InstagramHardeningTests
         Assert.Equal("", InstagramContract.AdCampaignLabel("", "", ""));
         Assert.Equal("", InstagramContract.AdCampaignLabel(null, null, null));
     }
+
+    /* =============================================================================================
+     *  OAuth SCOPE'lari — kontent joylash SHARTLI
+     * ========================================================================================== */
+
+    /// <summary>
+    /// 🔴 Meta ilovada YOQILMAGAN scope so'ralsa authorize so'rovini BUTUNLAY rad etadi.
+    /// Shuning uchun `instagram_business_content_publish` asosiy ro'yxatda TURMASLIGI shart:
+    /// aks holda kontent modulini ishlatmaydigan markaz «Qayta ulash» bosganda ISHLAB TURGAN
+    /// izoh/DM agentini qayta ulay olmay qolardi.
+    /// </summary>
+    [Fact]
+    public void Kontent_scopei_asosiy_royxatda_YOQ()
+    {
+        Assert.DoesNotContain(IgConst.ContentPublishScope, IgConst.Scopes);
+        Assert.Equal(IgConst.Scopes, IgConst.ScopesFor(false));
+    }
+
+    /// <summary>Modul yoqilgan bo'lsa — qo'shiladi, asosiy ruxsatlar esa JOYIDA qoladi.</summary>
+    [Fact]
+    public void Kontent_yoqilganda_scope_qoshiladi()
+    {
+        var scopes = IgConst.ScopesFor(true);
+
+        Assert.Contains(IgConst.ContentPublishScope, scopes);
+        Assert.StartsWith(IgConst.Scopes, scopes);
+        // Asosiy uchta ruxsat yo'qolmasin — ular bo'lmasa modul umuman ishlamaydi.
+        Assert.Contains("instagram_business_basic", scopes);
+        Assert.Contains("instagram_business_manage_messages", scopes);
+        Assert.Contains("instagram_business_manage_comments", scopes);
+    }
+
+    /// <summary>Authorize manzili berilgan scope ro'yxatini ishlatadi; berilmasa — asosiysini.</summary>
+    [Fact]
+    public void Authorize_manzili_scopeni_hurmat_qiladi()
+    {
+        var with = InstagramApi.BuildAuthorizeUrl("app", "https://x/cb", "st", IgConst.ScopesFor(true));
+        var without = InstagramApi.BuildAuthorizeUrl("app", "https://x/cb", "st");
+
+        Assert.Contains(Uri.EscapeDataString(IgConst.ContentPublishScope), with);
+        Assert.DoesNotContain(IgConst.ContentPublishScope, Uri.UnescapeDataString(without));
+    }
 }

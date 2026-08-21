@@ -360,6 +360,9 @@ builder.Services.AddScoped<IntellectCRM.Application.Services.InstagramPublishSer
 // BILIM BAZASI VEKTORLARI (RAG). `AddHttpClient` KERAK EMAS — `GeminiService` kabi statik
 // HttpClient ishlatadi. Fon xizmati uni har 60 soniyada chaqiradi (`EmbedPendingAsync`).
 builder.Services.AddScoped<IntellectCRM.Application.Services.IgEmbeddingService>();
+// Yetim media fayllarini tozalash (`uploads/marketing-public/`). Fon xizmati kuniga bir marta
+// chaqiradi; post o'chirilganda/tahrirlanganda controller ham shu servisdan foydalanadi.
+builder.Services.AddScoped<IntellectCRM.Application.Services.MarketingMediaCleanup>();
 
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();

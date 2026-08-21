@@ -558,10 +558,30 @@ oylarning hisoboti buzilmasin. Reklama Meta'da o'chirilsa ham `IgAdEntity` qator
 Bazada hamma narsa **minor** (`long`): kasrli `decimal` ustunlar yig'indida yaxlitlash xatosi
 to'plardi. O'girish YAGONA joyda — `MetaCurrency` (sof, testlangan).
 
-🔴 **`currency_offset` maydoni Meta'da YO'Q** — Ad Account tugunida u umuman qaytmaydi (u
-eskirgan `Currency` tugunida edi) va **so'ralsa Graph BUTUN so'rovni `code 100` bilan rad
-etadi**, ya'ni statistika umuman kelmay qo'yadi. Offset bizning tomonda: `MetaCurrency.OffsetOf`
-(zero-decimal ro'yxati → 0, qolgani va noma'lum kod → **2**; UZS ham 2).
+🔴 **`currency_offset` — TAXMIN QILINMAYDI, ISH VAQTIDA aniqlanadi** (2026-08-21). Hujjatlar
+zid edi: `META-API-MALUMOTNOMA.md` §11.1 "maydon bor", `KENGAYTIRISH-PROMPT.md` §4.2 "maydon
+yo'q, so'ralsa `code 100`". Noto'g'ri offset esa pul hisobini **100 barobar** buzadi, ya'ni
+"xavfsiz taxmin" ham baribir taxmin bo'lardi. Shuning uchun `MetaInsightsApi.FetchAccountAsync`:
+
+1. avval maydonni **SO'RAYDI** (`fields=…,currency_offset`);
+2. Meta rad etsa — **BIR MARTA** maydonsiz qayta so'raydi va offsetni `MetaCurrency.OffsetOf`
+   dan oladi (zero-decimal ro'yxati → 0, qolgani va noma'lum kod → **2**; UZS ham 2);
+3. Meta qiymat bersa — **o'sha haqiqat manbai**, lekin jadval bilan solishtiriladi va farq
+   bo'lsa `LogWarning` (jadvalimiz eskirgan degani).
+
+⚠️ **Qayta so'rov FAQAT `code 100` da** (`MetaInsightsApi.IsUnknownFieldError`, `100+1487534`
+CHIQARIB tashlangan): token (190), ruxsat (200) yoki kvota xatosida takror so'rov kvotani
+bekorga yeydi (§17.5). Qaror **KOD** bo'yicha — Meta xato MATNI shartnoma emas.
+
+⚠️ **Meta qiymati DIAPAZONGA solishtiriladi** (`0..MetaCurrency.MaxOffset`): eskirgan `Currency`
+tugunida `offset` KO'PAYTUVCHI edi (`100`), bizga esa kasr xonalari soni kerak — mantiqsiz qiymat
+jadvalga qaytadi. `0` esa HAQIQIY offset (JPY).
+
+⚠️ **Manba KO'RINADI:** `MetaAdAccountInfo.OffsetSource` (`"meta"` | `"jadval"`,
+`MetaOffsetSource`), `GET adsstats/status` javobida `currencyOffsetSource` sifatida va akkaunt
+ulanganda auditda. **Bazada ustun YO'Q** (migratsiya kerak emas) — qiymat
+`MetaInsightsService.OffsetSourceOf` bilan hisoblanadi: jadvaldan farq qiladigan offsetni faqat
+Meta bergan bo'lishi mumkin (teng bo'lsa farq amaliy ahamiyatga ega emas, "jadval" deyiladi).
 
 ⚠️ `Math.Pow` o'rniga JADVAL (`Factors`) — `double` aylanishi katta summalarda bir tiyinlik
 farq berardi. Parse `InvariantCulture` bilan: server `ru-RU` da `"312.45"` nuqtasini guruh
@@ -704,8 +724,8 @@ matnni har kuni yuborish signalni shovqinga aylantirardi).
 
 | Test sinfi | Nimani qulflaydi |
 |---|---|
-| `MetaInsightsParserTests` (31) | Valyuta offseti (UZS 2 / JPY 0 / noma'lum 2), `spend` matndan minorga va yaxlitlash, `actions` da yo'q tur → 0, `action_breakdowns` da takrorlangan tur **yig'iladi**, `lead` turi hisobga olinmasligi, buzuq JSON → bo'sh, `paging.next` faqat `https`, `end_time`/`stop_time`, `creative.effective_object_story_id`, akkaunt id normalizatsiyasi, throttle sarlavhalari |
-| `MetaInsightsServiceTests` (7) | **Modul o'chiq bo'lsa tashqariga so'rov ketmasligi**, qayta sinxronda dublikat yo'qligi, birinchi ulanishda oraliq bo'laklarga bo'linishi, token xatosida qayta urinilmasligi, **xato KODI matndan ustunligi**, kod yo'q bo'lsa matnga tushilishi, noma'lum xato to'xtatishi |
+| `MetaInsightsParserTests` (33) | Valyuta offseti (UZS 2 / JPY 0 / noma'lum 2), **Meta bergan `currency_offset` jadvaldan ustunligi** va mantiqsiz qiymat (`100`, `"abc"`) jadvalga qaytishi, `spend` matndan minorga va yaxlitlash, `actions` da yo'q tur → 0, `action_breakdowns` da takrorlangan tur **yig'iladi**, `lead` turi hisobga olinmasligi, buzuq JSON → bo'sh, `paging.next` faqat `https`, `end_time`/`stop_time`, `creative.effective_object_story_id`, akkaunt id normalizatsiyasi, throttle sarlavhalari |
+| `MetaInsightsServiceTests` (13) | **Modul o'chiq bo'lsa tashqariga so'rov ketmasligi**, **`currency_offset` rad etilsa AYNAN bir marta maydonsiz qayta so'ralishi** (190 da esa — YO'Q), Meta bergan offsetning bazaga yozilib sarfga qo'llanishi, qayta sinxronda dublikat yo'qligi, birinchi ulanishda oraliq bo'laklarga bo'linishi, token xatosida qayta urinilmasligi, **xato KODI matndan ustunligi**, kod yo'q bo'lsa matnga tushilishi, noma'lum xato to'xtatishi |
 | `MetaAdsRoiTests` (22) | Qaytarilgan to'lov, kitob savdosi daromadga qo'shilmasligi, Meta≠CRM ikkalasi qaytishi, **kampaniya va e'lon qatorlari QO'SHILMASLIGI**, qamrovning ikki chegarasi, platforma/kampaniya filtri, akkauntsiz bo'sh javob, CPL/ROI `null` qoidalari |
 
 ---

@@ -51,10 +51,24 @@ public partial class InstagramController
     ///
     /// <para>Sana filtri — loyihadagi konvensiya: ISO satr ustida, <c>to</c> KUN sifatida
     /// beriladi va <c>T23:59:59</c> gacha cho'ziladi.</para>
+    ///
+    /// <para><b>Filtrlar va ularning QAMROVI</b> (ataylab har xil — sabablar tanadagi izohda):</para>
+    /// <list type="table">
+    ///   <item><term><c>from</c>/<c>to</c>, <c>channel</c></term>
+    ///     <description>BUTUN to'plamga: jamlanma, niyat kesimi va lenta</description></item>
+    ///   <item><term><c>intent</c></term>
+    ///     <description>jamlanma va lentaga; niyat KESIMIGA emas (kesim — tanlagich)</description></item>
+    ///   <item><term><c>onlyEdited</c></term>
+    ///     <description>faqat lentaga (ko'rish rejimi, hisobot emas)</description></item>
+    /// </list>
+    /// <para>⚠️ Noma'lum <c>channel</c> qiymati JIM tashlanadi (filtrsiz qolinadi) — klientdagi
+    /// xato kalit tufayli ekran bo'shab qolmasin.</para>
     /// </summary>
     [HttpGet("quality")]
     public async Task<ActionResult<IgQualityDto>> Quality(
-        [FromQuery] string? from, [FromQuery] string? to, [FromQuery] int? limit, CancellationToken ct)
+        [FromQuery] string? from, [FromQuery] string? to, [FromQuery] int? limit,
+        [FromQuery] string? intent, [FromQuery] string? channel, [FromQuery] bool? onlyEdited,
+        CancellationToken ct)
     {
         // Buzuq sana 500 bermasin — standart davr (oxirgi 30 kun).
         if (!DateOnly.TryParse(from, out var fromDay)) fromDay = AppClock.Today.AddDays(-29);
@@ -65,10 +79,18 @@ public partial class InstagramController
         var toIso = toDay.ToString("yyyy-MM-dd") + "T23:59:59";
         var take = Math.Clamp(limit ?? QualityDefaultItems, 1, QualityMaxItems);
 
-        var rows = await db.IgMessages.AsNoTracking()
+        // ⚠️ NOMA'LUM kanal JIM tashlanadi (filtrsiz qoladi) — klientdagi xato kalit tufayli
+        // ekran butunlay bo'shab qolmasin (jurnaldagi `type` bilan bir xil siyosat).
+        var chFilter = channel is IgConst.ChannelComment or IgConst.ChannelDm
+            or IgConst.ChannelPrivateReply ? channel : null;
+
+        var q = db.IgMessages.AsNoTracking()
             .Where(m => m.AiSuggestedText != ""
                         && string.Compare(m.CreatedAt, fromIso) >= 0
-                        && string.Compare(m.CreatedAt, toIso) <= 0)
+                        && string.Compare(m.CreatedAt, toIso) <= 0);
+        if (chFilter != null) q = q.Where(m => m.Channel == chFilter);
+
+        var rows = await q
             .OrderByDescending(m => m.CreatedAt)
             .Select(m => new
             {
@@ -90,13 +112,25 @@ public partial class InstagramController
             })
             .ToList();
 
-        var edited = scored.Where(x => x.WasEdited).ToList();
+        // ─────────── FILTRLAR: nima nimaga ta'sir qiladi
+        // Davr va KANAL — BUTUN to'plamga (jamlanma ham, kesim ham, lenta ham).
+        // NIYAT — jamlanma va lentaga, lekin KESIMGA EMAS: kesim ayni paytda TANLAGICH
+        //   (chipdan niyat tanlanadi), o'zini o'zi bitta qatorga qisqartirsa tanlash yo'qolardi.
+        // `onlyEdited` — FAQAT lentaga: u ro'yxatni ko'rish rejimi, hisobot emas. Aks holda
+        //   "tahrir ulushi" doim 100% bo'lib, KPI ma'nosini yo'qotardi.
+        var intentFilter = string.IsNullOrWhiteSpace(intent) ? null : intent.Trim().ToLowerInvariant();
+        var inScope = intentFilter == null
+            ? scored
+            : scored.Where(x => x.Intent == intentFilter).ToList();
+
+        var edited = inScope.Where(x => x.WasEdited).ToList();
 
         // ⚠️ O'rtacha farq FAQAT tahrirlanganlar bo'yicha: o'zgartirilmagan javoblar 100%
         // o'xshashlik bilan o'rtachani sun'iy ko'tarib, "AI matni deyarli aynan qoldirilgan"
         // degan yolg'on taassurot berardi.
         var avgSimilarity = edited.Count > 0 ? (int)Math.Round(edited.Average(x => x.Percent)) : 0;
 
+        // ⚠️ ATAYIN `scored` (niyat filtridan OLDINGI to'plam) — yuqoridagi izohga qarang.
         var byIntent = scored
             .GroupBy(x => x.Intent)
             .Select(g => new IgQualityIntentDto(
@@ -111,7 +145,9 @@ public partial class InstagramController
             .OrderByDescending(x => x.Edited).ThenByDescending(x => x.Total)
             .ToList();
 
-        var items = scored
+        var feed = (onlyEdited == true ? inScope.Where(x => x.WasEdited) : inScope).ToList();
+
+        var items = feed
             .Take(take)
             .Select(x => new IgQualityPairDto(
                 x.Id, x.Channel, x.Intent, x.AiSuggestedText, x.Text,
@@ -121,13 +157,14 @@ public partial class InstagramController
         return new IgQualityDto(
             From: fromDay.ToString("yyyy-MM-dd"),
             To: toDay.ToString("yyyy-MM-dd"),
-            Total: scored.Count,
+            Total: inScope.Count,
             Edited: edited.Count,
-            Kept: scored.Count - edited.Count,
-            EditedPercent: scored.Count > 0 ? (int)Math.Round(edited.Count * 100.0 / scored.Count) : 0,
+            Kept: inScope.Count - edited.Count,
+            EditedPercent: inScope.Count > 0 ? (int)Math.Round(edited.Count * 100.0 / inScope.Count) : 0,
             AvgSimilarity: avgSimilarity,
             ByIntent: byIntent,
             Items: items,
+            ItemsTotal: feed.Count,
             Truncated: rows.Count >= QualityScanLimit);
     }
 }
@@ -152,8 +189,12 @@ public record IgQualityIntentDto(string Intent, int Total, int Edited, int AvgSi
 /// Hisobot. <paramref name="Kept"/> — taklif AYNAN yuborilgan holatlar soni.
 /// <paramref name="Truncated"/> true bo'lsa davr ichida qatorlar chegaradan oshgan
 /// (ro'yxat ham, jamlanma ham eng YANGI qatorlardan olingan) — buni ekranda ochiq yozish shart.
+///
+/// <para><paramref name="ItemsTotal"/> — lenta filtrlariga (niyat + "faqat tahrirlanganlar")
+/// MOS KELGAN barcha juftliklar soni; <paramref name="Items"/> esa ulardan <c>limit</c> tasi.
+/// Ekran "N tadan M tasi" deb yozadi — jim qirqish bo'lmasin.</para>
 /// </summary>
 public record IgQualityDto(
     string From, string To,
     int Total, int Edited, int Kept, int EditedPercent, int AvgSimilarity,
-    List<IgQualityIntentDto> ByIntent, List<IgQualityPairDto> Items, bool Truncated);
+    List<IgQualityIntentDto> ByIntent, List<IgQualityPairDto> Items, int ItemsTotal, bool Truncated);

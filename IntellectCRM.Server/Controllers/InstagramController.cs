@@ -223,7 +223,14 @@ public partial class InstagramController(
         await db.SaveChangesAsync(ct);
 
         var redirectUri = InstagramWebhookController.CallbackUrl(Request);
-        return new IgConnectUrlDto(InstagramApi.BuildAuthorizeUrl(appId, redirectUri, state.Id), redirectUri);
+
+        // ⚠️ Kontent joylash scope'i FAQAT modul yoqilganda so'raladi. Meta ilovada YOQILMAGAN
+        // scope so'ralsa butun authorize so'rovini rad etadi — ya'ni doimiy ro'yxatga qo'shilsa,
+        // kontent modulini ishlatmaydigan markaz «Qayta ulash» bosganda ISHLAB TURGAN izoh/DM
+        // agentini qayta ulay olmay qolardi. Batafsil: `IgConst.ContentPublishScope`.
+        var scopes = IgConst.ScopesFor(meta?.InstagramPublishEnabled ?? false);
+        return new IgConnectUrlDto(
+            InstagramApi.BuildAuthorizeUrl(appId, redirectUri, state.Id, scopes), redirectUri);
     }
 
     /// <summary>Akkauntni uzish. Qator O'CHIRILMAYDI (suhbatlar tarixi va analitika saqlansin) —

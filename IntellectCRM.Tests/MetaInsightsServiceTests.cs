@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -34,6 +35,27 @@ internal sealed class MetaGraphHandler : HttpMessageHandler
     /// <summary>Bo'sh bo'lmasa — BARCHA so'rovlar shu xato bilan yiqiladi (HTTP 400).</summary>
     public string ErrorJson { get; set; } = "";
 
+    /// <summary>
+    /// <c>true</c> bo'lsa: <c>currency_offset</c> so'ralgan AKKAUNT so'rovi <c>code 100</c>
+    /// bilan rad etiladi (Meta'ning "nonexisting field" xulqi), maydonsiz so'rov esa odatdagidek
+    /// javob beradi.
+    ///
+    /// <para><b>Nega bayroq kerak:</b> <see cref="ErrorJson"/> BARCHA so'rovlarni yiqitadi,
+    /// bu yerda esa aynan "birinchi so'rov rad etildi, ikkinchisi o'tdi" ketma-ketligini
+    /// isbotlash kerak.</para>
+    /// </summary>
+    public bool RejectCurrencyOffsetField { get; set; }
+
+    /// <summary>Faqat AKKAUNT so'rovlari (<c>/act_1</c>) — iyerarxiya va insights emas.</summary>
+    public List<string> AccountRequests => Requests.FindAll(r =>
+    {
+        var path = new Uri(r).AbsolutePath;
+        return !path.EndsWith("/insights", StringComparison.Ordinal)
+            && !path.EndsWith("/campaigns", StringComparison.Ordinal)
+            && !path.EndsWith("/adsets", StringComparison.Ordinal)
+            && !path.EndsWith("/ads", StringComparison.Ordinal);
+    });
+
     /// <summary>Faqat insights so'rovlari (qayta urinish va bo'laklarni sanash uchun).</summary>
     public List<string> InsightRequests => Requests.FindAll(r => r.Contains("/insights", StringComparison.Ordinal));
 
@@ -58,8 +80,12 @@ internal sealed class MetaGraphHandler : HttpMessageHandler
         var uri = request.RequestUri!;
         Requests.Add(uri.ToString());
 
-        var (status, body) = ErrorJson.Length > 0
-            ? (HttpStatusCode.BadRequest, ErrorJson)
+        var rejectField = RejectCurrencyOffsetField
+                          && uri.Query.Contains("currency_offset", StringComparison.Ordinal);
+
+        var (status, body) =
+            ErrorJson.Length > 0 ? (HttpStatusCode.BadRequest, ErrorJson)
+            : rejectField ? (HttpStatusCode.BadRequest, UnknownFieldError)
             : (HttpStatusCode.OK, BodyFor(uri.AbsolutePath));
 
         return Task.FromResult(new HttpResponseMessage(status)
@@ -67,6 +93,13 @@ internal sealed class MetaGraphHandler : HttpMessageHandler
             Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
         });
     }
+
+    /// <summary>Meta'ning "bunday maydon yo'q" javobi (aynan shunday matn bilan keladi).</summary>
+    public const string UnknownFieldError =
+        """
+        {"error":{"message":"(#100) Tried accessing nonexisting field (currency_offset) on node type (AdAccount)",
+                  "type":"OAuthException","code":100}}
+        """;
 
     private string BodyFor(string path)
     {
@@ -318,5 +351,189 @@ public class MetaInsightsServiceTests
         Assert.Equal(MetaInsightsService.SyncFailure.Stop, MetaInsightsService.Classify(999999, 0, "kutilmagan"));
         Assert.Equal(MetaInsightsService.SyncFailure.Stop, MetaInsightsService.Classify(0, 0, ""));
         Assert.Equal(MetaInsightsService.SyncFailure.Stop, MetaInsightsService.Classify(0, 0, null));
+    }
+
+    /* =============================================================================================
+     *  VALYUTA OFFSETI — TAXMIN QILINMAYDI, ISH VAQTIDA ANIQLANADI
+     *
+     *  Hujjatlar zid: META-API-MALUMOTNOMA.md §11.1 "maydon bor", KENGAYTIRISH-PROMPT.md §4.2
+     *  "maydon yo'q". Noto'g'ri offset butun pul hisobini 100 barobar buzadi, shuning uchun
+     *  javobni Meta'ning O'ZI beradi — biz esa ikkala yo'lni ham test bilan qulflaymiz.
+     * ========================================================================================== */
+
+    private static (MetaInsightsApi Api, MetaGraphHandler Handler) BuildApi(ILogger<MetaInsightsApi>? logger = null)
+    {
+        var handler = new MetaGraphHandler();
+        return (new MetaInsightsApi(new HttpClient(handler), logger ?? NullLogger<MetaInsightsApi>.Instance),
+                handler);
+    }
+
+    /// <summary>
+    /// Meta <c>currency_offset</c> QAYTARSA — AYNAN o'sha qiymat ishlatiladi (bizning jadval
+    /// emas) va so'rov BITTA bo'ladi: rad etilmagan javobdan keyin qayta so'rashning ma'nosi yo'q.
+    /// </summary>
+    [Fact]
+    public async Task Meta_currency_offset_bersa_ayni_qiymat_ishlatiladi()
+    {
+        var (api, handler) = BuildApi();
+        handler.AccountJson =
+            """{"id":"act_1","name":"Intellect","currency":"USD","currency_offset":0,"account_status":1}""";
+
+        var (ok, info, error) = await api.FetchAccountAsync(Act, "tok", CancellationToken.None);
+
+        Assert.True(ok, error);
+        Assert.Equal(0, info!.CurrencyOffset);                       // jadvalda USD → 2
+        Assert.Equal(MetaOffsetSource.Meta, info.OffsetSource);
+
+        // Maydon HAQIQATAN so'ralgan va qayta so'rov bo'lmagan.
+        Assert.Single(handler.AccountRequests);
+        Assert.Contains("currency_offset", Uri.UnescapeDataString(handler.AccountRequests[0]));
+    }
+
+    /// <summary>
+    /// ⚠️ Meta maydonni rad etsa (<c>code 100</c>) — BIR MARTA maydonsiz qayta so'raladi va
+    /// offset bizning jadvaldan olinadi. Ya'ni eski, tekshirilgan yo'l butunlay saqlanib qoladi:
+    /// hujjatlardagi "bunday maydon yo'q" varianti ham ishlaydi.
+    /// </summary>
+    [Fact]
+    public async Task Currency_offset_rad_etilsa_maydonsiz_qayta_soraladi()
+    {
+        var (api, handler) = BuildApi();
+        handler.RejectCurrencyOffsetField = true;
+
+        var (ok, info, error) = await api.FetchAccountAsync(Act, "tok", CancellationToken.None);
+
+        Assert.True(ok, error);
+        Assert.Equal("UZS", info!.Currency);
+        Assert.Equal(2, info.CurrencyOffset);                        // jadvaldan
+        Assert.Equal(MetaOffsetSource.Table, info.OffsetSource);
+
+        // AYNAN ikkita so'rov: birinchisi maydon bilan, ikkinchisi maydonsiz.
+        Assert.Equal(2, handler.AccountRequests.Count);
+        Assert.Contains("currency_offset", Uri.UnescapeDataString(handler.AccountRequests[0]));
+        Assert.DoesNotContain("currency_offset", Uri.UnescapeDataString(handler.AccountRequests[1]));
+    }
+
+    /// <summary>
+    /// 🔴 QAYTA SO'ROV FAQAT <c>code 100</c> DA. Token (190), ruxsat (200) yoki kvota xatosida
+    /// takroriy so'rov foydasiz va ZARARLI: <c>ads_insights</c> kvotasi formulasida
+    /// <c>− 0.001 × xatolar</c> bor (§17.5).
+    /// </summary>
+    [Fact]
+    public async Task Token_xatosida_akkaunt_qayta_soralmaydi()
+    {
+        var (api, handler) = BuildApi();
+        handler.ErrorJson =
+            """{"error":{"message":"Error validating access token","type":"OAuthException","code":190}}""";
+
+        var (ok, info, error) = await api.FetchAccountAsync(Act, "tok", CancellationToken.None);
+
+        Assert.False(ok);
+        Assert.Null(info);
+        Assert.Contains("token", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(handler.AccountRequests);
+
+        // Sof darvozaning o'zi ham: faqat 100, va "juda ko'p ma'lumot" (1487534) KIRMAYDI.
+        Assert.True(MetaInsightsApi.IsUnknownFieldError(100, 0));
+        Assert.False(MetaInsightsApi.IsUnknownFieldError(100, 1487534));
+        Assert.False(MetaInsightsApi.IsUnknownFieldError(190, 0));
+        Assert.False(MetaInsightsApi.IsUnknownFieldError(200, 0));
+        Assert.False(MetaInsightsApi.IsUnknownFieldError(80000, 0));
+    }
+
+    /// <summary>
+    /// ⚠️ Meta qiymati bizning jadvaldan FARQ qilsa — Meta G'OLIB, lekin farq JIM qolmaydi:
+    /// ogohlantirish logi yoziladi (jadvalimiz eskirgan bo'lishi mumkin degan signal).
+    /// </summary>
+    [Fact]
+    public async Task Meta_offseti_jadvaldan_farq_qilsa_ogohlantiriladi()
+    {
+        var logger = new CapturingLogger<MetaInsightsApi>();
+        var (api, handler) = BuildApi(logger);
+
+        // UZS — jadvalimizda 2, Meta esa 0 dedi.
+        handler.AccountJson =
+            """{"id":"act_1","currency":"UZS","currency_offset":0,"account_status":1}""";
+
+        var (ok, info, error) = await api.FetchAccountAsync(Act, "tok", CancellationToken.None);
+
+        Assert.True(ok, error);
+        Assert.Equal(0, info!.CurrencyOffset);                       // Meta g'olib
+        Assert.Contains(logger.Warnings, w => w.Contains("currency_offset"));
+
+        // Qiymatlar MOS kelganda ogohlantirish yozilmaydi (shovqin bo'lmasin).
+        var (api2, handler2) = BuildApi(new CapturingLogger<MetaInsightsApi>());
+        handler2.AccountJson = """{"id":"act_1","currency":"UZS","currency_offset":2}""";
+        var (ok2, info2, _) = await api2.FetchAccountAsync(Act, "tok", CancellationToken.None);
+        Assert.True(ok2);
+        Assert.Equal(2, info2!.CurrencyOffset);
+        Assert.Equal(MetaOffsetSource.Meta, info2.OffsetSource);
+    }
+
+    /// <summary>
+    /// 🔴 Meta bergan offset BAZAGA yoziladi va sarf AYNAN shu offset bilan hisoblanadi.
+    ///
+    /// <para><c>ApplyAccountInfo</c> ilgari offsetni valyuta kodidan QAYTA hisoblardi — o'shanda
+    /// Meta bergan qiymat jimgina yo'q bo'lib ketardi va ish vaqtida aniqlashning ma'nosi
+    /// qolmasdi. Bu test aynan shuni qulflaydi.</para>
+    /// </summary>
+    [Fact]
+    public async Task Meta_bergan_offset_bazaga_yoziladi_va_sarfga_qollanadi()
+    {
+        using var db = TestDb.Sqlite();
+        // Valyuta BO'SH — sinxronizatsiya akkaunt ma'lumotini so'raydi.
+        var (svc, handler) = await BuildAsync(db, enabled: true, currency: "");
+
+        handler.AccountJson =
+            """{"id":"act_1","name":"Intellect","currency":"USD","currency_offset":0,"timezone_name":"Asia/Tashkent","account_status":1}""";
+
+        var day = Fmt(AppClock.Today.AddDays(-1));
+        handler.InsightsJson = InsightsBody(day, "312");
+
+        var (ok, _, error) = await svc.SyncRangeAsync(day, day, CancellationToken.None);
+        Assert.True(ok, error);
+
+        var acc = await db.Context.IgAdAccounts.SingleAsync();
+        Assert.Equal("USD", acc.Currency);
+        Assert.Equal(0, acc.CurrencyOffset);                         // jadval 2 deydi — Meta 0 dedi
+
+        // ⚠️ Offset 0 ⇒ "312" = 312 minor. Jadvalga qaytilganda 31200 chiqardi (100 barobar).
+        Assert.Equal(312L, (await db.Context.IgAdInsights.SingleAsync()).SpendMinor);
+    }
+
+    /// <summary>
+    /// Sozlamalar ekranidagi "offset qayerdan olindi" — bazada USTUN YO'Q (migratsiya kerak
+    /// emas), qiymat HISOBLANADI: jadvalimizdan farq qiladigan offsetni faqat Meta bergan
+    /// bo'lishi mumkin.
+    /// </summary>
+    [Fact]
+    public void Offset_manbasi_bazadagi_qiymatdan_aniqlanadi()
+    {
+        Assert.Equal(MetaOffsetSource.Table, MetaInsightsService.OffsetSourceOf("UZS", 2));
+        Assert.Equal(MetaOffsetSource.Table, MetaInsightsService.OffsetSourceOf("JPY", 0));
+        Assert.Equal(MetaOffsetSource.Meta, MetaInsightsService.OffsetSourceOf("UZS", 0));
+        Assert.Equal(MetaOffsetSource.Meta, MetaInsightsService.OffsetSourceOf("JPY", 2));
+
+        // Noma'lum valyuta — jadvalda 2 (xavfsiz default).
+        Assert.Equal(MetaOffsetSource.Table, MetaInsightsService.OffsetSourceOf("XYZ", 2));
+    }
+}
+
+/// <summary>
+/// Log yozuvlarini yig'ib turuvchi eng sodda logger — "ogohlantirish YOZILDIMI?" degan savolga
+/// javob berish uchun (<c>NullLogger</c> hech narsa saqlamaydi).
+/// </summary>
+internal sealed class CapturingLogger<T> : ILogger<T>
+{
+    public List<string> Warnings { get; } = new();
+
+    IDisposable? ILogger.BeginScope<TState>(TState state) => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+                            Func<TState, Exception?, string> formatter)
+    {
+        if (logLevel >= LogLevel.Warning) Warnings.Add(formatter(state, exception));
     }
 }

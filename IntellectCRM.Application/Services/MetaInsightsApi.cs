@@ -4,15 +4,37 @@ using System.Text.Json;
 
 namespace IntellectCRM.Application.Services;
 
+/// <summary>
+/// Valyuta offseti QAYERDAN olingani — <see cref="MetaAdAccountInfo.OffsetSource"/> qiymatlari.
+///
+/// <para><b>Nega bu ko'rinadigan qilingan:</b> noto'g'ri offset butun pul hisobini <b>100
+/// barobar</b> buzadi, lekin xato hech qayerda "xato" bo'lib chiqmaydi — raqamlar shunchaki
+/// yolg'on bo'lib qoladi. Shuning uchun admin Sozlamalar ekranida summa qaysi manbadagi
+/// offset bilan hisoblanayotganini KO'RISHI kerak.</para>
+/// </summary>
+public static class MetaOffsetSource
+{
+    /// <summary>Meta javobida <c>currency_offset</c> BOR edi — haqiqat manbai o'sha.</summary>
+    public const string Meta = "meta";
+
+    /// <summary>Meta maydonni bermadi (yoki so'rovni rad etdi) — offset bizning
+    /// <see cref="MetaCurrency.OffsetOf"/> jadvalimizdan.</summary>
+    public const string Table = "jadval";
+}
+
 /// <summary>Reklama akkauntining asosiy ma'lumoti.
-/// <para>⚠️ <paramref name="CurrencyOffset"/> Meta'dan KELMAYDI — u
-/// <see cref="MetaCurrency.OffsetOf"/> dan olinadi (§4.2).</para></summary>
+/// <para><paramref name="CurrencyOffset"/> — valyutaning kasr xonalari.
+/// <paramref name="OffsetSource"/> (<see cref="MetaOffsetSource"/>) aytadi: u Meta javobidan
+/// olindimi yoki bizning jadvaldan (§17.3). Hujjatlar bu maydon bo'yicha ZID
+/// (<c>META-API-MALUMOTNOMA.md</c> §11.1 — bor; <c>KENGAYTIRISH-PROMPT.md</c> §4.2 — yo'q),
+/// shuning uchun javob TAXMIN qilinmaydi, ISH VAQTIDA aniqlanadi.</para></summary>
 public record MetaAdAccountInfo(
     string Id,
     string Name,
     string Currency,
     int CurrencyOffset,
-    string TimezoneName);
+    string TimezoneName,
+    string OffsetSource);
 
 /// <summary>Iyerarxiyaning bitta tuguni: campaign / adset / ad.
 /// <para>⚠️ Byudjetlar MINOR unit (<c>5000</c> = 50.00) — Meta shunday beradi.</para></summary>
@@ -106,10 +128,15 @@ public sealed class MetaInsightsApi(HttpClient http, ILogger<MetaInsightsApi> lo
 
     /* ═════════════════ So'raladigan maydonlar ═════════════════
        ⚠️ Ro'yxatda BO'LMAGAN (yoki eskirgan) maydon so'ralsa Graph BUTUN so'rovni `code 100`
-       bilan rad etadi — ya'ni statistika UMUMAN kelmay qo'yadi. Aynan shu sabab
-       `currency_offset` bu yerda YO'Q: Ad Account tugunida bunday maydon mavjud emas (§4.2). */
+       bilan rad etadi — ya'ni statistika UMUMAN kelmay qo'yadi. Shuning uchun `currency_offset`
+       faqat AKKAUNT so'rovida va faqat "rad etilsa maydonsiz qayta so'raymiz" himoyasi bilan
+       ishlatiladi (`FetchAccountAsync`); iyerarxiya va insights ro'yxatlariga u TEGMAYDI. */
 
     private const string AccountFields = "name,currency,timezone_name,account_status";
+
+    /// <summary>Akkaunt maydonlari + <c>currency_offset</c>. Meta uni bersa — offset TAXMIN
+    /// qilinmaydi (qarang: <see cref="FetchAccountAsync"/>).</summary>
+    private const string AccountFieldsWithOffset = AccountFields + ",currency_offset";
 
     private const string CampaignFields =
         "id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time";
@@ -157,14 +184,33 @@ public sealed class MetaInsightsApi(HttpClient http, ILogger<MetaInsightsApi> lo
 
     /// <summary>
     /// Reklama akkauntining nomi, valyutasi va VAQT ZONASI
-    /// (<c>GET /act_{id}?fields=name,currency,timezone_name,account_status</c>).
+    /// (<c>GET /act_{id}?fields=name,currency,timezone_name,account_status[,currency_offset]</c>).
     ///
     /// <para>⚠️ Vaqt zonasi shu yerda olinadi va saqlanadi: Insights kunlari AKKAUNT zonasida
     /// hisoblanadi. CRM foydalanuvchisi "bugun" deganda Toshkent kunini nazarda tutadi — farq
     /// UI'da tushuntiriladi, lekin buning uchun zona nomi bazada bo'lishi shart.</para>
     ///
-    /// <para>⚠️ <c>currency_offset</c> SO'RALMAYDI (bunday maydon yo'q) — offset
-    /// <see cref="MetaCurrency.OffsetOf"/> dan.</para>
+    /// <para><b>⚠️ <c>currency_offset</c> — TAXMIN QILINMAYDI, ISH VAQTIDA aniqlanadi.</b>
+    /// Meta hujjatlari zid: bir joyda bu maydon Ad Account tugunida bor deyiladi, boshqasida
+    /// umuman yo'q deyiladi. Noto'g'ri offset esa butun pul hisobini <b>100 barobar</b> buzadi,
+    /// ya'ni "xavfsiz taxmin" ham baribir TAXMIN bo'lib qolardi. Shuning uchun:</para>
+    /// <list type="number">
+    ///   <item>avval maydon SO'RALADI (<see cref="AccountFieldsWithOffset"/>);</item>
+    ///   <item>Meta uni rad etsa (<c>code 100</c> — "nonexisting field") — <b>BIR MARTA</b>
+    ///         maydonsiz qayta so'raladi va offset <see cref="MetaCurrency.OffsetOf"/> dan
+    ///         olinadi (eski xatti-harakat, ya'ni hech narsa buzilmaydi);</item>
+    ///   <item>Meta qiymat bersa — HAQIQAT MANBAI o'sha, lekin u bizning jadval bilan
+    ///         solishtiriladi va farq bo'lsa OGOHLANTIRISH logi yoziladi (jadval eskirgan).</item>
+    /// </list>
+    ///
+    /// <para><b>⚠️ Qayta so'rov FAQAT <c>code 100</c> da</b> (<see cref="IsUnknownFieldError"/>):
+    /// token (190), ruxsat (200/10) yoki kvota (80000) xatosida takroriy so'rov foydasiz va
+    /// ZARARLI — <c>ads_insights</c> kvotasi formulasida <c>− 0.001 × xatolar</c> bor, ya'ni
+    /// har bir 4xx kvotani KAMAYTIRADI (§17.5).</para>
+    ///
+    /// <para>⚠️ Bu <b>bir martalik</b> so'rov (akkaunt ulanganda va sinxronizatsiya boshida
+    /// valyuta noma'lum bo'lganda), ya'ni ISSIQ YO'LDA emas — qo'shimcha so'rovning narxi
+    /// noto'g'ri pul hisobining narxi oldida hech narsa.</para>
     /// </summary>
     public async Task<(bool Ok, MetaAdAccountInfo? Info, string Error)> FetchAccountAsync(
         string actId, string token, CancellationToken ct)
@@ -173,11 +219,23 @@ public sealed class MetaInsightsApi(HttpClient http, ILogger<MetaInsightsApi> lo
         if (act.Length == 0) return (false, null, AccountIdError);
         if (string.IsNullOrWhiteSpace(token)) return (false, null, TokenError);
 
-        var url = $"{IgConst.FbGraphBase}/{act}"
-                  + $"?fields={Uri.EscapeDataString(AccountFields)}"
-                  + $"&access_token={Uri.EscapeDataString(token.Trim())}";
+        var tk = Uri.EscapeDataString(token.Trim());
+        string Url(string fields) =>
+            $"{IgConst.FbGraphBase}/{act}?fields={Uri.EscapeDataString(fields)}&access_token={tk}";
 
-        var (ok, body, err) = await SendAsync(url, ct);
+        var (ok, body, err) = await SendAsync(Url(AccountFieldsWithOffset), ct);
+
+        // ⚠️ AYNAN BITTA qayta so'rov: `IsUnknownFieldError` faqat `code 100` ni tan oladi,
+        // va bu shox faqat shu yerda — halqa yoki takroriy tushish imkoni yo'q.
+        if (!ok && IsUnknownFieldError(LastErrorCode, LastErrorSubcode))
+        {
+            logger.LogInformation(
+                "Meta `currency_offset` maydonini qabul qilmadi — akkaunt maydonsiz qayta so'raladi, "
+                + "offset valyuta kodidan (MetaCurrency) olinadi.");
+
+            (ok, body, err) = await SendAsync(Url(AccountFields), ct);
+        }
+
         if (!ok) return (false, null, err);
 
         var (info, status) = MetaInsightsParser.ParseAccount(body);
@@ -185,6 +243,19 @@ public sealed class MetaInsightsApi(HttpClient http, ILogger<MetaInsightsApi> lo
 
         // Javobda `id` bo'lmasa — biz so'ragan id ishlatiladi (bazadagi kalit shu).
         if (info.Id.Length == 0) info = info with { Id = act };
+
+        // ⚠️ Meta qiymati G'OLIB, lekin JIM emas: bizning jadval bilan farq qilsa u eskirgan
+        // degani (yangi valyuta, Meta qoidasi o'zgargan) va buni kelajakda kimdir bilishi kerak.
+        if (info.OffsetSource == MetaOffsetSource.Meta)
+        {
+            var ours = MetaCurrency.OffsetOf(info.Currency);
+            if (ours != info.CurrencyOffset)
+                logger.LogWarning(
+                    "Meta reklama akkaunti valyutasi {Currency}: Meta currency_offset={MetaOffset}, "
+                    + "bizning jadval={OurOffset}. Meta qiymati ishlatiladi — MetaCurrency jadvali "
+                    + "eskirgan bo'lishi mumkin.",
+                    info.Currency, info.CurrencyOffset, ours);
+        }
 
         // 1 = ACTIVE. Boshqasi (o'chirilgan, to'lovi qolgan, ko'rib chiqilmoqda) — statistika
         // bo'sh kelishining eng ko'p uchraydigan sababi, shuning uchun logda ko'rinib tursin.
@@ -465,6 +536,25 @@ public sealed class MetaInsightsApi(HttpClient http, ILogger<MetaInsightsApi> lo
                 : $"Meta xato ({httpStatus}).",
         };
     }
+
+    /// <summary>
+    /// Xato "so'ralgan MAYDON yo'q" turidanmi — ya'ni so'rovni maydonsiz QAYTA yuborish
+    /// ma'noli-mi?
+    ///
+    /// <para><b>⚠️ Nega qaror faqat KOD bo'yicha, MATN bo'yicha emas:</b> Meta xato matnini
+    /// versiyadan versiyaga va tilga qarab o'zgartiradi ("Tried accessing nonexisting field",
+    /// "Unknown fields: …"), ya'ni matn SHARTNOMA emas. Loyihada bu saboq allaqachon bor —
+    /// <see cref="LastErrorCode"/> izohi va §17.5 (<c>Classify</c> avval kodga qaraydi). Matnga
+    /// tayansak, Meta bir kun boshqacha yozganda offset jimgina jadvaldan olinmay qolardi.</para>
+    ///
+    /// <para><b>⚠️ FAQAT <c>100</c>:</b> 190 (token), 200/10 (ruxsat), 4/17/32/80000
+    /// (kvota) — bularda qayta so'rov foydasiz va kvotani yeydi.</para>
+    ///
+    /// <para>⚠️ <c>100 + 1487534</c> ("bir so'rovda juda ko'p ma'lumot") CHIQARIB tashlanadi:
+    /// u insights so'roviga tegishli va maydonlarga hech qanday aloqasi yo'q.</para>
+    /// </summary>
+    internal static bool IsUnknownFieldError(int code, int subcode) =>
+        code == 100 && subcode != 1487534;
 
     private static (int Code, int Sub, string Message) ParseError(string body)
     {

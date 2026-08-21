@@ -91,6 +91,7 @@ import { InstagramAnalytics } from '@/pages/admin/marketing/InstagramAnalytics'
 import { InstagramAdLeads } from '@/pages/admin/marketing/InstagramAdLeads'
 import { InstagramAdsStats } from '@/pages/admin/marketing/InstagramAdsStats'
 import { InstagramContent } from '@/pages/admin/marketing/InstagramContent'
+import { InstagramQuality } from '@/pages/admin/marketing/InstagramQuality'
 import { InstagramSettings } from '@/pages/admin/marketing/InstagramSettings'
 // O'qituvchi portali (SPA ichida, /teacher/*)
 import { TeacherDashboard } from '@/pages/teacher/TeacherDashboard'
@@ -194,6 +195,7 @@ export default function App() {
           <Route path="marketing/reklama-lidlari" element={<RequirePerm perm="marketing.leadads"><InstagramAdLeads /></RequirePerm>} />
           <Route path="marketing/reklama-statistikasi" element={<RequirePerm perm="marketing.adsstats"><InstagramAdsStats /></RequirePerm>} />
           <Route path="marketing/kontent" element={<RequirePerm perm="marketing.content"><InstagramContent /></RequirePerm>} />
+          <Route path="marketing/javob-sifati" element={<RequirePerm perm="marketing.quality"><InstagramQuality /></RequirePerm>} />
           <Route path="marketing/settings" element={<RequirePerm perm="marketing.settings"><InstagramSettings /></RequirePerm>} />
           <Route path="leads" element={<RequirePerm perm="leads.list"><LeadsPage /></RequirePerm>} />
           <Route path="calls" element={<RequirePerm perm="calls.cloud"><CallCenterPage /></RequirePerm>} />

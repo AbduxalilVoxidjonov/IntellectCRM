@@ -152,6 +152,10 @@ public partial class InstagramController
         var (ok, error, type, caption, mediaJson, optionsJson, scheduledAt) = ReadPostPayload(payload);
         if (!ok) return BadRequest(new { message = error });
 
+        // Almashtirilgan media diskda yetim qolmasin — ESKI nomlar SAQLASHDAN OLDIN olinadi
+        // (keyin `post.MediaJson` yangisi bilan almashadi va eskisini bilib bo'lmaydi).
+        var oldNames = MarketingMediaCleanup.NamesOf(post.MediaJson, post.OptionsJson);
+
         post.PostType = type;
         post.Caption = caption;
         post.MediaJson = mediaJson;
@@ -164,6 +168,12 @@ public partial class InstagramController
         audit.Record(AuditEntity, post.Id, "update",
             $"Instagram posti tahrirlandi ({PostTypeLabel(type)}, {scheduledAt})");
         await db.SaveChangesAsync(ct);
+
+        // Postdan CHIQIB KETGAN fayllar (eskisida bor, yangisida yo'q) — darhol o'chiriladi.
+        // Tekshiruv bazaning SAQLANGANDAN KEYINGI holati bo'yicha, ya'ni fayl boshqa postda
+        // ham ishlatilayotgan bo'lsa qoladi (batafsil: `MarketingMediaCleanup`).
+        await CleanupContentMedia().RemoveUnusedAsync(
+            oldNames.Except(MarketingMediaCleanup.NamesOf(mediaJson, optionsJson)), ct);
 
         return ToPostDto(post);
     }
@@ -197,6 +207,9 @@ public partial class InstagramController
 
         if (post.Status == IgPublishConst.StScheduled)
         {
+            // ⚠️ BEKOR QILISHDA FAYL O'CHIRILMAYDI: yozuv (media'si bilan birga) CRM'da qoladi
+            // va admin uni ochib ko'radi — fayl darhol o'chirilsa ekranda sinuq rasm chiqardi.
+            // Bekor qilingan post keyin butunlay o'chirilganda fayl ham o'sha yerda o'chadi.
             post.Status = IgPublishConst.StCancelled;
             post.Error = "";
             audit.Record(AuditEntity, post.Id, "update",
@@ -207,6 +220,8 @@ public partial class InstagramController
         }
 
         var wasPublished = post.Status == IgPublishConst.StPublished;
+        // Yozuv butunlay o'chib ketyapti — uning fayllari boshqa hech qayerda ko'rinmaydi.
+        var mediaNames = MarketingMediaCleanup.NamesOf(post.MediaJson, post.OptionsJson);
         db.IgScheduledPosts.Remove(post);
         audit.Record(AuditEntity, post.Id, "delete",
             wasPublished
@@ -214,6 +229,11 @@ public partial class InstagramController
                   + "post Instagram'da QOLADI"
                 : $"Instagram posti o'chirildi ({PostTypeLabel(post.PostType)}, {post.ScheduledAt})");
         await db.SaveChangesAsync(ct);
+
+        // Yetim qolmasin: post yozuvi bilan birga uning OCHIQ media fayllari ham ketadi.
+        // Fayl boshqa postda ham ishlatilayotgan bo'lsa QOLADI, va o'chirilmasa ham bu amal
+        // muvaffaqiyatli hisoblanadi (`MarketingMediaCleanup.RemoveUnusedAsync` jim ishlaydi).
+        await CleanupContentMedia().RemoveUnusedAsync(mediaNames, ct);
 
         return new IgPostDeleteDto(Cancelled: false, Removed: true,
             Message: wasPublished
@@ -316,6 +336,18 @@ public partial class InstagramController
     // =============================================================================================
     //  ICHKI YORDAMCHILAR
     // =============================================================================================
+
+    /// <summary>
+    /// OCHIQ media papkasini tozalaydigan yordamchi.
+    ///
+    /// <para>Papka yo'li <see cref="PublicMediaDir"/> dan olinadi — yo'l bitta joyda
+    /// hisoblansin (u yerda papka mavjudligi ham ta'minlanadi).</para>
+    ///
+    /// <para>⚠️ Bu tozalash <b>yordamchi</b> ish: u post o'chirish/tahrirlash natijasiga
+    /// TA'SIR QILMAYDI (istisno tashqariga chiqmaydi, xato faqat logga tushadi). O'chirilmay
+    /// qolgan fayl baribir kunlik <c>SweepAsync</c> ga qoladi.</para>
+    /// </summary>
+    private MarketingMediaCleanup CleanupContentMedia() => new(db, PublicMediaDir(), logger);
 
     /// <summary>
     /// So'rov tanasini tekshiradi va SAQLASHGA tayyor qiymatlarni qaytaradi.

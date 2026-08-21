@@ -62,6 +62,11 @@ public partial class InstagramController
             Name: acc?.Name ?? "",
             Currency: acc?.Currency ?? "",
             CurrencyOffset: acc?.CurrencyOffset ?? MetaCurrency.DefaultOffset,
+            // ⚠️ Manba HISOBLANADI (bazada ustun yo'q — migratsiya kerak emas): jadvalimizdan
+            // farq qiladigan offsetni faqat Meta bergan bo'lishi mumkin.
+            CurrencyOffsetSource: acc is null
+                ? ""
+                : MetaInsightsService.OffsetSourceOf(acc.Currency, acc.CurrencyOffset),
             TimezoneName: acc?.TimezoneName ?? "",
             TokenSet: !string.IsNullOrWhiteSpace(acc?.AccessToken),
             ConnectedAt: acc?.ConnectedAt ?? "",
@@ -84,8 +89,9 @@ public partial class InstagramController
     /// Tekshiruv o'tmasa <b>hech narsa saqlanmaydi</b>.</para>
     ///
     /// <para>Valyuta, VAQT ZONASI va offset shu tekshiruvdan olinadi — admin ularni qo'lda
-    /// kiritmaydi (§4.2: <c>currency_offset</c> Meta'da umuman yo'q, u valyuta kodidan sof
-    /// funksiya bilan hisoblanadi).</para>
+    /// kiritmaydi. Offset avval Meta'dan so'raladi, u bermasa valyuta kodidan sof funksiya
+    /// bilan hisoblanadi (<see cref="MetaInsightsApi.FetchAccountAsync"/>) — MANBA esa
+    /// auditga ham, holat javobiga ham chiqadi.</para>
     ///
     /// <para>Token BO'SH kelsa mavjudi saqlanadi — forma tokenni ko'rsatmaydi, ya'ni faqat
     /// akkaunt id'sini tuzatish uchun uni qayta yozdirish shart emas (<c>ads/page</c> bilan
@@ -139,9 +145,16 @@ public partial class InstagramController
         if (acc.ConnectedAt.Length == 0) acc.ConnectedAt = AppClock.Iso();
 
         // ⚠️ Auditga TOKEN yozilmaydi — faqat qaysi akkaunt ulangani.
+        // ⚠️ Offset MANBASI ham yoziladi: "nega summalar 100 barobar boshqacha" degan savol
+        // bir yildan keyin berilsa, javob tarixda turishi kerak.
+        var offsetSource = info.OffsetSource == MetaOffsetSource.Meta
+            ? "Meta bergan"
+            : "valyuta jadvalidan";
+
         audit.Record(AuditEntity, acc.Id, "update",
             $"Reklama statistikasi uchun Meta akkaunti ulandi: {acc.Name} ({act}), "
-            + $"valyuta {(acc.Currency.Length > 0 ? acc.Currency : "noma'lum")}, "
+            + $"valyuta {(acc.Currency.Length > 0 ? acc.Currency : "noma'lum")} "
+            + $"(kasr xonalari {acc.CurrencyOffset} — {offsetSource}), "
             + $"vaqt zonasi {(acc.TimezoneName.Length > 0 ? acc.TimezoneName : "noma'lum")}");
 
         await db.SaveChangesAsync(ct);
@@ -240,6 +253,12 @@ public partial class InstagramController
 /// bayrog'i. Token hech qaysi javobga tushmaydi.</para>
 /// <para><paramref name="CurrencyOffset"/> pul summalarini ekranda to'g'ri ko'rsatish uchun
 /// kerak: baza MINOR unit'da (tiyin/sent) saqlaydi.</para>
+/// <para><paramref name="CurrencyOffsetSource"/> (<see cref="MetaOffsetSource"/>:
+/// <c>"meta"</c> | <c>"jadval"</c>) — offset Meta javobidan olindimi yoki bizning valyuta
+/// jadvalimizdan. Noto'g'ri offset pul hisobini 100 barobar buzadi, ya'ni admin summalar
+/// QAYSI manbadagi offset bilan hisoblanayotganini ko'rishi kerak. Akkaunt ulanmagan bo'lsa
+/// bo'sh satr ("hali ma'lum emas"). ⚠️ Qiymat HISOBLANADI — bazada bunday ustun YO'Q
+/// (<see cref="MetaInsightsService.OffsetSourceOf"/>).</para>
 /// <para><paramref name="TimezoneName"/> — statistika kunlari AYNAN shu zonada kesiladi;
 /// UI'da "sanalar reklama akkaunti vaqt zonasida" deb tushuntiriladi.</para></summary>
 public record IgAdsStatusDto(
@@ -249,6 +268,7 @@ public record IgAdsStatusDto(
     string Name,
     string Currency,
     int CurrencyOffset,
+    string CurrencyOffsetSource,
     string TimezoneName,
     bool TokenSet,
     string ConnectedAt,

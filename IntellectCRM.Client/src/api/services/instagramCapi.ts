@@ -41,6 +41,15 @@ export interface IgAdsStatsStatus {
   currency: string
   /** Pul MINOR birlikda saqlanadi (tiyin/sent) — ekranda shu offset bilan bo'linadi. */
   currencyOffset: number
+  /**
+   * Kasr xonalari QAYERDAN olingani: `"meta"` — Meta o'zi bergan, `"jadval"` — bizning
+   * valyuta ro'yxatimizdan hisoblangan. Ulanmagan bo'lsa bo'sh.
+   *
+   * ⚠️ Bu KO'RSATILISHI muhim: noto'g'ri kasr xonasi butun pul hisobini **100 barobar**
+   * buzadi. Meta hujjatlari `currency_offset` maydoni bor-yo'qligida ZID bo'lgani uchun kod
+   * uni ish vaqtida aniqlaydi — admin qaysi yo'l ishlaganini ko'rib tursin.
+   */
+  currencyOffsetSource: string
   /** Statistika kunlari AYNAN shu zonada kesiladi (Toshkent kuni bilan farq qilishi mumkin). */
   timezoneName: string
   /** Token sozlanganmi. ⚠️ Qiymat qaytmaydi. */

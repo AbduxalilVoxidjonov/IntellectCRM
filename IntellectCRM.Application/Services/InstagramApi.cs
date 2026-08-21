@@ -44,10 +44,14 @@ public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
     /// ro'yxatga olingani bilan AYNAN bir xil bo'lishi shart (oxirida <c>/</c> yo'q), aks holda
     /// Instagram <c>Invalid redirect_uri</c> beradi.
     /// </summary>
-    public static string BuildAuthorizeUrl(string appId, string redirectUri, string state) =>
+    /// <param name="scopes">So'raladigan ruxsatlar. Bo'sh bo'lsa <see cref="IgConst.Scopes"/>
+    /// (kontent joylashsiz asosiy ro'yxat). ⚠️ Meta ilovada YOQILMAGAN scope so'ralsa butun
+    /// authorize so'rovi rad etiladi — shuning uchun ro'yxat chaqiruvchida, modul bayrog'iga
+    /// qarab quriladi (<see cref="IgConst.ScopesFor"/>).</param>
+    public static string BuildAuthorizeUrl(string appId, string redirectUri, string state, string? scopes = null) =>
         $"{IgConst.AuthorizeUrl}?client_id={Uri.EscapeDataString(appId ?? "")}" +
         $"&redirect_uri={Uri.EscapeDataString(redirectUri ?? "")}" +
-        $"&response_type=code&scope={Uri.EscapeDataString(IgConst.Scopes)}" +
+        $"&response_type=code&scope={Uri.EscapeDataString(string.IsNullOrWhiteSpace(scopes) ? IgConst.Scopes : scopes)}" +
         $"&state={Uri.EscapeDataString(state ?? "")}";
 
     /// <summary>

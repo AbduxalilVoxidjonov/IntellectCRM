@@ -88,7 +88,28 @@ public static class IgConst
     /// paytida biriktiriladi, ya'ni admin Sozlamalardan «Qayta ulash» bosishi SHART. Aks holda
     /// joylash <c>#200 ruxsat yetishmaydi</c> bilan yiqiladi va sabab ekranda ko'rinmasdi.</para>
     /// </summary>
-    public const string Scopes = "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish";
+    public const string Scopes =
+        "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments";
+
+    /// <summary>
+    /// KONTENT JOYLASH scope'i — <b>asosiy ro'yxatga QO'SHILMAGAN</b>, faqat modul yoqilganda
+    /// so'raladi (<see cref="ScopesFor"/>).
+    ///
+    /// <para>🔴 <b>NEGA shartli:</b> Meta ilovada YOQILMAGAN scope so'ralsa authorize so'rovini
+    /// butunlay rad etadi. Agar bu scope doimiy ro'yxatda tursa, kontent modulini umuman
+    /// ishlatmaydigan markaz «Qayta ulash» bosganda xato olardi — ya'ni ISHLAB TURGAN izoh/DM
+    /// agentini qayta ulay olmay qolardi (token 60 kunda yangilanmasa modul o'lardi). Nosozlik
+    /// esa kontent moduliga umuman aloqasi yo'qdek ko'rinardi.</para>
+    ///
+    /// <para>⚠️ Modul yoqilgandan keyin akkaunt <b>QAYTA ULANISHI</b> shart: scope tokenga OAuth
+    /// paytida biriktiriladi, ro'yxatga qo'shilgani bilan mavjud tokenga qo'llanmaydi.</para>
+    /// </summary>
+    public const string ContentPublishScope = "instagram_business_content_publish";
+
+    /// <summary>OAuth uchun scope ro'yxati. Kontent joylash yoqilgan bo'lsa —
+    /// <see cref="ContentPublishScope"/> qo'shiladi.</summary>
+    public static string ScopesFor(bool contentPublish) =>
+        contentPublish ? Scopes + "," + ContentPublishScope : Scopes;
 
     public const string ChannelComment = "comment", ChannelDm = "dm", ChannelPrivateReply = "private_reply";
     public const string StatusBot = "bot", StatusOperator = "operator", StatusClosed = "closed";

@@ -13,6 +13,9 @@ import {
   type IgAdsStatsStatus, type IgCapiStatus, type IgContentStatus,
 } from '@/api/services/instagramCapi'
 import {
+  checkMetaConnection, type IgDiagItem, type IgDiagResult,
+} from '@/api/services/instagramDiag'
+import {
   ChannelIcon, Icon, MarketingPage, MkCopyRow, MkError, MkLoading, MkStatusCard,
 } from './mk'
 
@@ -160,6 +163,11 @@ export function InstagramSettings() {
             <div style={{ flex: 1 }}>{saved}</div>
           </div>
         )}
+
+        {/* ── ULANISHNI TEKSHIRISH ──
+            ATAYIN eng TEPADA: admin sozlamani saqlagach birinchi savoli "ishladimi?" bo'ladi,
+            javob esa sahifa oxirida turgan bo'lsa topilmasdi. */}
+        <DiagnosticsBlock canEdit={canEdit} />
 
         {/* ── AKKAUNT ──
             `id` — «Kontent joylash» kartasidagi «akkauntni qayta ulang» havolasi shu yerga
@@ -792,6 +800,21 @@ function AdsStatsBlock({
             value={status.connected ? `${status.currency || '—'} · ${status.timezoneName || '—'}` : '—'}
             hint="Statistika kunlari AYNAN reklama akkauntining zonasida kesiladi"
           />
+          {/* ⚠️ Kasr xonalari — noto'g'ri bo'lsa butun pul hisobi 100 BAROBAR xato bo'ladi.
+              Meta hujjatlari `currency_offset` maydoni bor-yo'qligida zid, shuning uchun kod
+              uni ish vaqtida aniqlaydi. Admin qaysi yo'l ishlaganini ko'rib tursin. */}
+          <MkStatusCard
+            label="Pul kasr xonalari"
+            ok={status.connected}
+            value={status.connected ? `${status.currencyOffset} xona` : '—'}
+            hint={
+              status.currencyOffsetSource === 'meta'
+                ? "Meta bergan qiymat — eng ishonchlisi"
+                : status.connected
+                  ? "Valyuta ro'yxatimizdan hisoblangan (Meta bu maydonni bermadi)"
+                  : undefined
+            }
+          />
           <MkStatusCard
             label="Oxirgi sinxronizatsiya"
             ok={!!status.lastSyncAt}
@@ -1330,6 +1353,131 @@ function TestBlock({ canEdit }: { canEdit: boolean }) {
           ) : (
             <MkError text={result.error || 'AI javob bermadi'} />
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   ULANISHNI TEKSHIRISH — «Meta bilan aloqani tekshirish»
+
+   Muammo: to'rtta modul Meta API bilan ishlaydi, lekin sozlama saqlangandan keyin
+   "ishladimi yoki yo'qmi" faqat bir necha KUN kutib bilinardi (lid kelmasa, post yiqilsa,
+   statistika bo'sh chiqsa). Meta tomonidagi nosozliklar bir xil ko'rinadi ("hech narsa
+   kelmayapti"), sabablari esa har xil.
+
+   Bitta tugma har yoqilgan modul uchun eng yengil o'qish so'rovini yuboradi va NIMA QILISH
+   kerakligini yozadi.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Qatorning KO'RINISHI.
+ *
+ * 🔴 `checked === false` bo'lganda YASHIL belgi HECH QACHON chiqmaydi — hatto `ok === true`
+ * bo'lsa ham. Aynan shu holat CAPI'da bo'ladi: sozlama to'liq, lekin Meta bilan aloqa
+ * sinalmagan (tekshiruv hodisa yuborsa, u Events Manager statistikasiga tushib qolardi).
+ * Sinalmagan modulni "ishlayapti" deb ko'rsatish — eng yomon variant.
+ */
+function diagTone(it: IgDiagItem): { color: string; bg: string; icon: string; word: string } {
+  if (!it.enabled) {
+    return { color: 'var(--muted)', bg: 'var(--surface-2)', icon: 'close', word: "O'chirilgan" }
+  }
+  if (!it.checked) {
+    return it.ok
+      ? { color: 'var(--muted)', bg: 'var(--surface-2)', icon: 'warn', word: 'Sinalmadi' }
+      : { color: 'var(--warning)', bg: 'var(--warning-soft)', icon: 'warn', word: 'Sozlanmagan' }
+  }
+  return it.ok
+    ? { color: 'var(--success)', bg: 'var(--success-soft)', icon: 'check', word: 'Aloqa bor' }
+    : { color: 'var(--danger)', bg: 'var(--danger-soft)', icon: 'warn', word: 'Nosoz' }
+}
+
+/** Bitta modul qatori: belgi · nom · holat · xabar · maslahat. */
+function DiagRow({ item }: { item: IgDiagItem }) {
+  const t = diagTone(item)
+  return (
+    <div className="mk-status" style={{ borderColor: t.color, alignItems: 'flex-start' }}>
+      <div className="mk-status-dot" style={{ background: t.bg, color: t.color }}>
+        <Icon name={t.icon} style={{ width: 15, height: 15 }} />
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span className="mk-status-value" style={{ fontSize: 14 }}>{item.label}</span>
+          <span className="mk-status-label" style={{ color: t.color, fontWeight: 800 }}>{t.word}</span>
+        </div>
+        <div className="mk-status-label" style={{ marginTop: 3, fontWeight: 500, whiteSpace: 'pre-wrap' }}>
+          {item.message}
+        </div>
+        {/* Maslahat — "nima qilish kerak". Hammasi joyida bo'lsa server bo'sh qaytaradi. */}
+        {item.hint && <div className="field-hint" style={{ marginTop: 4 }}>{item.hint}</div>}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * «Ulanishni tekshirish» kartasi.
+ *
+ * ⚠️ Natija SAQLANMAYDI — har bosishda yangisi (token muddati tugashi, ruxsatning olib
+ * qo'yilishi holatni istalgan daqiqada o'zgartiradi, eski "yashil" natija esa aldardi).
+ */
+function DiagnosticsBlock({ canEdit }: { canEdit: boolean }) {
+  const [result, setResult] = useState<IgDiagResult | null>(null)
+  const [running, setRunning] = useState(false)
+  const [err, setErr] = useState('')
+
+  const run = async () => {
+    setRunning(true)
+    setErr('')
+    try {
+      setResult(await checkMetaConnection())
+    } catch (e) {
+      setErr(apiErrorMessage(e, "Tekshirib bo'lmadi"))
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="card card-pad" style={{ marginBottom: 18 }}>
+      <div className="section-head">
+        <div>
+          <div className="section-title">Ulanishni tekshirish</div>
+          <div className="field-hint" style={{ marginTop: 2 }}>
+            Yoqilgan modullar bo'yicha Meta'ga bittadan yengil so'rov yuboriladi — hech narsa
+            o'zgartirilmaydi.
+          </div>
+        </div>
+        {canEdit && (
+          <button className="btn btn-primary btn-sm" onClick={run} disabled={running}>
+            <Icon name={running ? 'clock' : 'zap'} />
+            {running ? 'Tekshirilmoqda…' : 'Meta bilan aloqani tekshirish'}
+          </button>
+        )}
+      </div>
+
+      {!canEdit && (
+        <div className="field-hint">
+          Tekshirish uchun «Sozlamalar» bo'limida tahrirlash ruxsati kerak.
+        </div>
+      )}
+
+      {err && <div style={{ marginTop: 12 }}><MkError text={err} /></div>}
+
+      {running && !result && (
+        <div style={{ marginTop: 12 }}><MkLoading text="Meta'ga so'rov yuborilmoqda…" /></div>
+      )}
+
+      {result && (
+        <div style={{ marginTop: 14 }}>
+          <div className="field-hint" style={{ marginBottom: 10 }}>
+            {formatDateTime(result.checkedAt)} · aloqa bor: {result.okCount} · nosoz:{' '}
+            {result.failCount} · tekshirilmadi: {result.skippedCount}
+          </div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {result.items.map((it) => <DiagRow key={it.key} item={it} />)}
+          </div>
         </div>
       )}
     </div>

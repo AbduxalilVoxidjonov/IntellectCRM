@@ -391,12 +391,33 @@ public sealed class MetaInsightsService(
     {
         acc.Name = info.Name;
         acc.Currency = info.Currency;
-        // ⚠️ Offset Meta'dan KELMAYDI — u valyuta kodidan sof funksiya bilan hisoblanadi (§4.2).
-        // Shuning uchun bu yerda ham AYNAN o'sha funksiya chaqiriladi: "0" (JPY kabi kasrsiz
-        // valyuta) haqiqiy qiymat, uni "to'ldirilmagan" deb talqin qilib bo'lmaydi.
-        acc.CurrencyOffset = MetaCurrency.OffsetOf(info.Currency);
+
+        // ⚠️ Offset QAYTA HISOBLANMAYDI: `info` ni bergan `FetchAccountAsync` allaqachon
+        // "Meta berdimi yoki jadvaldan olindimi" savolini hal qilgan (§17.3). Bu yerda yana
+        // `MetaCurrency.OffsetOf` chaqirilsa Meta bergan qiymat JIMGINA yo'q qilinardi —
+        // ya'ni butun ish vaqtidagi aniqlashning ma'nosi qolmasdi.
+        // `Clamp` — bazadagi/kutilmagan buzuq qiymatdan himoya (0 esa HAQIQIY offset: JPY).
+        acc.CurrencyOffset = MetaCurrency.Clamp(info.CurrencyOffset);
         acc.TimezoneName = info.TimezoneName;
     }
+
+    /// <summary>
+    /// Bazadagi offset QAYSI manbadan ekanini aytadi (<see cref="MetaOffsetSource"/>) —
+    /// Sozlamalar ekranidagi "offset qayerdan olindi" ma'lumoti uchun.
+    ///
+    /// <para><b>⚠️ Nega HISOBLANADI, saqlanmaydi:</b> <c>IgAdAccount</c> ga yangi ustun
+    /// qo'shish migratsiya talab qilardi, offsetning O'ZI esa bazada allaqachon bor. Bizning
+    /// jadvalimizdan FARQ qiladigan qiymatni faqat Meta bergan bo'lishi mumkin — ya'ni farq
+    /// bor bo'lsa manba ANIQ ("meta").</para>
+    ///
+    /// <para>⚠️ Qiymatlar TENG bo'lganda "jadval" deyiladi: bunda Meta bergan-bermagani
+    /// AMALIY farq qilmaydi (raqam bir xil), ya'ni admin ko'radigan summa ikkala holatda ham
+    /// aynan bir xil hisoblanadi. Yolg'on "aniqlik" ko'rsatgandan ko'ra kamtar javob to'g'ri.</para>
+    /// </summary>
+    public static string OffsetSourceOf(string? currency, int storedOffset) =>
+        MetaCurrency.Clamp(storedOffset) == MetaCurrency.OffsetOf(currency)
+            ? MetaOffsetSource.Table
+            : MetaOffsetSource.Meta;
 
     /* ═════════════════════════ Sana va zona ═════════════════════════ */
 

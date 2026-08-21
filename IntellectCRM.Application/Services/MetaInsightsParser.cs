@@ -303,10 +303,14 @@ public static class MetaInsightsParser
     /* ═════════════════ Akkaunt ═════════════════ */
 
     /// <summary>
-    /// <c>GET /act_{id}?fields=name,currency,timezone_name,account_status</c> javobi.
+    /// <c>GET /act_{id}?fields=name,currency,timezone_name,account_status[,currency_offset]</c>
+    /// javobi.
     ///
-    /// <para>🔴 <c>currency_offset</c> SO'RALMAYDI va javobda ham YO'Q — offset
-    /// <see cref="MetaCurrency.OffsetOf"/> dan olinadi (§4.2).</para>
+    /// <para><c>currency_offset</c> javobda BO'LSA — o'sha ishlatiladi va
+    /// <c>OffsetSource = <see cref="MetaOffsetSource.Meta"/></c>; bo'lmasa (yoki qiymati
+    /// mantiqsiz bo'lsa) offset <see cref="MetaCurrency.OffsetOf"/> dan olinadi va manba
+    /// <see cref="MetaOffsetSource.Table"/> bo'ladi. Ikkala yo'l ham TO'G'RI ishlaydi —
+    /// so'rovning o'zi <see cref="MetaInsightsApi.FetchAccountAsync"/> da darvozalangan.</para>
     ///
     /// <para><c>AccountStatus</c> alohida qaytariladi (1 = ACTIVE): u <c>MetaAdAccountInfo</c>
     /// da yo'q, lekin "nega statistika kelmayapti" savoliga ko'pincha javob bo'ladi
@@ -324,17 +328,63 @@ public static class MetaInsightsParser
             if (root.TryGetProperty("error", out _)) return (null, 0);
 
             var currency = Str(root, "currency").Trim().ToUpperInvariant();
+            var (offset, offsetSource) = ReadOffset(root, currency);
 
             var info = new MetaAdAccountInfo(
                 Id: Str(root, "id"),
                 Name: Str(root, "name"),
                 Currency: currency,
-                CurrencyOffset: MetaCurrency.OffsetOf(currency),
-                TimezoneName: Str(root, "timezone_name"));
+                CurrencyOffset: offset,
+                TimezoneName: Str(root, "timezone_name"),
+                OffsetSource: offsetSource);
 
             return (info, (int)Lng(root, "account_status"));
         }
         catch (JsonException) { return (null, 0); }
+    }
+
+    /// <summary>
+    /// <c>currency_offset</c> — Meta bergan bo'lsa o'shani, aks holda valyuta kodidan.
+    ///
+    /// <para><b>🔴 Nega qiymat DIAPAZONGA solishtiriladi:</b> maydonning MA'NOSI hujjatlarda
+    /// aniq emas. Eskirgan <c>Currency</c> tugunida <c>offset</c> "necha marta bo'lish kerak"
+    /// degan KO'PAYTUVCHI edi (<c>100</c>), bizga esa KASR XONALARI SONI (<c>2</c>) kerak.
+    /// Ya'ni Meta kutilmaganda <c>100</c> qaytarsa va uni ko'r-ko'rona ishlatsak, sarf
+    /// <b>10^98 barobar</b> buzilardi. Shuning uchun faqat <c>0..<see cref="MetaCurrency.MaxOffset"/></c>
+    /// oralig'idagi qiymat "kasr xonalari" deb qabul qilinadi; qolgani mantiqsiz hisoblanib,
+    /// bizning jadvalga qaytiladi (xavfsiz tomon).</para>
+    ///
+    /// <para>⚠️ <c>0</c> — HAQIQIY qiymat (JPY kabi kasrsiz valyuta), "to'ldirilmagan" emas.
+    /// Shuning uchun maydon BORLIGI <c>TryGetProperty</c> bilan tekshiriladi, <c>Lng</c>
+    /// ning <c>0</c> qaytarishi bilan emas.</para>
+    /// </summary>
+    internal static (int Offset, string Source) ReadOffset(JsonElement root, string currency)
+    {
+        var table = (MetaCurrency.OffsetOf(currency), MetaOffsetSource.Table);
+
+        if (root.ValueKind != JsonValueKind.Object) return table;
+        if (!root.TryGetProperty("currency_offset", out var v)) return table;
+
+        // ⚠️ `Dec` ISHLATILMAYDI: u buzuq qiymatda ham 0 qaytaradi, 0 esa bu yerda HAQIQIY
+        // offset (JPY). "abc" ni jimgina 0 deb o'qish sarfni 100 barobar buzardi.
+        int offset;
+        switch (v.ValueKind)
+        {
+            case JsonValueKind.Number:
+                if (!v.TryGetInt32(out offset)) return table;      // kasrli/ulkan qiymat — mantiqsiz
+                break;
+            case JsonValueKind.String:
+                var raw = (v.GetString() ?? "").Trim();
+                if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out offset))
+                    return table;
+                break;
+            default:
+                return table;
+        }
+
+        return offset >= 0 && offset <= MetaCurrency.MaxOffset
+            ? (offset, MetaOffsetSource.Meta)
+            : table;
     }
 
     /// <summary>

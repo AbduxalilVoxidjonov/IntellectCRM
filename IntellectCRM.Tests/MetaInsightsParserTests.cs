@@ -435,7 +435,9 @@ public class MetaInsightsParserTests
 
     /* ═══════════════════════ Akkaunt ═══════════════════════ */
 
-    /// <summary>🔴 <c>currency_offset</c> Meta javobida YO'Q — u BIZNING tomonda hisoblanadi.</summary>
+    /// <summary>Javobda <c>currency_offset</c> BO'LMASA — offset BIZNING jadvaldan
+    /// (<c>MetaCurrency.OffsetOf</c>) va manba <c>"jadval"</c>. Bu — Meta maydonni bermaydigan
+    /// (yoki so'rovni rad etadigan) holatdagi xatti-harakat, ya'ni eski, tekshirilgan yo'l.</summary>
     [Fact]
     public void ParseAccount_offset_valyutadan_hisoblanadi()
     {
@@ -452,8 +454,56 @@ public class MetaInsightsParserTests
         Assert.Equal("act_1234567890", info!.Id);
         Assert.Equal("UZS", info.Currency);
         Assert.Equal(2, info.CurrencyOffset);
+        Assert.Equal(MetaOffsetSource.Table, info.OffsetSource);
         Assert.Equal("Asia/Tashkent", info.TimezoneName);
         Assert.Equal(1, status);
+    }
+
+    /// <summary>
+    /// ⚠️ Meta <c>currency_offset</c> QAYTARSA — HAQIQAT MANBAI o'sha, bizning jadval emas.
+    /// Bu yerda ataylab jadvaldan FARQ qiladigan holat olingan (USD → jadvalda 2, Meta 0):
+    /// jadval "g'olib" bo'lib qolsa, ish vaqtida aniqlashning ma'nosi qolmasdi.
+    /// </summary>
+    [Fact]
+    public void ParseAccount_Meta_bergan_offset_ishlatiladi()
+    {
+        const string json = """
+        { "id": "act_9", "currency": "USD", "currency_offset": 0, "account_status": 1 }
+        """;
+
+        var (info, _) = MetaInsightsParser.ParseAccount(json);
+
+        Assert.NotNull(info);
+        Assert.Equal(0, info!.CurrencyOffset);
+        Assert.Equal(MetaOffsetSource.Meta, info.OffsetSource);
+
+        // Meta uni MATN qilib yuborsa ham o'qiladi (metrikalarni shunday yuboradi).
+        var (asText, _) = MetaInsightsParser.ParseAccount(
+            """{ "id": "act_9", "currency": "JPY", "currency_offset": "3" }""");
+        Assert.Equal(3, asText!.CurrencyOffset);
+        Assert.Equal(MetaOffsetSource.Meta, asText.OffsetSource);
+    }
+
+    /// <summary>
+    /// 🔴 MANTIQSIZ qiymat jimgina QABUL QILINMAYDI — jadvalga qaytiladi.
+    ///
+    /// <para>Eskirgan <c>Currency</c> tugunida <c>offset</c> KO'PAYTUVCHI edi (<c>100</c>),
+    /// bizga esa kasr xonalari soni kerak. <c>100</c> ni ko'r-ko'rona ishlatish sarfni
+    /// tasavvur qilib bo'lmaydigan darajada buzardi. Buzuq matn ("abc") ham 0 deb
+    /// o'qilmasligi kerak: 0 — HAQIQIY offset (JPY).</para>
+    /// </summary>
+    [Fact]
+    public void ParseAccount_mantiqsiz_offset_jadvalga_qaytadi()
+    {
+        foreach (var raw in new[] { "100", "-1", "\"abc\"", "\"\"", "null", "2.5", "true" })
+        {
+            var (info, _) = MetaInsightsParser.ParseAccount(
+                "{ \"id\": \"act_9\", \"currency\": \"UZS\", \"currency_offset\": " + raw + " }");
+
+            Assert.NotNull(info);
+            Assert.Equal(2, info!.CurrencyOffset);
+            Assert.Equal(MetaOffsetSource.Table, info.OffsetSource);
+        }
     }
 
     [Fact]

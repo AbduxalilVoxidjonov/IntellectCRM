@@ -140,6 +140,17 @@ public class InstagramWorkerService(
         try { await CleanupAsync(db, ct); }
         catch (Exception ex) { logger.LogError(ex, "Instagram navbatini tozalashda xatolik"); }
 
+        // YETIM MEDIA FAYLLARI — `uploads/marketing-public/` da hech qaysi postda ishlatilmayotgan
+        // fayllar. ⚠️ DARVOZASIZ, ATAYIN: modul o'chirilgandan keyin ham eski yetimlar tozalanishi
+        // kerak (bu papka OCHIQ va tungi zaxiraga kiradi). Tashqi so'rov ketmaydi — faqat disk.
+        // ⚠️ Kuniga bir marta yetarli: 24 soatlik yosh sharti tufayli undan yosh fayl baribir
+        // tegilmaydi (foydalanuvchi yuklab, postni hali saqlamagan bo'lishi mumkin).
+        try
+        {
+            await sp.GetRequiredService<MarketingMediaCleanup>().SweepAsync(ct);
+        }
+        catch (Exception ex) { logger.LogError(ex, "Yetim media fayllarini tozalashda xatolik"); }
+
         // Token yangilash — FAQAT avtojavob moduli yoqilganda: u Instagram Login tokeniga
         // tegishli. Reklama lidlari/statistikasi Page va System User tokenlari bilan ishlaydi,
         // ular bu yerda yangilanmaydi (System User tokeni muddatsiz).
