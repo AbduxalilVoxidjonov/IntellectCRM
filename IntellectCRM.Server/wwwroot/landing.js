@@ -12,11 +12,10 @@
 
   var currentLeadNote = '';
 
-  // Karusel taymerlari MODUL darajasida saqlanadi: init funksiyasi qayta chaqirilganda
-  // (CMS ma'lumoti kelib slaydlar qaytadan chizilganda) eski setInterval to'xtatilmasa,
-  // bir nechta taymer bitta trekni bir vaqtda surib, karusel sakrab-sakrab qolardi.
-  var teacherAutoTimer = null;
-  var resultsAutoTimer = null;
+  // UZLUKSIZ karusel (marquee) treklari MODUL darajasida ro'yxatga olinadi: oyna o'lchami
+  // o'zgarganda hammasi qayta o'lchanadi. Slayd kengligi FOIZDA berilgan (33.3% / 50% / 100%),
+  // ya'ni surilish masofasi ekranga bog'liq — bir marta hisoblab qo'yib bo'lmaydi.
+  var marqueeTracks = [];
 
   function openModal(selectedSubject, customNote){
     clearError();
@@ -818,15 +817,17 @@
 
     // BO'SH RO'YXAT — bo'lim BUTUNLAY yashiriladi (soxta kartochkalar endi HTML'da ham yo'q).
     if (items.length === 0) {
-      if (teacherAutoTimer) { clearInterval(teacherAutoTimer); teacherAutoTimer = null; }
       setSectionVisible('teachers', false);
       return;
     }
 
-    items.forEach(function(t) {
+    items.forEach(function(t, idx) {
       var slide = document.createElement('div');
       slide.className = 'teacher-slide';
       slide.style.cursor = 'pointer';
+      // Uzluksiz lenta slaydlarni nusxalaydi — modal uchun kerakli yozuv AYNAN shu indeks
+      // orqali topiladi (quyidagi delegatsiyaga qarang).
+      slide.setAttribute('data-index', String(idx));
 
       // ⚠️ KLASS NOMLARI landing.html dagi CSS bilan AYNAN mos: `.teacher-photo-bg`,
       // `.teacher-top-badge`, `.teacher-card-overlay`, `.teacher-card-name`, ... Ilgari bu yerda
@@ -864,15 +865,21 @@
           '</div>' +
         '</div>';
 
-      slide.addEventListener('click', function() {
-        openTeacherModal(t);
-      });
-
       track.appendChild(slide);
     });
 
+    // ⚠️ Bosilish TREKNING O'ZIDA ushlanadi (delegatsiya): uzluksiz lenta slaydlarni
+    // `cloneNode` bilan ko'paytiradi, `addEventListener` bilan qo'yilgan ishlov beruvchi esa
+    // nusxaga KO'CHMAYDI — nusxa bosilganda modal umuman ochilmasdi.
+    track.onclick = function(e) {
+      var slide = e.target && e.target.closest ? e.target.closest('.teacher-slide') : null;
+      if (!slide) return;
+      var t = items[Number(slide.getAttribute('data-index'))];
+      if (t) openTeacherModal(t);
+    };
+
     setSectionVisible('teachers', true);
-    initTeacherCarousel();
+    initMarquee(track);
   }
 
   // ------------------------------------------------- SERTIFIKATLAR (landing karuseli)
@@ -892,16 +899,16 @@
 
     // BO'SH RO'YXAT — butun "Bizning natijalarimiz" bo'limi yashiriladi.
     if (items.length === 0) {
-      if (resultsAutoTimer) { clearInterval(resultsAutoTimer); resultsAutoTimer = null; }
-      track.style.transform = 'translateX(0)';
       setSectionVisible('results', false);
       return;
     }
 
-    items.forEach(function(c) {
+    items.forEach(function(c, idx) {
       var slide = document.createElement('div');
       slide.className = 'result-slide';
       slide.style.cursor = 'pointer';
+      // Uzluksiz lenta slaydlarni nusxalaydi — modal uchun yozuv shu indeks orqali topiladi.
+      slide.setAttribute('data-index', String(idx));
 
       var scoreSectionHtml = '';
       if (c.listening || c.reading || c.writing || c.speaking) {
@@ -942,24 +949,29 @@
           '</div>' +
         '</div>';
 
-      slide.addEventListener('click', function() {
-        openResultModal({
-          studentName: c.studentName || c.title,
-          overall: c.overallScore || '',
-          category: c.category || '',
-          listening: c.listening || '',
-          reading: c.reading || '',
-          writing: c.writing || '',
-          speaking: c.speaking || '',
-          imageUrl: c.imageUrl || ''
-        });
-      });
-
       track.appendChild(slide);
     });
 
+    // Bosilish delegatsiya orqali — sabab o'qituvchilar bo'limidagi bilan bir xil (nusxalar).
+    track.onclick = function(e) {
+      var slide = e.target && e.target.closest ? e.target.closest('.result-slide') : null;
+      if (!slide) return;
+      var c = items[Number(slide.getAttribute('data-index'))];
+      if (!c) return;
+      openResultModal({
+        studentName: c.studentName || c.title,
+        overall: c.overallScore || '',
+        category: c.category || '',
+        listening: c.listening || '',
+        reading: c.reading || '',
+        writing: c.writing || '',
+        speaking: c.speaking || '',
+        imageUrl: c.imageUrl || ''
+      });
+    };
+
     setSectionVisible('results', true);
-    initResultsCarousel();
+    initMarquee(track);
   }
 
   function renderFaqs(faqList) {
@@ -1081,163 +1093,86 @@
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Ustozlar Karuseli (Auto-rotate carousel)
-  function initTeacherCarousel() {
-    var track = document.getElementById('teacherTrack');
-    var prevBtn = document.getElementById('prevTeacher');
-    var nextBtn = document.getElementById('nextTeacher');
-    var dotsContainer = document.getElementById('teacherDots');
-    if (!track) return;
+  // ═══════════════════════════════════ UZLUKSIZ LENTA (marquee) ═══════════════════════════════
+  //
+  // O'qituvchilar va sertifikatlar bo'limlari. Ilgari bu yerda ikkita bir xil "qadamli" karusel
+  // turardi: har 3.5 soniyada bir slayd suriladi, oxiriga yetgach boshiga qaytadi, ustiga
+  // strelka va nuqtalar. Ya'ni harakat to'xtab-to'xtab ketardi va oxirida sakrab qaytardi.
+  // Endi lenta TO'XTAMASDAN, bir tekis aylanadi (CSS animatsiyasi — `.marquee-track`).
+  //
+  // PRINTSIP: ro'yxat bir necha marta TAKRORLANADI va animatsiya aynan BITTA takror uzunligiga
+  // suriladi. Surilish tugagan lahzada ekranda aynan o'sha manzara turadi, shuning uchun
+  // boshiga qaytish ko'zga ko'rinmaydi.
+  //
+  // ⚠️ Masofa CSS'da foiz bilan berilmaydi (`-50%` kabi): slaydlar trekdan kengroq bo'lib
+  // TOSHIB turadi, ya'ni trekning o'z kengligi takror uzunligiga teng emas — foiz noto'g'ri
+  // masofa berardi. Shu sabab u shu yerda PIKSELDA o'lchanadi.
+  var MARQUEE_GAP = 24;     // `.teachers-track` / `.results-track` dagi `gap` bilan AYNAN bir xil
+  var MARQUEE_SPEED = 55;   // piksel/soniya — o'qishga ulguradigan xotirjam sur'at
 
-    var slides = Array.from(track.children);
-    if (slides.length === 0) return;
-    var currentIndex = 0;
-    // Eski taymer to'xtatiladi: init qayta chaqirilsa ikkita interval bitta trekni surardi.
-    if (teacherAutoTimer) { clearInterval(teacherAutoTimer); teacherAutoTimer = null; }
+  /** Trekni o'lchab, takrorlarni chizadi va CSS o'zgaruvchilarini yangilaydi. */
+  function layoutMarquee(track) {
+    var baseCount = Number(track.getAttribute('data-base-count') || 0);
+    if (!baseCount) return;
 
-    function getSlidesPerPage() {
-      if (window.innerWidth <= 640) return 1;
-      if (window.innerWidth <= 992) return 2;
-      return 3;
+    // Oldingi takrorlar olib tashlanadi: ekran o'lchami o'zgarsa ularning SONI ham o'zgaradi.
+    while (track.children.length > baseCount) track.removeChild(track.lastChild);
+
+    var base = Array.prototype.slice.call(track.children);
+    var wrapWidth = track.parentNode ? track.parentNode.getBoundingClientRect().width : 0;
+    var blockWidth = 0;
+    base.forEach(function(el) { blockWidth += el.getBoundingClientRect().width + MARQUEE_GAP; });
+    // Bo'lim hali yashirin bo'lsa hamma o'lcham 0 chiqadi — bunda hech narsa qilinmaydi
+    // (bo'lim ko'ringanda `initMarquee` qaytadan chaqiriladi).
+    if (blockWidth <= 0) return;
+
+    // Bitta takror ekranni TO'LDIRISHI shart, aks holda aylanish paytida o'ng tomonda bo'sh
+    // joy ko'rinib qolardi (kartochkasi kam markazda — masalan 2 ta o'qituvchi).
+    var reps = Math.max(1, Math.ceil(wrapWidth / blockWidth));
+    var frag = document.createDocumentFragment();
+    for (var r = 1; r < reps * 2; r++) {
+      base.forEach(function(el) {
+        var copy = el.cloneNode(true);
+        // Nusxa — TAKROR mazmun: ekran o'qish dasturi uni ikkinchi marta o'qimasin.
+        copy.setAttribute('aria-hidden', 'true');
+        // ⚠️ Nusxadagi rasmlardan `loading="lazy"` OLIB TASHLANADI: nusxalar ekrandan tashqarida
+        // turadi va lenta ularni surib kelganda rasm hali yuklanmagan bo'lib, kartochka bo'sh
+        // ko'rinib qolishi mumkin edi. Manzillar asl slayd bilan BIR XIL — brauzer keshidan
+        // olinadi, ya'ni qo'shimcha so'rov ketmaydi.
+        var imgs = copy.querySelectorAll ? copy.querySelectorAll('img') : [];
+        for (var k = 0; k < imgs.length; k++) imgs[k].removeAttribute('loading');
+        frag.appendChild(copy);
+      });
     }
+    track.appendChild(frag);
 
-    function maxIndex() {
-      return Math.max(0, slides.length - getSlidesPerPage());
-    }
+    var shift = blockWidth * reps;
+    track.style.setProperty('--marquee-shift', '-' + Math.round(shift) + 'px');
+    track.style.setProperty('--marquee-duration', Math.max(8, Math.round(shift / MARQUEE_SPEED)) + 's');
 
-    function renderDots() {
-      if (!dotsContainer) return;
-      dotsContainer.innerHTML = '';
-      var totalDots = maxIndex() + 1;
-      for (var i = 0; i < totalDots; i++) {
-        (function(index) {
-          var dot = document.createElement('div');
-          dot.className = 'carousel-dot' + (index === currentIndex ? ' active' : '');
-          dot.addEventListener('click', function() { goToIndex(index); });
-          dotsContainer.appendChild(dot);
-        })(i);
-      }
-    }
-
-    function updateCarousel() {
-      if (!slides[0]) return;
-      var slideWidth = slides[0].getBoundingClientRect().width + 24; // gap: 24px
-      track.style.transform = 'translateX(-' + (currentIndex * slideWidth) + 'px)';
-      renderDots();
-    }
-
-    function goToIndex(index) {
-      currentIndex = index;
-      if (currentIndex > maxIndex()) currentIndex = 0;
-      if (currentIndex < 0) currentIndex = maxIndex();
-      updateCarousel();
-    }
-
-    function nextSlide() {
-      goToIndex(currentIndex + 1);
-    }
-
-    function prevSlide() {
-      goToIndex(currentIndex - 1);
-    }
-
-    function startAutoSlide() {
-      stopAutoSlide();
-      teacherAutoTimer = setInterval(nextSlide, 3500);
-    }
-
-    function stopAutoSlide() {
-      if (teacherAutoTimer) clearInterval(teacherAutoTimer);
-    }
-
-    if (nextBtn) nextBtn.onclick = function() { nextSlide(); startAutoSlide(); };
-    if (prevBtn) prevBtn.onclick = function() { prevSlide(); startAutoSlide(); };
-
-    track.onmouseenter = stopAutoSlide;
-    track.onmouseleave = startAutoSlide;
-
-    updateCarousel();
-    startAutoSlide();
+    // Animatsiya YANGI qiymatlar bilan BOSHIDAN ketsin. Aks holda (masalan oyna o'lchami
+    // o'zgarganda) brauzer o'tgan vaqtni saqlab qolib, lenta o'rtasidan sakrab ketardi.
+    track.style.animation = 'none';
+    void track.offsetWidth;   // reflow — "none" haqiqatan qo'llanishi uchun
+    track.style.animation = '';
   }
 
-  // Natijalar (Results Certificates) Carousel
-  function initResultsCarousel() {
-    var track = document.getElementById('resultsTrack');
-    var prevBtn = document.getElementById('prevResult');
-    var nextBtn = document.getElementById('nextResult');
-    var dotsContainer = document.getElementById('resultDots');
-    if (!track) return;
-
-    var slides = Array.from(track.children);
-    if (slides.length === 0) return;
-    var currentIndex = 0;
-    // Eski taymer to'xtatiladi: init qayta chaqirilsa ikkita interval bitta trekni surardi.
-    if (resultsAutoTimer) { clearInterval(resultsAutoTimer); resultsAutoTimer = null; }
-
-    function getSlidesPerPage() {
-      if (window.innerWidth <= 640) return 1;
-      if (window.innerWidth <= 992) return 2;
-      return 3;
-    }
-
-    function maxIndex() {
-      return Math.max(0, slides.length - getSlidesPerPage());
-    }
-
-    function renderDots() {
-      if (!dotsContainer) return;
-      dotsContainer.innerHTML = '';
-      var totalDots = maxIndex() + 1;
-      for (var i = 0; i < totalDots; i++) {
-        (function(index) {
-          var dot = document.createElement('div');
-          dot.className = 'carousel-dot' + (index === currentIndex ? ' active' : '');
-          dot.addEventListener('click', function() { goToIndex(index); });
-          dotsContainer.appendChild(dot);
-        })(i);
-      }
-    }
-
-    function updateCarousel() {
-      if (!slides[0]) return;
-      var slideWidth = slides[0].getBoundingClientRect().width + 24; // gap: 24px
-      track.style.transform = 'translateX(-' + (currentIndex * slideWidth) + 'px)';
-      renderDots();
-    }
-
-    function goToIndex(index) {
-      currentIndex = index;
-      if (currentIndex > maxIndex()) currentIndex = 0;
-      if (currentIndex < 0) currentIndex = maxIndex();
-      updateCarousel();
-    }
-
-    function nextSlide() {
-      goToIndex(currentIndex + 1);
-    }
-
-    function prevSlide() {
-      goToIndex(currentIndex - 1);
-    }
-
-    function startAutoSlide() {
-      stopAutoSlide();
-      resultsAutoTimer = setInterval(nextSlide, 3500);
-    }
-
-    function stopAutoSlide() {
-      if (resultsAutoTimer) clearInterval(resultsAutoTimer);
-    }
-
-    if (nextBtn) nextBtn.onclick = function() { nextSlide(); startAutoSlide(); };
-    if (prevBtn) prevBtn.onclick = function() { prevSlide(); startAutoSlide(); };
-
-    track.onmouseenter = stopAutoSlide;
-    track.onmouseleave = startAutoSlide;
-
-    updateCarousel();
-    startAutoSlide();
+  /** Chizilgan trekni uzluksiz lentaga aylantiradi (slaydlar allaqachon qo'yilgan bo'lishi kerak). */
+  function initMarquee(track) {
+    if (!track || track.children.length === 0) return;
+    // Asl slaydlar soni ESLAB QOLINADI — qayta o'lchashda takrorlar shunga qarab tozalanadi.
+    track.setAttribute('data-base-count', String(track.children.length));
+    if (marqueeTracks.indexOf(track) === -1) marqueeTracks.push(track);
+    layoutMarquee(track);
   }
 
-  initResultsCarousel();
+  // Oyna o'lchami o'zgarganda qayta o'lchash (debounce bilan — sudrab o'lchamni o'zgartirganda
+  // har piksel uchun butun lentani qayta chizish shart emas).
+  var marqueeResizeTimer = null;
+  window.addEventListener('resize', function() {
+    if (marqueeResizeTimer) clearTimeout(marqueeResizeTimer);
+    marqueeResizeTimer = setTimeout(function() {
+      marqueeTracks.forEach(layoutMarquee);
+    }, 200);
+  });
 })();
