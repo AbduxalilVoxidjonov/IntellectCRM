@@ -24,6 +24,50 @@
     });
   }
 
+
+  // ─────────────────────────── NAV: "Yutuqlar" ochiladigan menyusi ───────────────────────────
+  // Desktopda hover ham ochadi (CSS), lekin sensorli ekranda hover YO'Q — shu sabab bosish
+  // bilan ham ochiladi. Mobil menyuda (<=860px) ochilish umuman kerak emas: u yerda ikkita
+  // havola sarlavha ostida ketma-ket turadi (CSS), tugma esa `pointer-events: none`.
+  (function initNavDropdowns() {
+    var drops = document.querySelectorAll('[data-nav-drop]');
+    if (drops.length === 0) return;
+
+    function closeAll(except) {
+      for (var i = 0; i < drops.length; i++) {
+        if (drops[i] === except) continue;
+        drops[i].classList.remove('open');
+        var b = drops[i].querySelector('.nav-drop-toggle');
+        if (b) b.setAttribute('aria-expanded', 'false');
+      }
+    }
+
+    for (var i = 0; i < drops.length; i++) {
+      (function(drop) {
+        var btn = drop.querySelector('.nav-drop-toggle');
+        if (!btn) return;
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var willOpen = !drop.classList.contains('open');
+          closeAll(drop);
+          drop.classList.toggle('open', willOpen);
+          btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        });
+        // Havola bosilganda menyu yopiladi (bir xil sahifa ichida ham — faqat hash o'zgaradi).
+        var links = drop.querySelectorAll('.nav-drop-link');
+        for (var k = 0; k < links.length; k++) {
+          links[k].addEventListener('click', function() { closeAll(null); });
+        }
+      })(drops[i]);
+    }
+
+    document.addEventListener('click', function() { closeAll(null); });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeAll(null);
+    });
+  })();
+
   // ⚠️ NAMUNA (soxta) SERTIFIKATLAR YO'Q. Ilgari bu yerda 4 ta o'ylab topilgan o'quvchi
   // (ism, ball, boshqa odamning sertifikat surati) qattiq kodlangan va sahifa ochilishi
   // bilan AYNAN shular chizilardi — ya'ni CMS'ga hech narsa kiritilmagan markaz ommaviy
@@ -172,6 +216,22 @@
 
   // ===================== RO'YXAT =====================
 
+  /**
+    * OLIYGOHGA KIRISH natijasimi? Yagona ta'rif — filtrlar shu funksiyadan foydalanadi, aks
+    * holda "Oliygohga kirishlar" va "Sertifikatlar" kesimlari ustma-ust tushib, bitta yozuv
+    * ikkala ro'yxatda ham ko'rinishi mumkin edi.
+    * CMS'dagi TOIFA (yoki tur) asosiy manba; sarlavhadagi kalit so'zlar esa toifa
+    * belgilanmasdan kiritilgan eski yozuvlar uchun (xalqaro/milliy filtrlaridagi bilan bir xil uslub).
+    */
+  function isOliygoh(c) {
+    var type = (c.certType || '').toLowerCase();
+    var title = (c.title || '').toLowerCase();
+    var cat = (c.category || '').toLowerCase();
+    return cat.indexOf('oliygoh') !== -1 || type.indexOf('oliygoh') !== -1 ||
+           title.indexOf('oliygoh') !== -1 || title.indexOf('universitet') !== -1 ||
+           title.indexOf('grant') !== -1;
+  }
+
   function matchesFilter(c) {
     var catLower = (currentFilter || 'all').toLowerCase();
     if (catLower === 'all') return true;
@@ -179,6 +239,14 @@
     var typeLower = (c.certType || '').toLowerCase();
     var titleLower = (c.title || '').toLowerCase();
     var cCategoryLower = (c.category || '').toLowerCase();
+
+    var oliygoh = isOliygoh(c);
+    if (catLower === 'oliygoh') return oliygoh;
+    // "Sertifikatlar" = oliygohga kirishlardan BOSHQA hammasi (navdagi ikkinchi band).
+    if (catLower === 'sertifikat') return !oliygoh;
+    // ⚠️ Oliygoh natijasi xalqaro/milliy kesimlariga TUSHMAYDI: turi "IELTS" bo'lib qolgan
+    // bo'lsa ham u sertifikat emas, kirish natijasi.
+    if (oliygoh) return false;
 
     if (catLower === 'xalqaro') {
       return typeLower.indexOf('ielts') !== -1 || typeLower.indexOf('multi') !== -1 || typeLower.indexOf('cefr') !== -1 ||
@@ -297,12 +365,31 @@
 
   filterTabs.forEach(function(tab) {
     tab.addEventListener('click', function() {
-      filterTabs.forEach(function(t) { t.classList.remove('active'); });
-      tab.classList.add('active');
-      currentFilter = tab.getAttribute('data-filter') || 'all';
-      renderGrid();
+      setFilter(tab.getAttribute('data-filter') || 'all');
     });
   });
+
+  /** Filtrni qo'yadi va mos chipni belgilaydi (bitta joy — chip va hash ayri ketmasin). */
+  function setFilter(value) {
+    currentFilter = value || 'all';
+    filterTabs.forEach(function(t) {
+      t.classList.toggle('active', (t.getAttribute('data-filter') || 'all') === currentFilter);
+    });
+    renderGrid();
+  }
+
+  // NAVDAGI "Yutuqlar" bandlari shu sahifaga hash bilan keladi: `#oliygoh` → oliygohga
+  // kirishlar, `#sertifikatlar` → sertifikatlar. Noma'lum hash e'tiborsiz qoldiriladi
+  // (filtr "Barchasi" bo'lib qolaveradi) — sahifa hech qachon bo'sh ochilmasin.
+  function applyHashFilter() {
+    var h = (window.location.hash || '').replace('#', '').toLowerCase();
+    if (h === 'oliygoh') setFilter('Oliygoh');
+    else if (h === 'sertifikatlar' || h === 'sertifikat') setFilter('Sertifikat');
+  }
+  applyHashFilter();
+  // Sahifa ALLAQACHON ochiq bo'lganda navdan bosilsa faqat hash o'zgaradi — sahifa qayta
+  // yuklanmaydi, shuning uchun o'zgarish alohida kuzatiladi.
+  window.addEventListener('hashchange', applyHashFilter);
 
   if (searchInput) {
     searchInput.addEventListener('input', function() {

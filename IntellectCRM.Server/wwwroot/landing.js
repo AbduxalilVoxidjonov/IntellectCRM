@@ -1166,6 +1166,50 @@
     layoutMarquee(track);
   }
 
+
+  // ─────────────────────────── NAV: "Yutuqlar" ochiladigan menyusi ───────────────────────────
+  // Desktopda hover ham ochadi (CSS), lekin sensorli ekranda hover YO'Q — shu sabab bosish
+  // bilan ham ochiladi. Mobil menyuda (<=860px) ochilish umuman kerak emas: u yerda ikkita
+  // havola sarlavha ostida ketma-ket turadi (CSS), tugma esa `pointer-events: none`.
+  (function initNavDropdowns() {
+    var drops = document.querySelectorAll('[data-nav-drop]');
+    if (drops.length === 0) return;
+
+    function closeAll(except) {
+      for (var i = 0; i < drops.length; i++) {
+        if (drops[i] === except) continue;
+        drops[i].classList.remove('open');
+        var b = drops[i].querySelector('.nav-drop-toggle');
+        if (b) b.setAttribute('aria-expanded', 'false');
+      }
+    }
+
+    for (var i = 0; i < drops.length; i++) {
+      (function(drop) {
+        var btn = drop.querySelector('.nav-drop-toggle');
+        if (!btn) return;
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var willOpen = !drop.classList.contains('open');
+          closeAll(drop);
+          drop.classList.toggle('open', willOpen);
+          btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        });
+        // Havola bosilganda menyu yopiladi (bir xil sahifa ichida ham — faqat hash o'zgaradi).
+        var links = drop.querySelectorAll('.nav-drop-link');
+        for (var k = 0; k < links.length; k++) {
+          links[k].addEventListener('click', function() { closeAll(null); });
+        }
+      })(drops[i]);
+    }
+
+    document.addEventListener('click', function() { closeAll(null); });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeAll(null);
+    });
+  })();
+
   // Oyna o'lchami o'zgarganda qayta o'lchash (debounce bilan — sudrab o'lchamni o'zgartirganda
   // har piksel uchun butun lentani qayta chizish shart emas).
   var marqueeResizeTimer = null;

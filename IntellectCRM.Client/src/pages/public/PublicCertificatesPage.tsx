@@ -10,6 +10,7 @@ import {
   Sparkles,
   ArrowLeft,
   Share2,
+  ChevronDown,
 } from 'lucide-react'
 import { api } from '@/api/client'
 
@@ -37,6 +38,29 @@ export interface PublicCertItem {
   order: number
 }
 
+/**
+ * Manzil hash'idan kesim: `#oliygoh` → oliygohga kirishlar, `#sertifikatlar` → sertifikatlar.
+ * Statik `sertifikatlar.js` dagi `applyHashFilter` bilan AYNAN bir xil qoida.
+ */
+function categoryFromHash(): string {
+  const h = (window.location.hash || '').replace('#', '').toLowerCase()
+  if (h === 'oliygoh') return 'oliygoh'
+  if (h === 'sertifikatlar' || h === 'sertifikat') return 'sertifikat'
+  return 'all'
+}
+
+/**
+ * OLIYGOHGA KIRISH natijasimi? Yagona ta'rif — "Oliygohga kirishlar" va "Sertifikatlar"
+ * kesimlari ustma-ust tushmasin (statik `sertifikatlar.js` dagi `isOliygoh` bilan bir xil).
+ */
+function isOliygoh(item: { category?: string; certType?: string; title?: string }): boolean {
+  const cat = (item.category || '').toLowerCase()
+  const type = (item.certType || '').toLowerCase()
+  const title = (item.title || '').toLowerCase()
+  return cat.includes('oliygoh') || type.includes('oliygoh') ||
+    title.includes('oliygoh') || title.includes('universitet') || title.includes('grant')
+}
+
 export function PublicCertificatesPage() {
   const [certs, setCerts] = useState<PublicCertItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,7 +68,11 @@ export function PublicCertificatesPage() {
   // deyish foydalanuvchini chalg'itardi (markazda sertifikat yo'q deb tushunardi).
   const [loadError, setLoadError] = useState(false)
   const [search, setSearch] = useState('')
-  const [activeCategory, setActiveCategory] = useState<string>('all')
+  // Navdagi "Yutuqlar → Oliygohga kirishlar / Sertifikatlar" bandlari shu sahifaga hash bilan
+  // keladi. Noma'lum hash e'tiborsiz qoldiriladi — sahifa hech qachon bo'sh ochilmasin.
+  const [activeCategory, setActiveCategory] = useState<string>(() => categoryFromHash())
+  /** Nav menyusi ochiqmi (sensorli ekranda hover yo'q — bosish bilan ochiladi). */
+  const [navOpen, setNavOpen] = useState(false)
   const [selectedImg, setSelectedImg] = useState<string | null>(null)
   const [selectedCert, setSelectedCert] = useState<PublicCertItem | null>(null)
 
@@ -82,9 +110,20 @@ export function PublicCertificatesPage() {
   // Categories extraction
   const categories = [
     { id: 'all', label: '🏆 Barchasi' },
+    { id: 'oliygoh', label: '🎓 Oliygohga kirishlar' },
+    { id: 'sertifikat', label: '📜 Sertifikatlar' },
     { id: 'xalqaro', label: '🌐 Xalqaro Sertifikatlar (IELTS / Multilevel)' },
     { id: 'milliy', label: '🇺🇿 Milliy Sertifikatlar (A/A+ / SAT)' },
   ]
+
+  /** Nav menyusidan yoki chipdan kesim tanlash — manzil ham yangilanadi (havola nusxalansa
+   *  o'sha kesim ochilsin). Sahifa qayta yuklanmaydi, shuning uchun `replaceState`. */
+  const pickCategory = (id: string) => {
+    setActiveCategory(id)
+    setNavOpen(false)
+    const hash = id === 'oliygoh' ? '#oliygoh' : id === 'sertifikat' ? '#sertifikatlar' : ''
+    window.history.replaceState(null, '', `/sertifikatlar${hash}`)
+  }
 
   const filteredCerts = certs.filter((item) => {
     // ⚠️ Maydonlar `|| ''` bilan himoyalangan: CMS'da to'ldirilmagan qiymat javobda `null`
@@ -105,6 +144,14 @@ export function PublicCertificatesPage() {
     // toifa "Milliy" deb belgilangan, lekin turi/sarlavhasi "SAT/Milliy" so'zini o'z ichiga
     // olmagan sertifikat aks holda hech bir filtrga tushmay, ro'yxatdan yo'qolardi.
     const catLower = (item.category || '').toLowerCase()
+
+    const oliygoh = isOliygoh(item)
+    if (activeCategory === 'oliygoh') return oliygoh
+    // "Sertifikatlar" = oliygohga kirishlardan BOSHQA hammasi (navdagi ikkinchi band).
+    if (activeCategory === 'sertifikat') return !oliygoh
+    // ⚠️ Oliygoh natijasi xalqaro/milliy kesimlariga TUSHMAYDI: turi "IELTS" bo'lib qolgan
+    // bo'lsa ham u sertifikat emas, kirish natijasi.
+    if (oliygoh) return false
 
     if (activeCategory === 'xalqaro') {
       return typeLower.includes('ielts') || typeLower.includes('multi') || typeLower.includes('cefr') || titleLower.includes('ielts') || titleLower.includes('multi') || catLower.includes('xalqaro')
@@ -134,9 +181,37 @@ export function PublicCertificatesPage() {
             <a href="/#teachers" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">
               Ustozlar
             </a>
-            <Link to="/sertifikatlar" className="text-sm font-bold text-blue-400 border-b-2 border-blue-500 pb-1">
-              Sertifikatlar
-            </Link>
+            {/* YUTUQLAR — ikki band: oliygohga kirishlar va sertifikatlar. Ikkalasi ham shu
+                sahifaning kesimlari (statik landing/sertifikatlar sahifalaridagi nav bilan bir xil). */}
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => setNavOpen((v) => !v)}
+                aria-expanded={navOpen}
+                aria-haspopup="true"
+                className="inline-flex items-center gap-1 text-sm font-bold text-blue-400 border-b-2 border-blue-500 pb-1"
+              >
+                Yutuqlar
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              <div className={`${navOpen ? 'block' : 'hidden'} group-hover:block absolute left-1/2 -translate-x-1/2 top-full pt-3 z-50`}>
+                <div className="min-w-[232px] rounded-2xl border border-white/10 bg-[#0d1524] p-2 shadow-2xl">
+                  {[
+                    { id: 'oliygoh', label: '🎓 Oliygohga kirishlar' },
+                    { id: 'sertifikat', label: '📜 Sertifikatlar' },
+                  ].map((it) => (
+                    <button
+                      key={it.id}
+                      type="button"
+                      onClick={() => pickCategory(it.id)}
+                      className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-gray-300 hover:bg-white/5 hover:text-white"
+                    >
+                      {it.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <a href="/#contact" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">
               Aloqa
             </a>
@@ -199,7 +274,7 @@ export function PublicCertificatesPage() {
                 {categories.map((cat) => (
                   <button
                     key={cat.id}
-                    onClick={() => setActiveCategory(cat.id)}
+                    onClick={() => pickCategory(cat.id)}
                     className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
                       activeCategory === cat.id
                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 border border-blue-500'

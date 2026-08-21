@@ -1177,6 +1177,7 @@ export const LandingCmsPage: React.FC = () => {
                       >
                         <option value="Xalqaro">Xalqaro Sertifikatlar (IELTS, CEFR, SAT)</option>
                         <option value="Milliy">Milliy Sertifikatlar (DTM, A/A+)</option>
+                        <option value="Oliygoh">Oliygohga kirishlar (universitet, grant)</option>
                       </select>
                     </div>
                     <div>
@@ -1190,6 +1191,7 @@ export const LandingCmsPage: React.FC = () => {
                         <option value="Multilevel">Multilevel (CEFR)</option>
                         <option value="Milliy">Milliy Sertifikat (A/A+)</option>
                         <option value="SAT">SAT</option>
+                        <option value="Oliygoh">Oliygoh (universitetga kirish)</option>
                         <option value="Boshqa">Boshqa Yo'nalish</option>
                       </select>
                     </div>
@@ -1220,7 +1222,9 @@ export const LandingCmsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {(formData.certType === 'IELTS' || formData.certType === 'Multilevel' || formData.category === 'Xalqaro') ? (
+                  {formData.category !== 'Oliygoh' &&
+                   formData.certType !== 'Oliygoh' &&
+                   (formData.certType === 'IELTS' || formData.certType === 'Multilevel' || formData.category === 'Xalqaro') ? (
                     <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-amber-800 dark:text-amber-300">4 ta Section Ballari (IELTS / CEFR)</span>
@@ -1280,13 +1284,21 @@ export const LandingCmsPage: React.FC = () => {
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Natija Balli / Daraja (String / Matn)</label>
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        {formData.category === 'Oliygoh' || formData.certType === 'Oliygoh'
+                          ? 'Oliygoh va natija (matn)'
+                          : 'Natija Balli / Daraja (String / Matn)'}
+                      </label>
                       <input
                         type="text"
                         value={formData.overallScore || ''}
                         onChange={(e) => setFormData({ ...formData, overallScore: e.target.value })}
                         className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white text-xs font-semibold"
-                        placeholder="Masalan: Milliy Sertifikat A+, 1500+ SAT, 96.4 ball yoki DTM 100%"
+                        placeholder={
+                          formData.category === 'Oliygoh' || formData.certType === 'Oliygoh'
+                            ? "Masalan: TATU — grant, Inha University — 100% stipendiya"
+                            : "Masalan: Milliy Sertifikat A+, 1500+ SAT, 96.4 ball yoki DTM 100%"
+                        }
                       />
                     </div>
                   )}

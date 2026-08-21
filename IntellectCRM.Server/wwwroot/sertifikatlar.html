@@ -107,6 +107,29 @@
       color: #eaf1fb;
     }
     .nav-actions { display: flex; align-items: center; gap: 12px; }
+    /* ═══ NAV: "Yutuqlar" ochiladigan menyusi (landing.html dagi bilan bir xil) ═══
+       Ilgari navda bitta "Sertifikatlar" havolasi turardi. Endi markazning YUTUQLARI ikki xil:
+       oliygohga kirishlar va sertifikatlar — ikkalasi ham shu sahifada, mos filtr bilan
+       ochiladi (`#oliygoh` / `#sertifikatlar`). */
+    .nav-drop { position: relative; }
+    .nav-drop-toggle { background: none; border: none; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; padding: 0; }
+    .nav-caret { font-size: 11px; transition: transform .2s; }
+    .nav-drop.open .nav-caret { transform: rotate(180deg); }
+    .nav-drop-menu {
+      position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+      min-width: 232px; list-style: none; padding: 8px; display: none; z-index: 60;
+      background: #12233a; border: 1px solid rgba(255,255,255,.1); border-radius: 14px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.45);
+    }
+    /* Tugma bilan menyu orasidagi bo'shliqni "ko'prik" bilan yopamiz — aks holda sichqoncha
+       o'sha bo'shliqqa tushganda menyu yopilib qolardi. */
+    .nav-drop-menu::before { content: ''; position: absolute; top: -12px; left: 0; right: 0; height: 12px; }
+    .nav-drop.open .nav-drop-menu { display: block; }
+    .nav-drop-link { display: block; padding: 10px 12px; border-radius: 10px; color: #9fb3cc; font-weight: 600; font-size: 14px; }
+    .nav-drop-link:hover { background: rgba(255,255,255,.06); color: #eaf1fb; }
+    @media (hover: hover) and (min-width: 861px) {
+      .nav-drop:hover .nav-drop-menu { display: block; }
+    }
     /* Mobil menyu tugmasi — landingdagi bilan aynan bir xil (ilgari bu sahifada YO'Q edi:
        telefonda 6 ta havola header'ga sig'may qolardi). */
     .nav-toggle { display: none; flex-direction: column; justify-content: space-between; width: 28px; height: 20px; background: transparent; border: none; cursor: pointer; padding: 0; }
@@ -127,6 +150,16 @@
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
       }
       .nav-links.show { display: flex; }
+      /* Mobil menyuda "ochilish" ma'nosiz — "Yutuqlar" sarlavha bo'lib qoladi, ikkita havola
+         esa uning ostida ketma-ket turadi. */
+      .nav-drop-toggle { pointer-events: none; color: #eaf1fb; }
+      .nav-caret { display: none; }
+      .nav-drop-menu {
+        position: static; transform: none; display: block; min-width: 0;
+        background: transparent; border: none; box-shadow: none; padding: 10px 0 0 14px;
+      }
+      .nav-drop-menu li + li { margin-top: 12px; }
+      .nav-drop-link { padding: 0; font-size: 15px; }
     }
 
     .btn {
@@ -600,7 +633,15 @@
       <ul class="nav-links" id="navLinks">
         <li><a href="/#about" class="nav-link">Biz haqimizda</a></li>
         <li><a href="/#teachers" class="nav-link">O'qituvchilar</a></li>
-        <li><a href="/sertifikatlar" class="nav-link active">Sertifikatlar</a></li>
+        <li class="nav-drop" data-nav-drop>
+          <button type="button" class="nav-link nav-drop-toggle active" aria-expanded="false" aria-haspopup="true">
+            Yutuqlar<span class="nav-caret" aria-hidden="true">▾</span>
+          </button>
+          <ul class="nav-drop-menu">
+            <li><a href="/sertifikatlar#oliygoh" class="nav-drop-link">🎓 Oliygohga kirishlar</a></li>
+            <li><a href="/sertifikatlar#sertifikatlar" class="nav-drop-link">📜 Sertifikatlar</a></li>
+          </ul>
+        </li>
         <li><a href="/#subjects" class="nav-link">Fanlar</a></li>
         <li><a href="/#faq" class="nav-link">FAQ</a></li>
         <li><a href="/#contact" class="nav-link">Aloqa</a></li>
@@ -630,6 +671,8 @@
 
         <div class="filter-tabs">
           <button type="button" class="filter-tab active" data-filter="all">🏆 Barchasi</button>
+          <button type="button" class="filter-tab" data-filter="Oliygoh">🎓 Oliygohga kirishlar</button>
+          <button type="button" class="filter-tab" data-filter="Sertifikat">📜 Sertifikatlar</button>
           <button type="button" class="filter-tab" data-filter="Xalqaro">🌐 Xalqaro Sertifikatlar (IELTS / Multilevel)</button>
           <button type="button" class="filter-tab" data-filter="Milliy">🇺🇿 Milliy Sertifikatlar (A/A+ / SAT)</button>
         </div>

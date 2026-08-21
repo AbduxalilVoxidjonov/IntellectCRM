@@ -4662,8 +4662,12 @@ public class LandingCertificate
     public string Title { get; set; } = string.Empty;
     public string StudentName { get; set; } = string.Empty;
     public string ImageUrl { get; set; } = string.Empty;
-    public string Category { get; set; } = "Xalqaro"; // "Xalqaro" or "Milliy"
-    public string CertType { get; set; } = "IELTS"; // "IELTS", "Multilevel", "Milliy", "SAT", "Boshqa"
+    /// <summary>Bo'lim: "Xalqaro" | "Milliy" | "Oliygoh" (oliygohga kirish natijalari).
+    /// ⚠️ Ommaviy sahifadagi filtr ANIQ belgilangan toifani ustun ko'radi: "Oliygoh" yozuv
+    /// turi IELTS bo'lsa ham "Xalqaro" filtriga tushmaydi (bitta natija ikki joyda ko'rinmasin).</summary>
+    public string Category { get; set; } = "Xalqaro";
+    /// <summary>"IELTS" | "Multilevel" | "Milliy" | "SAT" | "Oliygoh" | "Boshqa".</summary>
+    public string CertType { get; set; } = "IELTS";
     public string OverallScore { get; set; } = string.Empty;
     public string Listening { get; set; } = string.Empty;
     public string Reading { get; set; } = string.Empty;
