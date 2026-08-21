@@ -383,6 +383,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<IgAdPage>().Property(p => p.PageId).HasMaxLength(200);
         b.Entity<IgAdPage>().HasIndex(p => p.PageId);
 
+        // BILIM BAZASI VEKTORLARI (RAG) va JAVOB SIFATI JURNALI.
+        // ⚠️ `EmbeddingJson` ga UZUNLIK QO'YILMAYDI — 768 o'lchamli vektor ≈ 9–10 KB.
+        // ⚠️ `IgMessage.CreatedAt` indeksi: `GET /quality` ham, mavjud `GET /analytics` ham
+        //    sana ORALIG'I bo'yicha skan qiladi. Jadval yozishmalar bilan o'sadi, indekssiz
+        //    har hisobot butun jadval bo'ylab seq-scan bo'lardi.
+        b.Entity<IgKnowledge>().Property(k => k.EmbeddingModel).HasMaxLength(100);
+        b.Entity<IgKnowledge>().Property(k => k.EmbeddedAt).HasMaxLength(40);
+        b.Entity<IgKnowledge>().Property(k => k.EmbeddedHash).HasMaxLength(64);
+        b.Entity<IgMessage>().Property(m => m.AiSuggestedText).HasMaxLength(1000);
+        b.Entity<IgMessage>().Property(m => m.AiSuggestedIntent).HasMaxLength(40);
+        b.Entity<IgMessage>().HasIndex(m => m.CreatedAt);
+
         // REKLAMA STATISTIKASI (Meta Ads Insights).
         // 1) `IgAdAccount.AdAccountId` — UNIKAL: akkaunt ikki marta ulanmasin. Admin "act_" ni
         //    yozmay qo'yishi juda ehtimolli, shuning uchun qiymat saqlashdan OLDIN prefiksli

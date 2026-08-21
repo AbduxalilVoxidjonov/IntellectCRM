@@ -4002,6 +4002,24 @@ public class IgMessage
     /// ko'rsatish uchun denormalizatsiya. Bo'sh = aniqlanmagan.</summary>
     public string AdCampaignId { get; set; } = string.Empty;
 
+    // ── E6.6 — JAVOB SIFATI JURNALI ──
+    // Operator AI javobini tuzatib yuborsa — bu promptni yaxshilash uchun eng qimmatli ma'lumot:
+    // "AI shunday dedi, odam esa shunday yozdi". Uch maydon FAQAT OPERATOR yozgan chiquvchi
+    // xabarda to'ldiriladi (`IgQualityLog`), AI'ning o'z javobida bo'sh qoladi.
+
+    /// <summary>Shu javobdan OLDIN AI taklif qilgan matn (bo'sh = taklif bo'lmagan).</summary>
+    public string AiSuggestedText { get; set; } = string.Empty;
+
+    /// <summary>Taklif qilingan javobning niyati (AI aniqlagan `intent`).
+    /// <para>⚠️ Mavjud <see cref="AiIntent"/> ga YOZILMAYDI ATAYIN: analitika (`GET /analytics`)
+    /// niyatlarni AYNAN o'sha ustun bo'yicha guruhlaydi va operator xabariga ham niyat yozilsa
+    /// bitta suhbat ikki marta sanalib, mavjud hisobot buzilardi.</para></summary>
+    public string AiSuggestedIntent { get; set; } = string.Empty;
+
+    /// <summary>Operator taklifni O'ZGARTIRIBmi yubordi. `false` + <see cref="AiSuggestedText"/>
+    /// to'la = taklif AYNAN qabul qilingan (bu ham qimmatli signal: "AI to'g'ri yozgan").</summary>
+    public bool WasEdited { get; set; }
+
     public string CreatedAt { get; set; } = string.Empty;
 }
 
@@ -4051,6 +4069,33 @@ public class IgKnowledge
     public bool IsActive { get; set; } = true;
     public string UpdatedAt { get; set; } = string.Empty;
     public string UpdatedBy { get; set; } = string.Empty;
+
+    // ── E6.5 — RAG (semantik qidiruv) ──
+    // Bilim bazasi o'sganda BUTUNLIGICHA promptga sig'maydi (`IgConst.KnowledgeLimit`) va oxiri
+    // KESILADI — ya'ni aynan kerakli bo'lak tushib qolib, AI "bilmayman" deyishi mumkin edi.
+    // Yechim: har bo'lakning ma'no vektori saqlanadi, savolga eng yaqin bir nechtasi tanlanadi.
+    // ⚠️ Vektor bo'sh bo'lsa modul ESKI YO'L bilan ishlaydi (butun bilim bazasi) — RAG faqat
+    // yaxshilash, majburiyat emas (`IgKnowledgeRag`).
+
+    /// <summary>Ma'no vektori — JSON massiv (`[0.12,-0.03,...]`). Bo'sh = hali hisoblanmagan.
+    /// <para>Nega JSON matn: loyihaga yangi kutubxona (`pgvector`) qo'shilmaydi, bilim bazasi esa
+    /// o'nlab bo'lakdan iborat — kosinus oddiy C# hisobida yetarlicha tez.</para></summary>
+    public string EmbeddingJson { get; set; } = string.Empty;
+
+    /// <summary>Vektorni hisoblagan model nomi. Model almashsa vektor QAYTA hisoblanadi —
+    /// har xil modelning vektorlari bir-biri bilan taqqoslanmaydi (o'lchami ham, ma'nosi ham
+    /// boshqa fazoda).</summary>
+    public string EmbeddingModel { get; set; } = string.Empty;
+
+    /// <summary>Vektor qachon hisoblangani (ISO). Diagnostika uchun: "nega bu bo'lak
+    /// topilmayapti" savolida birinchi qaraladigan qiymat.</summary>
+    public string EmbeddedAt { get; set; } = string.Empty;
+
+    /// <summary>Vektor hisoblangan MATNNING hash'i (`IgKnowledgeRag.ContentHash`).
+    /// <para>⚠️ <see cref="UpdatedAt"/> bilan solishtirish YETARLI EMAS: bilim bazasi bulk
+    /// saqlanadi va faqat TARTIB o'zgarganda ham har bo'lakning `UpdatedAt`i yangilanadi —
+    /// hash bo'lmasa har saqlashda BUTUN baza qaytadan embedding qilinardi (bekorga so'rov).</para></summary>
+    public string EmbeddedHash { get; set; } = string.Empty;
 }
 
 /// <summary>

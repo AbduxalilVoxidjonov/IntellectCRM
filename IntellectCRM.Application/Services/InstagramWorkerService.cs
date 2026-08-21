@@ -38,9 +38,16 @@ public class InstagramWorkerService(
     private DateOnly _lastCapiScan = DateOnly.MinValue;
     /// <summary>Kontent joylash tsikli oxirgi marta qachon ishlagani.</summary>
     private DateTime _lastPublishTick = DateTime.MinValue;
+    /// <summary>Bilim bazasi vektorlari oxirgi marta qachon hisoblangani.</summary>
+    private DateTime _lastEmbedTick = DateTime.MinValue;
 
     /// <summary>Kontent joylash tsikli oralig'i (soniya) — navbat tsiklidan sekinroq.</summary>
     private const int PublishTickSeconds = 30;
+
+    /// <summary>Bilim bazasi vektorlari tsikli oralig'i (soniya).
+    /// <para>Sekinroq: bilim bazasi kamdan-kam o'zgaradi, har tsiklda so'rash esa Gemini
+    /// kvotasini bekorga yeyardi.</para></summary>
+    private const int EmbedTickSeconds = 60;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -86,6 +93,17 @@ public class InstagramWorkerService(
             _lastPublishTick = AppClock.Now;
             try { await sp.GetRequiredService<InstagramPublishService>().ProcessDueAsync(ct); }
             catch (Exception ex) { logger.LogError(ex, "Instagram kontentini joylashda xatolik"); }
+        }
+
+        // ── 2b) BILIM BAZASI VEKTORLARI (RAG) — har 60 soniyada ──
+        // ⚠️ `InstagramEnabled` darvozasi ostida: vektor faqat AI agenti uchun kerak.
+        // `EmbedPendingAsync` o'zi ham shu bayroqni tekshiradi (ikki qavat) va birinchi
+        // xatoda to'xtaydi — kvota bekorga sarflanmasin.
+        if (meta.InstagramEnabled && (AppClock.Now - _lastEmbedTick).TotalSeconds >= EmbedTickSeconds)
+        {
+            _lastEmbedTick = AppClock.Now;
+            try { await sp.GetRequiredService<IgEmbeddingService>().EmbedPendingAsync(ct); }
+            catch (Exception ex) { logger.LogError(ex, "Bilim bazasi vektorlarini hisoblashda xatolik"); }
         }
 
         // ── 3) REKLAMA STATISTIKASI — kuniga bir marta, `InstagramAdsSyncHour` da ──

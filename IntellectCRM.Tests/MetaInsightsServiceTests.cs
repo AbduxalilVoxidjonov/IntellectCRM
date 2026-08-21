@@ -272,4 +272,51 @@ public class MetaInsightsServiceTests
         // bu zararsiz), yarim yuklangan tarix esa hisobotda jimgina teshik qoldirardi.
         Assert.Equal("", acc.LastSyncAt);
     }
+
+    /* =============================================================================================
+     *  XATO TASNIFI — avval Meta KODI, keyin matn
+     * ========================================================================================== */
+
+    /// <summary>
+    /// ⚠️ Qaror KOD bo'yicha qabul qilinishi kerak: xato matni foydalanuvchiga ko'rsatiladigan
+    /// jumla va uni tahrirlash normal ish. Ilgari mantiq faqat `Contains("qisqartiring")` ga
+    /// tayanardi — bitta so'z o'zgarsa backfill hech qachon BO'LINMAY qolardi.
+    /// </summary>
+    [Fact]
+    public void Xato_kodi_matndan_ustun()
+    {
+        // Matn butunlay boshqa narsa deyapti, kod esa "juda ko'p ma'lumot".
+        Assert.Equal(
+            MetaInsightsService.SyncFailure.Shrink,
+            MetaInsightsService.Classify(100, 1487534, "butunlay boshqacha yozilgan xato matni"));
+
+        // Token/ruxsat — odam aralashuvi kerak, qayta urinish behuda.
+        Assert.Equal(MetaInsightsService.SyncFailure.Fatal, MetaInsightsService.Classify(190, 0, "..."));
+        Assert.Equal(MetaInsightsService.SyncFailure.Fatal, MetaInsightsService.Classify(200, 0, "..."));
+
+        // Kvota — TO'XTAYMIZ (Meta: davom etilsa blok uzayadi).
+        Assert.Equal(MetaInsightsService.SyncFailure.Stop, MetaInsightsService.Classify(80000, 2446079, "..."));
+    }
+
+    /// <summary>Kod bo'lmasa (tarmoq uzilishi, timeout) qaror MATNDAN olinadi — eski xulq saqlanadi.</summary>
+    [Fact]
+    public void Kod_yoq_bolsa_matnga_tushiladi()
+    {
+        Assert.Equal(
+            MetaInsightsService.SyncFailure.Shrink,
+            MetaInsightsService.Classify(0, 0, "Juda ko'p ma'lumot — sana oralig'ini qisqartiring."));
+        Assert.Equal(
+            MetaInsightsService.SyncFailure.Fatal,
+            MetaInsightsService.Classify(0, 0, "Meta tokeni yaroqsiz."));
+    }
+
+    /// <summary>⚠️ Noma'lum kod ham, noma'lum matn ham — XAVFSIZ tomon: to'xtaymiz.
+    /// Davom etib Meta blokini uzaytirishdan ko'ra kutish arzonroq.</summary>
+    [Fact]
+    public void Nomalum_xato_toxtatadi()
+    {
+        Assert.Equal(MetaInsightsService.SyncFailure.Stop, MetaInsightsService.Classify(999999, 0, "kutilmagan"));
+        Assert.Equal(MetaInsightsService.SyncFailure.Stop, MetaInsightsService.Classify(0, 0, ""));
+        Assert.Equal(MetaInsightsService.SyncFailure.Stop, MetaInsightsService.Classify(0, 0, null));
+    }
 }

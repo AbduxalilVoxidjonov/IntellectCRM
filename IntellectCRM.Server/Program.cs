@@ -357,6 +357,9 @@ builder.Services.AddHttpClient<IntellectCRM.Application.Services.MetaCapiApi>();
 builder.Services.AddScoped<IntellectCRM.Application.Services.MetaCapiService>();
 builder.Services.AddHttpClient<IntellectCRM.Application.Services.InstagramPublishApi>();
 builder.Services.AddScoped<IntellectCRM.Application.Services.InstagramPublishService>();
+// BILIM BAZASI VEKTORLARI (RAG). `AddHttpClient` KERAK EMAS — `GeminiService` kabi statik
+// HttpClient ishlatadi. Fon xizmati uni har 60 soniyada chaqiradi (`EmbedPendingAsync`).
+builder.Services.AddScoped<IntellectCRM.Application.Services.IgEmbeddingService>();
 
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();

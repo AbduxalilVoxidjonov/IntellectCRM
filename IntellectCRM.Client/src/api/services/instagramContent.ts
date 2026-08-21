@@ -15,8 +15,10 @@ import { api } from '../client'
  * ⚠️ JOYLANGAN POST QAYTARIB BO'LMAYDI: Instagram API'si tahrirlashni ham, o'chirishni ham
  * qo'llab-quvvatlamaydi. `DELETE` joylangan postda faqat CRM yozuvini o'chiradi.
  *
- * ⚠️ Media manzili OCHIQ HTTPS bo'lishi shart — faylni Meta O'ZI yuklab oladi. CRM'ning
+ * ⚠️ Media manzili OCHIQ HTTPS bo'lishi shart — faylni Meta O'ZI yuklab oladi. CRM'ning oddiy
  * `/uploads` papkasi login ortida (`UploadsGuard`), ya'ni u yerdagi manzil ISHLAMAYDI.
+ * Shu sababli fayl `uploadIgMedia` orqali ALOHIDA ochiq papkaga (`/uploads/marketing-public/`)
+ * yuklanadi; manzilni qo'lda (tashqi CDN'dan) berish ham qoladi.
  */
 
 // ═══════════════════════════════════════════════ TIPLAR
@@ -343,5 +345,109 @@ export async function getIgContentLimit(): Promise<IgPostLimit> {
 /** Bo'lim diagnostikasi — "nega post chiqmayapti" savolining sabablari (faqat baza). */
 export async function getIgContentStatus(): Promise<IgContentStatus> {
   const { data } = await api.get<IgContentStatus>('/admin/instagram/content/status')
+  return data
+}
+
+// ═══════════════════════════════════════════════ MEDIA YUKLASH (§5.6)
+
+/**
+ * Yuklangan media haqidagi javob (backend `IgUploadedMediaDto`).
+ *
+ * Maydon nomlari `IgMediaItem` bilan AYNAN bir xil — natijani post payload'iga to'g'ridan-to'g'ri
+ * qo'yish uchun.
+ *
+ * ⚠️ `0` = «noma'lum» (fayl sarlavhasidan o'qib bo'lmadi) — `IgMediaItem` dagi bir xil kelishuv.
+ */
+export interface IgUploadedMedia {
+  /** OCHIQ (absolut) HTTPS manzil — Meta faylni SHU manzildan yuklab oladi. */
+  url: string
+  kind: IgMediaKind
+  sizeBytes: number
+  width: number
+  height: number
+  durationSeconds: number
+}
+
+/**
+ * Media faylni serverga yuklaydi.
+ *
+ * 🔴 Fayl odatdagi `/uploads` ga EMAS, ALOHIDA ochiq papkaga (`/uploads/marketing-public/`)
+ * tushadi: Instagram faylni O'ZI yuklab oladi, ya'ni manzil login talab qilmasligi shart
+ * (`UploadsGuard` ortidagi `/uploads` Meta uchun 404 bo'lardi — xato kodi `2207052`).
+ *
+ * ⚠️ Dev muhitida (http) qaytadigan manzil HTTPS bo'lmaydi va server post saqlashda uni
+ * ATAYIN rad etadi — bu yashirilmaydi, lokalda haqiqiy post joylab bo'lmaydi.
+ *
+ * Ruxsat: `marketing.content` (yozish).
+ */
+export async function uploadIgMedia(file: File): Promise<IgUploadedMedia> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await api.post<IgUploadedMedia>('/admin/instagram/content/media', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+// ═══════════════════════════════════════════════ AI BILAN CAPTION YOZISH (§5.10)
+
+/** Matn uslubi (backend `InstagramCaptionService.Tones`). */
+export type IgCaptionTone = 'friendly' | 'expert' | 'energetic' | 'sales'
+
+/** Tanlash ro'yxatining bitta qatori — YORLIQ ham backenddan keladi (drift bo'lmasin). */
+export interface IgCaptionOption {
+  id: string
+  label: string
+}
+
+/** Uslub/til ro'yxatlari + standart qiymatlar. */
+export interface IgCaptionMeta {
+  tones: IgCaptionOption[]
+  languages: IgCaptionOption[]
+  defaultTone: string
+  defaultLanguage: string
+  /** `false` — `.env` da `GEMINI_API_KEY` yo'q; tugma OLDINDAN o'chiriladi. */
+  geminiConfigured: boolean
+}
+
+export interface IgCaptionRequest {
+  postType: IgPostType
+  /** Foydalanuvchi yozgan MAVZU — yagona majburiy maydon. */
+  topic: string
+  language?: string
+  tone?: string
+}
+
+/**
+ * AI natijasi.
+ *
+ * ⚠️ `caption` — TAYYOR matn: hashtaglar allaqachon oxiriga qo'shilgan va chegaralarga
+ * (2200 belgi / 30 hashtag / 20 mention) solishtirilgan. `hashtags` esa faqat KO'RSATISH
+ * uchun — uni matnga QAYTA qo'shish takror bo'lardi.
+ */
+export interface IgCaptionResult {
+  ok: boolean
+  caption: string
+  hashtags: string[]
+  /** `ok === false` bo'lsa — foydalanuvchiga ko'rsatiladigan o'zbekcha sabab. */
+  error: string
+}
+
+/** Uslub/til ro'yxatlari (sahifa ochilganda bir marta). */
+export async function getIgCaptionMeta(): Promise<IgCaptionMeta> {
+  const { data } = await api.get<IgCaptionMeta>('/admin/instagram/content/caption/meta')
+  return data
+}
+
+/**
+ * Mavzudan post matnini yozdiradi.
+ *
+ * ⚠️ Javob HAR DOIM 200 — muvaffaqiyat `ok` bayrog'ida. Sabab: xatolarning aksariyati tashqi
+ * va vaqtinchalik (kalit sozlanmagan, Gemini timeout, format buzuq), foydalanuvchiga esa
+ * umumiy "so'rov xato ketdi" emas, AYNAN sabab kerak. Shuning uchun chaqiruvchi `ok` ni
+ * TEKSHIRISHI shart.
+ */
+export async function generateIgCaption(payload: IgCaptionRequest): Promise<IgCaptionResult> {
+  const { data } = await api.post<IgCaptionResult>('/admin/instagram/content/caption', payload)
   return data
 }

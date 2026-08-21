@@ -202,7 +202,8 @@ public sealed class MetaInsightsService(
                 // yordam bermaydi: oraliq ikkiga bo'linadi va qaytadan so'raladi. Qolgan barcha
                 // xatolarda (token, ruxsat, kvota) qayta urinish TAQIQ — u kvotani yanada
                 // kamaytiradi (formulada `− 0.001 × xatolar`).
-                if (Classify(err) == SyncFailure.Shrink && from < to && splits < MaxSplits)
+                if (Classify(api.LastErrorCode, api.LastErrorSubcode, err) == SyncFailure.Shrink
+                    && from < to && splits < MaxSplits)
                 {
                     splits++;
                     var mid = from.AddDays((to.DayNumber - from.DayNumber) / 2);
@@ -480,8 +481,48 @@ public sealed class MetaInsightsService(
     /// BARQAROR bo'laklar tekshiriladi. Matn o'zgarsa eng yomoni "Stop" bo'ladi — ya'ni
     /// xavfsiz tomonga (qayta urinmaymiz).</para>
     /// </summary>
-    internal static SyncFailure Classify(string? error)
+    internal static SyncFailure Classify(string? error) => Classify(0, 0, error);
+
+    /// <summary>
+    /// Xato TURI — avval Meta KODI bo'yicha, kod bo'lmasa matn bo'yicha.
+    ///
+    /// <para><b>Nega kod birinchi:</b> matn <c>MetaInsightsApi.MapError</c> da yozilgan va u
+    /// foydalanuvchiga ko'rsatiladigan jumla — ya'ni uni tahrirlash NORMAL ish. Agar qaror
+    /// faqat matnga tayansa, bitta so'z o'zgarishi bilan backfill hech qachon BO'LINMAY
+    /// qolardi (va sabab hech qayerda ko'rinmasdi). Kod esa Meta bilan shartnoma.</para>
+    ///
+    /// <para>⚠️ Matn baribir zaxira: tarmoq uzilishi/timeout'da Meta kodi umuman bo'lmaydi (0).
+    /// Noma'lum kodda ham matnga tushiladi, u ham tanimasa — <see cref="SyncFailure.Stop"/>,
+    /// ya'ni XAVFSIZ tomon (kutamiz, davom etib blokni uzaytirmaymiz).</para>
+    /// </summary>
+    /// <param name="code">`error.code` (`MetaInsightsApi.LastErrorCode`), noma'lum bo'lsa 0.</param>
+    /// <param name="subcode">`error.error_subcode`, noma'lum bo'lsa 0.</param>
+    internal static SyncFailure Classify(int code, int subcode, string? error)
     {
+        // ── 1) KOD bo'yicha (barqaror shartnoma) ──
+        switch (code)
+        {
+            // Juda ko'p ma'lumot so'ralgan — backoff YORDAM BERMAYDI, oraliq qisqartiriladi.
+            case 100 when subcode == 1487534:
+                return SyncFailure.Shrink;
+            // Token yaroqsiz / ruxsat yetishmaydi — odam aralashuvi kerak, qayta urinish behuda.
+            case 190:
+            case 200:
+            case 10:
+            case 299:
+                return SyncFailure.Fatal;
+            // ads_insights BUC limiti va app/user/custom limitlar — TO'XTAYMIZ.
+            // Meta ochiq aytadi: limitga yetganda davom etilsa blok UZAYADI.
+            case 80000:
+            case 80004:
+            case 4:
+            case 17:
+            case 32:
+            case 613:
+                return SyncFailure.Stop;
+        }
+
+        // ── 2) MATN bo'yicha (zaxira — kod yo'q yoki noma'lum) ──
         var e = (error ?? "").ToLowerInvariant();
         if (e.Length == 0) return SyncFailure.Stop;
 

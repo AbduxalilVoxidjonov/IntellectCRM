@@ -47,7 +47,9 @@ public static class InstagramAgentService
             return (false, null, "Gemini API kaliti sozlanmagan (.env: GEMINI_API_KEY) — AI javob bera olmaydi.");
 
         var meta = await db.CenterMeta.AsNoTracking().FirstOrDefaultAsync(ct);
-        var knowledge = await LoadKnowledgeAsync(db, ct);
+        // ⚠️ Bilim bazasi SAVOLGA QARAB tanlanadi (E6.5 — RAG). Savol berilmasa yoki RAG
+        // ishlamasa AYNAN eski xatti-harakat qoladi (butun baza + `KnowledgeLimit`).
+        var knowledge = await LoadKnowledgeAsync(db, ct, IgKnowledgeRag.QueryText(message, mediaCaption));
 
         var model = (meta?.InstagramAiModel ?? "").Trim();
         if (model.Length == 0) model = GeminiService.ResolveModel(config);
@@ -65,22 +67,56 @@ public static class InstagramAgentService
         return (true, parsed, "");
     }
 
-    /// <summary>Bilim bazasini bitta matnga yig'adi (faol bo'laklar, tartib bo'yicha).</summary>
-    public static async Task<string> LoadKnowledgeAsync(IAppDbContext db, CancellationToken ct = default)
+    /// <summary>
+    /// Bilim bazasini promptga tayyorlaydi (faol bo'laklar, tartib bo'yicha).
+    ///
+    /// <para><b>E6.5 — RAG:</b> <paramref name="query"/> berilgan va bilim bazasi TAYYOR bo'lsa
+    /// (<see cref="IgKnowledgeRag.CanUseRag"/>) savolga ma'nosi eng yaqin bir necha bo'lak
+    /// tanlanadi. Aks holda — <b>eski xatti-harakat</b>: barcha faol bo'laklar
+    /// <c>IgConst.KnowledgeLimit</c> gacha.</para>
+    ///
+    /// <para>🔴 <b>ZAXIRA YO'L HAR QANDAY XATODA:</b> kalit yo'q, embedding so'rovi yiqildi,
+    /// vektorlar buzuq yoki hech bir bo'lak chegaradan o'tmadi — hamma holatda butun bilim
+    /// bazasi qaytadi. RAG modulni HECH QACHON to'xtatib qo'ymaydi.</para>
+    ///
+    /// <para>⚠️ Tanlov SHU YERDA (DB + HTTP), <see cref="BuildSystemPrompt"/> esa SOF bo'lib
+    /// qoladi — u tayyor matnni oladi va testlari o'zgarishsiz ishlaydi.</para>
+    /// </summary>
+    public static async Task<string> LoadKnowledgeAsync(
+        IAppDbContext db, CancellationToken ct = default, string? query = null)
     {
         var items = await db.IgKnowledges.AsNoTracking()
             .Where(k => k.IsActive)
             .OrderBy(k => k.Order)
-            .Select(k => new { k.Title, k.Content })
+            .Select(k => new { k.Id, k.Title, k.Content, k.Order, k.EmbeddingJson })
             .ToListAsync(ct);
 
-        var sb = new StringBuilder();
-        foreach (var k in items)
-        {
-            if (sb.Length >= IgConst.KnowledgeLimit) break;
-            sb.Append("## ").Append(k.Title).Append('\n').Append(k.Content).Append("\n\n");
-        }
-        return InstagramContract.Trim(sb.ToString(), IgConst.KnowledgeLimit);
+        var chunks = items
+            .Select(k => new IgRagChunk(k.Id, k.Title, k.Content, k.Order, IgKnowledgeRag.ParseVector(k.EmbeddingJson)))
+            .ToList();
+
+        var selected = await TrySelectAsync(chunks, query, ct);
+        return IgKnowledgeRag.Compose(selected ?? chunks, IgConst.KnowledgeLimit);
+    }
+
+    /// <summary>
+    /// RAG tanlovi. <c>null</c> qaytishi «zaxira yo'lga o't» degani (savol yo'q, baza tayyor
+    /// emas, kalit yo'q, so'rov yiqildi yoki mos bo'lak topilmadi).
+    /// </summary>
+    private static async Task<IReadOnlyList<IgRagChunk>?> TrySelectAsync(
+        IReadOnlyList<IgRagChunk> chunks, string? query, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return null;
+        if (!IgKnowledgeRag.CanUseRag(chunks)) return null;
+        if (!GeminiService.IsConfigured(AppSecrets.GeminiApiKey)) return null;
+
+        var (ok, vector, _) = await IgEmbeddingService.EmbedAsync(
+            AppSecrets.GeminiApiKey, IgEmbeddingService.DefaultModel, query,
+            IgEmbeddingService.TaskQuery, ct);
+        if (!ok) return null;
+
+        var top = IgKnowledgeRag.TopMatches(chunks, vector);
+        return top.Count > 0 ? top : null;
     }
 
     /* ═════════════════════════ PROMPT (sof funksiyalar) ═════════════════════════ */

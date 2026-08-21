@@ -136,6 +136,23 @@ public sealed class MetaInsightsApi(HttpClient http, ILogger<MetaInsightsApi> lo
     /// </summary>
     public MetaRateLimitInfo? LastRateLimit { get; private set; }
 
+    /// <summary>
+    /// OXIRGI so'rovdagi Meta xato KODI (<c>error.code</c>) va subkodi. Muvaffaqiyatda 0.
+    ///
+    /// <para><b>Nega kerak:</b> chaqiruvchi (<c>MetaInsightsService</c>) xatoning TURIGA qarab
+    /// har xil qaror qabul qiladi — oraliqni qisqartirish, to'xtash yoki Telegram signali.
+    /// Ilgari bu qaror faqat XATO MATNIGA qarab qilinardi (<c>Contains("qisqartiring")</c>),
+    /// ya'ni <see cref="MapError"/> dagi bitta so'z tahrirlansa mantiq jimgina buzilardi va
+    /// backfill hech qachon bo'linmay qolardi. Kod — barqaror shartnoma, matn esa yo'q.</para>
+    ///
+    /// <para>⚠️ Matn baribir zaxira sifatida qoladi: tarmoq uzilishi yoki timeout'da Meta kodi
+    /// umuman bo'lmaydi (0) va qaror matndan olinadi.</para>
+    /// </summary>
+    public int LastErrorCode { get; private set; }
+
+    /// <inheritdoc cref="LastErrorCode"/>
+    public int LastErrorSubcode { get; private set; }
+
     /* ═════════════════════════ [1] Akkaunt ═════════════════════════ */
 
     /// <summary>
@@ -347,9 +364,16 @@ public sealed class MetaInsightsApi(HttpClient http, ILogger<MetaInsightsApi> lo
                     Header(resp, "X-FB-Ads-Insights-Throttle"),
                     Header(resp, "X-Business-Use-Case-Usage"));
 
-                if (resp.IsSuccessStatusCode) return (true, body, "");
+                if (resp.IsSuccessStatusCode)
+                {
+                    LastErrorCode = 0;
+                    LastErrorSubcode = 0;
+                    return (true, body, "");
+                }
 
                 var (code, sub, msg) = ParseError(body);
+                LastErrorCode = code;
+                LastErrorSubcode = sub;
 
                 // ⚠️ Manzil LOGGA yozilmaydi — unda `access_token` bor.
                 logger.LogWarning(
@@ -367,16 +391,19 @@ public sealed class MetaInsightsApi(HttpClient http, ILogger<MetaInsightsApi> lo
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
+                LastErrorCode = 0; LastErrorSubcode = 0;
                 return (false, "", "So'rov bekor qilindi.");
             }
             catch (TaskCanceledException)
             {
                 if (attempt < MaxAttempts) { await Task.Delay(delayMs, ct); delayMs *= 2; continue; }
+                LastErrorCode = 0; LastErrorSubcode = 0;
                 return (false, "", "Meta javob bermadi (vaqt tugadi) — keyinroq qayta urinamiz.");
             }
             catch (HttpRequestException ex)
             {
                 if (attempt < MaxAttempts) { await Task.Delay(delayMs, ct); delayMs *= 2; continue; }
+                LastErrorCode = 0; LastErrorSubcode = 0;
                 return (false, "", $"Tarmoq xatosi: {ex.Message}");
             }
         }

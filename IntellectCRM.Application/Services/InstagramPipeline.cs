@@ -536,7 +536,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         if (!string.IsNullOrWhiteSpace(inc.Text))
             conv.LastMessageText = InstagramContract.Trim(inc.Text, 300);
 
-        db.IgMessages.Add(new IgMessage
+        var manual = new IgMessage
         {
             ConversationId = conv.Id,
             Direction = IgConst.DirOut,
@@ -546,7 +546,15 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             ActorName = IgConst.ActorOperatorIg,
             IsAi = false,
             CreatedAt = nowIso,
-        });
+        };
+
+        // E6.6 — JAVOB SIFATI JURNALI: operator Instagram ilovasidan yozgan javob AI'ning
+        // oxirgi taklifi O'RNIGA ketgan bo'lishi mumkin. Farq shu yerda biriktiriladi
+        // (`AttachSuggestionAsync` saqlamaydi — quyidagi `SaveChangesAsync` bilan birga ketadi).
+        // ⚠️ `Add` dan OLDIN: so'rov bazaga ketadi va hali yozilmagan qatorni ko'rmaydi.
+        await IgQualityLog.AttachSuggestionAsync(db, conv.Id, manual, now, ct);
+
+        db.IgMessages.Add(manual);
 
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Instagram: operator qo'lda javob berdi — bot {Min} daqiqaga pauzada (@{User})",

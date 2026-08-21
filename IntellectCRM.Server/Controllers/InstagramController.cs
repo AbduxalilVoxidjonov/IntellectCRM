@@ -413,6 +413,14 @@ public partial class InstagramController(
             Error = ok ? "" : err,
             CreatedAt = now,
         };
+
+        // E6.6 — JAVOB SIFATI JURNALI: agar shu javobdan oldin AI taklif qilgan matn bo'lsa,
+        // "AI shunday dedi → operator shunday yozdi" juftligi saqlanadi (`IgQualityLog`).
+        // ⚠️ `Add` dan OLDIN chaqiriladi — so'rov bazaga ketadi va hali yozilmagan qatorni
+        // taklif deb olib qo'ymaydi. Xato bo'lsa jim yutiladi: sifat jurnali tufayli
+        // operatorning javobi yo'qolmasin.
+        await IgQualityLog.AttachSuggestionAsync(db, c.Id, sent, AppClock.Now, ct);
+
         db.IgMessages.Add(sent);
 
         if (ok)

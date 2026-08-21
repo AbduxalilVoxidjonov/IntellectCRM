@@ -5,11 +5,11 @@ import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage } from '@/lib/utils'
 import {
   countHashtags, countMentions, createIgPost, defaultKind, deleteIgPost, emptyMedia, emptyOptions,
-  getIgContentLimit, getIgContentStatus, getIgPosts, isEditable, isHttpsUrl, isJpegUrl, isVideoUrl,
-  publishIgPost, updateIgPost,
+  generateIgCaption, getIgCaptionMeta, getIgContentLimit, getIgContentStatus, getIgPosts,
+  isEditable, isHttpsUrl, isJpegUrl, isVideoUrl, publishIgPost, updateIgPost, uploadIgMedia,
   IG_LIMITS, IG_POST_STATUSES, IG_POST_TYPES,
-  type IgContentStatus, type IgMediaItem, type IgMediaKind, type IgPost, type IgPostLimit,
-  type IgPostOptions, type IgPostStatus, type IgPostTotals, type IgPostType,
+  type IgCaptionMeta, type IgContentStatus, type IgMediaItem, type IgMediaKind, type IgPost,
+  type IgPostLimit, type IgPostOptions, type IgPostStatus, type IgPostTotals, type IgPostType,
 } from '@/api/services/instagramContent'
 import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
 
@@ -27,10 +27,11 @@ import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
  *    ochiq, `DELETE` esa joylangan postda FAQAT CRM yozuvini o'chiradi (Instagram'dagi post
  *    qoladi) — tasdiqlash oynasida shu ochiq aytiladi.
  * 2. <b>Media manzili ochiq HTTPS bo'lishi shart</b> — faylni Meta O'ZI yuklab oladi.
- *    CRM'ning `/uploads` papkasi login ortida (`UploadsGuard`), ya'ni u yerdagi manzil
- *    Meta uchun 404 bo'ladi. Shu sababli bu ekran fayl YUKLAMAYDI: fayl tanlansa u faqat
- *    BRAUZERDA o'lchanadi (hajm/o'lcham/davomiylik avtomatik to'ldiriladi va oldindan
- *    ko'rsatiladi), manzil esa foydalanuvchidan olinadi.
+ *    CRM'ning oddiy `/uploads` papkasi login ortida (`UploadsGuard`), ya'ni u yerdagi manzil
+ *    Meta uchun 404 bo'ladi. Shuning uchun «Fayl yuklash» faylni ALOHIDA ochiq papkaga
+ *    (`/uploads/marketing-public/`) qo'yadi va tayyor manzilni maydonga yozadi. Tashqi CDN
+ *    ishlatadiganlar uchun manzilni QO'LDA kiritish ham qoladi, «Fayldan o'lchash» esa
+ *    faylni yuklamasdan faqat brauzerda o'lchaydi.
  * 3. <b>Kunlik limit endpointi har chaqirilganda Meta'ga so'rov yuboradi</b> — u AVTO-
  *    YANGILANISHGA QO'SHILMAGAN, faqat sahifa ochilganda va qo'lda «Yangilash» bosilganda.
  * 4. <b>Jami kvota noma'lum bo'lsa "noma'lum" yoziladi</b> — taxminiy 50/100 KO'RSATILMAYDI
@@ -665,11 +666,13 @@ function isVertical(type: IgPostType): boolean {
 /**
  * Yangi post / tahrirlash oynasi.
  *
- * ⚠️ MEDIA YUKLANMAYDI. Instagram faylni O'ZI yuklab oladi, ya'ni manzil ochiq HTTPS bo'lishi
- * shart; CRM'ning `/uploads` papkasi esa login ortida. Shuning uchun bu yerda manzil qo'lda
- * kiritiladi, tanlangan fayl esa faqat BRAUZERDA o'lchanadi (hajm, o'lcham, davomiylik) —
- * bu qiymatlar serverga tekshiruv uchun yuboriladi va xato 10 daqiqalik poll'dan keyin emas,
- * SHU YERDA ko'rinadi.
+ * ⚠️ MEDIA MANZILI OCHIQ HTTPS BO'LISHI SHART — Instagram faylni O'ZI yuklab oladi. Uchta
+ * yo'l bor va uchalasi ham QOLADI:
+ * 1. «Fayl yuklash» — fayl serverning ALOHIDA ochiq papkasiga tushadi va manzil o'zi yoziladi
+ *    (o'lchamlarni ham SERVER faylning o'zidan o'qiydi — bu eng ishonchli manba);
+ * 2. «Fayldan o'lchash» — fayl YUKLANMAYDI, faqat brauzerda o'lchanadi (tashqi CDN'ga
+ *    allaqachon qo'yilgan fayl uchun);
+ * 3. manzilni QO'LDA yozish.
  *
  * ⚠️ O'lchamlar 0 = "noma'lum" — backend bunday holatda tekshiruvni o'tkazib yuboradi. Shu
  * sababli taxminiy qiymat yozilmaydi: noto'g'ri son to'g'ri media'ni bekorga rad etardi.
@@ -692,6 +695,11 @@ function PostModal({
   const [at, setAt] = useState((post?.scheduledAt ?? '').slice(0, 16))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // ✨ AI bilan matn yozish paneli (§5.10) — ochilgunicha hech qanday so'rov ketmaydi.
+  const { can } = usePerm()
+  const canAi = can('marketing.content', 'edit')
+  const [aiOpen, setAiOpen] = useState(false)
 
   const chars = caption.length
   const tags = countHashtags(caption)
@@ -832,7 +840,34 @@ function PostModal({
             </div>
 
             <div className="field">
-              <label className="field-label">Post matni (caption)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <label className="field-label" style={{ margin: 0, flex: 1 }}>Post matni (caption)</label>
+                {canAi && (
+                  <button
+                    className={`btn btn-sm ${aiOpen ? 'btn-outline' : 'btn-ghost'}`}
+                    onClick={() => setAiOpen((v) => !v)}
+                  >
+                    <Icon name="sparkle" /> AI bilan yozish
+                  </button>
+                )}
+              </div>
+
+              {aiOpen && (
+                <CaptionAi
+                  postType={type}
+                  hasText={caption.trim().length > 0}
+                  onApply={(text, mode) => {
+                    setCaption((prev) => (
+                      mode === 'append' && prev.trim().length > 0
+                        ? `${prev.trimEnd()}\n\n${text}`
+                        : text
+                    ))
+                    setAiOpen(false)
+                  }}
+                  onClose={() => setAiOpen(false)}
+                />
+              )}
+
               <textarea
                 className="textarea"
                 value={caption}
@@ -958,6 +993,179 @@ function PostModal({
   )
 }
 
+/**
+ * ✨ AI BILAN CAPTION YOZISH (§5.10) — mavzu → tayyor post matni.
+ *
+ * Matn markazning BILIM BAZASIDAN (Marketing → Bilim bazasi) quriladi, ya'ni AI aynan shu
+ * markaz haqida yozadi. Uslub va til ro'yxati SERVERDAN keladi (`content/caption/meta`) —
+ * kalitlar ikki joyda qo'lda yozilsa drift bo'lardi (`contacts.md` §6 saboqi).
+ *
+ * ⚠️ MATN USTIGA JIMGINA YOZILMAYDI. Caption maydoni bo'sh bo'lsa natija darhol qo'yiladi;
+ * matn BOR bo'lsa esa avval ko'rsatiladi va foydalanuvchi «Almashtirish» yoki «Oxiriga
+ * qo'shish» ni O'ZI tanlaydi — bir soatlik ishni bitta tugma o'chirib yuborishi mumkin edi.
+ *
+ * ⚠️ Natija SERVERDA allaqachon chegaralarga (2200 belgi / 30 hashtag / 20 mention)
+ * solishtirilgan va hashtaglar matn oxiriga qo'shilgan. Shuning uchun ro'yxatdagi hashtag
+ * chiplari faqat KO'RSATISH uchun — ular matnga qayta qo'shilmaydi.
+ */
+function CaptionAi({
+  postType, hasText, onApply, onClose,
+}: {
+  postType: IgPostType
+  hasText: boolean
+  onApply: (text: string, mode: 'replace' | 'append') => void
+  onClose: () => void
+}) {
+  const [meta, setMeta] = useState<IgCaptionMeta | null>(null)
+  const [metaError, setMetaError] = useState('')
+  const [topic, setTopic] = useState('')
+  const [tone, setTone] = useState('')
+  const [language, setLanguage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState<{ caption: string; hashtags: string[] } | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    getIgCaptionMeta()
+      .then((m) => {
+        if (!alive) return
+        setMeta(m)
+        setTone(m.defaultTone)
+        setLanguage(m.defaultLanguage)
+      })
+      .catch((e) => { if (alive) setMetaError(apiErrorMessage(e, "Sozlamalarni olib bo'lmadi")) })
+    return () => { alive = false }
+  }, [])
+
+  const ready = !!meta && meta.geminiConfigured
+  const canRun = ready && !busy && topic.trim().length > 0
+
+  const run = async () => {
+    setBusy(true)
+    setError('')
+    setResult(null)
+    try {
+      const res = await generateIgCaption({ postType, topic: topic.trim(), tone, language })
+      // ⚠️ Javob 200 bo'lgani MUVAFFAQIYAT DEGANI EMAS: sabab `ok`/`error` da (kalit
+      // sozlanmagan, Gemini timeout, format buzuq). `ok` ni tekshirmaslik foydalanuvchiga
+      // BO'SH matn qo'yib qo'yardi.
+      if (!res.ok) { setError(res.error || 'AI matn yoza olmadi.'); return }
+      // Maydon bo'sh — yo'qotadigan narsa yo'q, tasdiq ham so'ralmaydi.
+      if (!hasText) { onApply(res.caption, 'replace'); return }
+      setResult({ caption: res.caption, hashtags: res.hashtags })
+    } catch (e) {
+      setError(apiErrorMessage(e, "AI'ga so'rov yuborib bo'lmadi"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mk-kb-item" style={{ marginBottom: 12 }}>
+      <div className="mk-kb-head">
+        <span className="rule-num"><Icon name="sparkle" style={{ width: 13, height: 13 }} /></span>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>AI bilan matn yozish</div>
+        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={onClose}>
+          <Icon name="close" /> Yopish
+        </button>
+      </div>
+
+      {metaError && <div className="field-hint" style={{ color: 'var(--danger)' }}>{metaError}</div>}
+
+      {meta && !meta.geminiConfigured && (
+        <div className="mk-alert" style={{ marginBottom: 12 }}>
+          <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 12.5 }}>
+            Gemini API kaliti sozlanmagan (<code>.env</code> → <code>GEMINI_API_KEY</code>) — AI matn
+            yoza olmaydi. Kalit qo‘shilgach bu tugma o‘zi ishlay boshlaydi.
+          </div>
+        </div>
+      )}
+
+      <div className="field" style={{ marginBottom: 10 }}>
+        <label className="field-label">Mavzu</label>
+        <textarea
+          className="textarea"
+          rows={2}
+          value={topic}
+          placeholder="Masalan: yozgi ingliz tili guruhiga qabul, dars kuniga 1 soat, chegirma bor"
+          onChange={(e) => setTopic(e.target.value)}
+        />
+        <div className="field-hint">
+          Matn markazning <b>bilim bazasi</b> asosida yoziladi — narx va jadval o‘ylab topilmaydi.
+          Bilim bazasi bo‘sh bo‘lsa natija ham umumiy chiqadi.
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+        <div>
+          <label className="field-label" style={{ fontSize: 11.5 }}>Uslub</label>
+          <select className="input" value={tone} onChange={(e) => setTone(e.target.value)}>
+            {(meta?.tones ?? []).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="field-label" style={{ fontSize: 11.5 }}>Til</label>
+          <select className="input" value={language} onChange={(e) => setLanguage(e.target.value)}>
+            {(meta?.languages ?? []).map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mk-state mk-state-error" style={{ padding: 10, marginBottom: 10 }}>
+          <Icon name="warn" style={{ width: 16, height: 16, flexShrink: 0 }} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {!result && (
+        <button className="btn btn-primary btn-sm" disabled={!canRun} onClick={() => void run()}>
+          <Icon name="sparkle" /> {busy ? 'Yozilmoqda…' : 'Matn yozdirish'}
+        </button>
+      )}
+
+      {result && (
+        <div>
+          <div className="field-label">AI yozgan matn</div>
+          <div
+            style={{
+              whiteSpace: 'pre-wrap', fontSize: 12.5, lineHeight: 1.5, maxHeight: 220,
+              overflowY: 'auto', padding: 10, borderRadius: 8,
+              background: 'var(--bg-2)', border: '1px solid var(--border)',
+            }}
+          >
+            {result.caption}
+          </div>
+
+          {result.hashtags.length > 0 && (
+            <div className="field-hint">
+              Hashtaglar ({result.hashtags.length} ta) matn oxiriga <b>allaqachon</b> qo‘shilgan.
+            </div>
+          )}
+
+          {/* Caption maydonida matn bor — shuning uchun tanlov O'ZIDA so'raladi. */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            <button className="btn btn-primary btn-sm" onClick={() => onApply(result.caption, 'replace')}>
+              <Icon name="check" /> Almashtirish
+            </button>
+            <button className="btn btn-outline btn-sm" onClick={() => onApply(result.caption, 'append')}>
+              <Icon name="plus" /> Oxiriga qo‘shish
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setResult(null)}>
+              Boshqattan yozdirish
+            </button>
+          </div>
+          <div className="field-hint" style={{ marginTop: 6 }}>
+            ⚠️ «Almashtirish» maydondagi mavjud matnni <b>butunlay</b> o‘chiradi.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Chegara sanagichi — oshib ketsa qizil bo'ladi (backend baribir rad etadi). */
 function Counter({ label, value, max }: { label: string; value: number; max: number }) {
   const over = value > max
@@ -1006,9 +1214,14 @@ function MediaRequirements({ type }: { type: IgPostType }) {
 /**
  * Bitta media elementi: manzil + texnik ma'lumot.
  *
- * ⚠️ «Fayldan o'lchash» fayl YUKLAMAYDI — u faqat brauzerda hajm/o'lcham/davomiylikni o'lchaydi
- * va shu maydonlarni to'ldiradi. Fayl serverga ketmaydi, chunki CRM'ning `/uploads` manzili
- * login ortida va Meta uni yuklab ola olmasdi (§5.6): fayl ochiq HTTPS hostda turishi kerak.
+ * Ikkita fayl tugmasi bor va ular BOSHQA-BOSHQA ish qiladi:
+ *
+ * 1. **«Fayl yuklash»** — fayl SERVERGA ketadi (`POST content/media`) va `/uploads/marketing-public/`
+ *    ochiq papkasidan tayyor manzil qaytadi. Bu papka ATAYIN `UploadsGuard` dan tashqarida:
+ *    Instagram faylni o'zi yuklab oladi, login talab qiladigan manzil esa Meta uchun 404
+ *    bo'lardi (xato kodi `2207052`). Ruxsat: `marketing.content` (edit).
+ * 2. **«Fayldan o'lchash»** — fayl YUKLANMAYDI, faqat brauzerda o'lchanadi. Tashqi CDN'da
+ *    turgan fayl uchun kerak: manzil qo'lda yoziladi, o'lchamlar esa shu tugma bilan.
  */
 function MediaEditor({
   item, index, showIndex, type, onChange, onRemove,
@@ -1020,8 +1233,15 @@ function MediaEditor({
   onChange: (patch: Partial<IgMediaItem>) => void
   onRemove?: () => void
 }) {
+  // ⚠️ Ruxsat SHU YERDA qayta tekshiriladi (oyna faqat tahrirlash huquqi bilan ochilsa ham):
+  // yuklash — YOZISH amali va u alohida darvozalanishi kerak.
+  const { can } = usePerm()
+  const canUpload = can('marketing.content', 'edit')
+
   const [measuring, setMeasuring] = useState(false)
   const [measureError, setMeasureError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
 
   const measure = async (file: File) => {
     setMeasuring(true)
@@ -1036,6 +1256,45 @@ function MediaEditor({
     }
   }
 
+  /**
+   * Faylni serverga yuklaydi va manzil bilan birga O'LCHAMLARNI ham maydonlarga qo'yadi.
+   *
+   * ⚠️ SERVER O'LCHOVI USTUN — u faylning o'zidan (JPEG sarlavhasi, MP4 `mvhd`) o'qiladi,
+   * ya'ni brauzer bergan qiymatdan ishonchliroq. Lekin server hamma narsani o'qiy olmaydi:
+   * VIDEO kengligi/balandligi unda 0 («noma'lum») bo'lib qaytadi. Shuning uchun 0 qiymat
+   * brauzer o'lchovi bilan to'ldiriladi — aks holda to'g'ri o'lcham yo'qolib, backend 9:16
+   * tekshiruvini umuman o'tkazib yuborardi.
+   *
+   * ⚠️ Eski qiymatlar SAQLANMAYDI: bu boshqa fayl, undagi o'lcham yangisiga aloqasiz.
+   */
+  const upload = async (file: File) => {
+    setUploading(true)
+    setUploadError('')
+    setMeasureError('')
+    try {
+      const info = await uploadIgMedia(file)
+
+      // Brauzer o'lchovi — SERVER o'qiy olmagan maydonlar uchun. Yiqilsa yuklash BEKOR
+      // QILINMAYDI: fayl allaqachon serverda va manzil ishlaydi (o'lcham esa "noma'lum").
+      let local: Partial<IgMediaItem> = {}
+      try { local = await measureLocalFile(file) } catch { /* ixtiyoriy */ }
+
+      onChange({
+        url: info.url,
+        kind: info.kind,
+        sizeBytes: firstPositive(info.sizeBytes, local.sizeBytes),
+        width: firstPositive(info.width, local.width),
+        height: firstPositive(info.height, local.height),
+        durationSeconds: firstPositive(info.durationSeconds, local.durationSeconds),
+      })
+    } catch (e) {
+      setUploadError(apiErrorMessage(e, "Faylni yuklab bo'lmadi"))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const busyFile = uploading || measuring
   const urlOk = item.url.trim().length === 0 || isHttpsUrl(item.url)
 
   return (
@@ -1070,19 +1329,43 @@ function MediaEditor({
           style={urlOk ? undefined : { borderColor: 'var(--danger)' }}
         />
         <div className="field-hint">
-          Ochiq HTTPS manzil. ⚠️ CRM ichidagi <code>/uploads/…</code> manzillari <b>ishlamaydi</b> — ular
-          login ortida, Instagram esa faylni tashqaridan yuklab oladi.
+          Ochiq HTTPS manzil — qo‘lda yozsangiz ham bo‘ladi (tashqi CDN uchun). ⚠️ CRM ichidagi oddiy
+          <code>/uploads/…</code> manzillari <b>ishlamaydi</b> — ular login ortida, Instagram esa faylni
+          tashqaridan yuklab oladi. «Fayl yuklash» tugmasi faylni maxsus <b>ochiq</b> papkaga qo‘yadi.
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
+        {canUpload && (
+          <label
+            className="btn btn-primary btn-sm"
+            style={{ cursor: busyFile ? 'default' : 'pointer', opacity: busyFile ? 0.6 : 1 }}
+          >
+            <Icon name="plus" />
+            {uploading ? 'Yuklanmoqda…' : 'Fayl yuklash'}
+            <input
+              type="file"
+              accept="image/jpeg,video/mp4,video/quicktime"
+              style={{ display: 'none' }}
+              disabled={busyFile}
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void upload(f)
+                // ⚠️ Tozalash SHART: bir xil faylni qayta tanlaganda `change` otilmasdi.
+                e.target.value = ''
+              }}
+            />
+          </label>
+        )}
+
+        <label className="btn btn-outline btn-sm" style={{ cursor: busyFile ? 'default' : 'pointer' }}>
           <Icon name="search" />
           {measuring ? 'O‘lchanmoqda…' : 'Fayldan o‘lchash'}
           <input
             type="file"
             accept="image/jpeg,video/mp4,video/quicktime"
             style={{ display: 'none' }}
+            disabled={busyFile}
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (f) void measure(f)
@@ -1090,12 +1373,16 @@ function MediaEditor({
             }}
           />
         </label>
+
         <span className="field-hint" style={{ margin: 0, flex: 1, minWidth: 180 }}>
-          Fayl <b>yuklanmaydi</b> — faqat hajmi, o‘lchami va davomiyligi o‘lchanib, quyidagi maydonlarga
-          yoziladi. Shu tufayli xato Instagram’dan emas, shu yerda ko‘rinadi.
+          <b>Fayl yuklash</b> — fayl serverga chiqadi va manzil o‘zi yoziladi (JPEG, MP4 yoki MOV).
+          <b> Fayldan o‘lchash</b> — fayl <b>yuklanmaydi</b>, faqat hajmi, o‘lchami va davomiyligi
+          o‘lchanadi: manzili boshqa joyda turgan fayl uchun. Ikkalasida ham xato Instagram’dan emas,
+          shu yerda ko‘rinadi.
         </span>
       </div>
 
+      {uploadError && <div className="field-hint" style={{ color: 'var(--danger)' }}>{uploadError}</div>}
       {measureError && <div className="field-hint" style={{ color: 'var(--danger)' }}>{measureError}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 12 }}>
@@ -1260,6 +1547,17 @@ function IgPreview({ type, media, caption }: { type: IgPostType; media: IgMediaI
 }
 
 /* ═══════════════════════════════════════ YORDAMCHILAR ═══════════════════════════════════════ */
+
+/**
+ * Birinchi MUSBAT sonni tanlaydi, hech biri bo'lmasa 0.
+ *
+ * ⚠️ `0` bu yerda «noma'lum» degani (backend bilan bir xil kelishuv), shuning uchun oddiy
+ * `??` yaramaydi: u 0 ni HAQIQIY qiymat deb qabul qilib, keyingi manbaga o'tmasdi.
+ */
+function firstPositive(...values: (number | undefined)[]): number {
+  for (const v of values) if (typeof v === 'number' && v > 0) return v
+  return 0
+}
 
 function trim(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`
