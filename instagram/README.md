@@ -195,3 +195,29 @@ Umumiy qadamlar: [`SOZLASH.md`](SOZLASH.md) → «QO'SHIMCHA MODULLAR → A-qada
 | "Nega post `2207052` bilan yiqilyapti?" | [`KONTENT.md`](KONTENT.md) → «Xato kodlari» |
 | "Ochiq media papkasi xavfsizmi?" | [`../.claude/rules/uploads-security.md`](../.claude/rules/uploads-security.md) → «OCHIQ MEDIA» |
 | "Kod yozayotganda nimaga tegmaslik kerak?" | [`../.claude/rules/marketing-instagram.md`](../.claude/rules/marketing-instagram.md) §17–§20 |
+
+---
+
+## 7. AI agentining yaxshilanishlari (E6.5 · E6.6 · AI caption)
+
+Bular **yangi ekran ham, yangi bayroq ham qo'shmaydi** — mavjud modullarni kuchaytiradi.
+Migratsiya: **`AddMarketingRagAndQuality`**.
+
+| Nima | Muammo qanday edi | Endi |
+|---|---|---|
+| **Bilim bazasi RAG** (E6.5) | Butun bilim baza promptga tiqilar va **12000 belgida KESILARDI** — baza o'sganda oxirgi bo'laklar umuman tushmasdi va AI "bilmayman" derdi (nosozlik **jimgina** edi) | Har bo'lakning ma'no vektori saqlanadi, savolga **eng yaqin 6 bo'lak** tanlanadi. ⚠️ Vektor yo'q/xato bo'lsa **eski yo'lga qaytadi** — RAG modulni hech qachon to'xtatmaydi |
+| **Javob sifati jurnali** (E6.6) | Operator AI javobini tuzatsa, bu **hech qayerda qolmasdi** — promptni yaxshilash uchun eng qimmatli ma'lumot yo'qolardi | «AI shunday dedi → operator shunday yozdi» juftligi saqlanadi va `GET /api/admin/instagram/quality` hisobotida ko'rinadi |
+| **AI caption** (§5.10) | Post matnini har safar noldan yozish — SMM ishining eng ko'p vaqt oladigan qismi | Post modalidagi **«Matn yozdirish»**: mavzu → bilim bazasi asosida matn + hashtaglar ([`KONTENT.md`](KONTENT.md)) |
+
+⚠️ **Yangi kutubxona QO'SHILMADI** (`pgvector` ham): vektor JSON matn sifatida saqlanadi,
+kosinus oddiy C# hisobida — bilim bazasi o'nlab bo'lakdan iborat, bu o'lchanadigan yuk emas.
+
+⚠️ **Yangi `.env` kaliti YO'Q:** embedding uchun ham o'sha `GEMINI_API_KEY` ishlatiladi.
+Vektorlarni fon xizmati **har 60 soniyada** hisoblab boradi — qo'lda hech narsa qilish kerak emas.
+
+🔴 **Javob sifati hisobotida mijozning hech qanday belgisi yo'q** — na ism, na telefon, na
+mijoz yozgan matn. Faqat bizning ikki chiquvchi matnimiz va xodim ismi: bu **ichki sifat**
+ma'lumoti, "kim bilan yozishilgani" savolining joyi — Inbox.
+
+Texnik qoidalar: [`../.claude/rules/marketing-instagram.md`](../.claude/rules/marketing-instagram.md) §21
+(RAG va sifat jurnali) hamda §18.8 (AI caption).

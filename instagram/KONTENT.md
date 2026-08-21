@@ -302,3 +302,102 @@ ajratib oladi va o'zbekcha sababga aylantiradi.
   urindi" savoli aynan nosozlikdan keyin beriladi.
 
 Texnik qoidalar va tuzoqlar: [`../.claude/rules/marketing-instagram.md`](../.claude/rules/marketing-instagram.md) §18.
+
+---
+
+## 🤖 AI bilan matn yozdirish (caption)
+
+Post modalida matn maydonining tepasida **«Matn yozdirish»** tugmasi bor. Siz **MAVZU** yozasiz
+("ingliz tili yozgi kurs, chegirma"), AI esa markazning **bilim bazasi** asosida post matnini va
+hashtaglarni tayyorlab beradi.
+
+### Qanday ishlaydi
+
+| Qadam | Nima bo'ladi |
+|---|---|
+| 1 | Mavzu, **post turi**, **til** va **uslub** tanlanadi |
+| 2 | Prompt markazning **bilim bazasidan** (Marketing → Bilim bazasi) quriladi |
+| 3 | Natija Instagram chegaralariga **solishtiriladi** (2200 belgi · 30 hashtag · 20 mention) |
+| 4 | Matn maydoniga qo'yiladi |
+
+**Uslublar:** Samimiy (default) · Ishonchli (ekspert) · Jonli · Sotuvga yo'naltirilgan.
+**Tillar:** O'zbekcha (lotin, default) · Ўзбекча (кирилл) · Ruscha · Inglizcha.
+
+⚠️ **Post turi matn shakliga ta'sir qiladi:** Reels uchun birinchi gap «ilmoq» (hook) bo'ladi,
+Story uchun 1–2 gap (Story matni ekranda ko'rinmaydi — u faqat ichki eslatma), karusel uchun
+matn barcha slaydlarni umumlashtiradi.
+
+### 🔴 AI narxni O'YLAB TOPMAYDI
+
+Promptda qat'iy qoida bor: **bilim bazasida yo'q raqamni matnga yozish TAQIQ**. Bilim bazasi
+bo'sh bo'lsa AI narx, jadval va chegirma haqida hech narsa yozmaydi — «batafsil ma'lumot uchun
+yozing» deydi.
+
+⚠️ Ya'ni **matn sifati bilim bazasiga bog'liq**: u to'ldirilmagan bo'lsa natija umumiy va
+quruq chiqadi. Bilim bazasini to'ldirish — [`SOZLASH.md`](SOZLASH.md) 7-qadam.
+
+⚠️ AI **`@mention` yozmaydi** (begona akkauntni teglash markaz nomidan spam bo'lardi) va
+**va'da bermaydi** («100% natija» kabi iboralar taqiqlangan).
+
+### ⚠️ Matningiz ustiga JIMGINA yozilmaydi
+
+- Matn maydoni **bo'sh** bo'lsa natija darhol qo'yiladi;
+- Matn **bor** bo'lsa avval AI yozgani ko'rsatiladi va siz o'zingiz tanlaysiz:
+  **«Almashtirish»** · **«Oxiriga qo'shish»** · **«Boshqattan yozdirish»**.
+
+🔴 **«Almashtirish» maydondagi matnni BUTUNLAY o'chiradi** — bu ekranda ham ochiq yozilgan.
+
+⚠️ Natijadagi **hashtag chiplari faqat KO'RSATISH uchun** — ular matn oxiriga **allaqachon
+qo'shilgan**. Ularni qo'lda qayta yozish takror bo'ladi.
+
+### Chegaraga sig'masa nima bo'ladi
+
+AI'dan **zaxira bilan** so'raladi (matn ~1400 belgi, 12 ta hashtag), chunki model uzunlikni
+aniq hisoblay olmaydi. Baribir oshib ketsa:
+
+1. **avval hashtaglar** oxiridan qirqiladi (ular yordamchi);
+2. keyin matnning o'zi **so'z chegarasida** kesiladi va oxiriga **`…`** qo'yiladi.
+
+⚠️ `…` ataylab: qirqilgani **ko'rinib tursin** — jimgina kesilgan matn sizni aldardi.
+
+Bu ish serverda bajariladi, ya'ni maydonga tushgan matn **saqlashda albatta o'tadi**. Aks holda
+siz AI matnini qo'yib, «Saqlash» bosganda «Matn juda uzun» xatosini olardingiz — ya'ni yordamchi
+tugma muammo yasab bergan bo'lardi.
+
+### ⚠️ Nosozliklar
+
+| Alomat | Sabab | Yechim |
+|---|---|---|
+| Tugma **o'chiq** | Gemini API kaliti sozlanmagan | `.env` da `GEMINI_API_KEY` (server bu holatni oldindan aytadi — bekorga so'rov ketmaydi) |
+| «Mavzu yozilmagan» | Mavzu maydoni bo'sh | Mavzu — yagona majburiy maydon |
+| «AI javobini o'qib bo'lmadi (format xato)» | Model kutilgan JSON o'rniga erkin matn qaytardi | «Boshqattan yozdirish» — bu vaqtinchalik holat |
+| Matn **umumiy va quruq** chiqyapti | Bilim bazasi bo'sh yoki kam | Marketing → Bilim bazasi |
+| «AI matnida hashtag/mention ko'p» | Model qoidani buzdi | Qaytadan urinib ko'ring; matn maydoniga **buzuq natija qo'yilmaydi** |
+
+⚠️ **Auditga yozilmaydi:** matn yaratish hech qanday ma'lumotni o'zgartirmaydi. Matn haqiqatan
+ishlatilsa, u **post saqlanganda** tarixga tushadi.
+
+---
+
+## 📏 Fayl yuklash va o'lchamlar
+
+**«Fayl yuklash»** bosilganda fayl serverga ketadi va o'lchamlari **ikki manbadan** to'ldiriladi.
+
+| Nima | Server o'qiydimi | Izoh |
+|---|---|---|
+| Fayl hajmi | ✅ | |
+| **Rasm** kengligi/balandligi | ✅ | JPEG sarlavhasidan |
+| **Video davomiyligi** | ✅ | MP4/MOV `mvhd` bo'lagidan (u faylning oxirida ham bo'lishi mumkin — bosh va oxir ko'riladi) |
+| **Video kengligi/balandligi** | ❌ | 🔴 Server buni o'qimaydi va **`0` = «noma'lum»** qaytaradi |
+
+⚠️ Shuning uchun **brauzer** video o'lchamini o'zi o'lchaydi va faqat **bo'sh** maydonlarni
+to'ldiradi. Buni qilmaslik Reels uchun **9:16 tekshiruvini butunlay o'chirib qo'yardi**: post
+saqlanardi, keyin esa joylash paytida `2207009` («nisbat noto'g'ri») bilan yiqilardi.
+
+**Qoida:** server qiymati **ustun** (u faylning o'zidan o'qilgan), brauzer esa faqat to'ldiradi.
+Brauzer o'lchay olmasa yuklash **bekor qilinmaydi** — fayl serverda va manzil ishlaydi, o'lcham
+esa "noma'lum" bo'lib qoladi va tegishli tekshiruv **o'tkazib yuboriladi** (qarorni Instagram
+chiqaradi).
+
+⚠️ **Manzilni qo'lda ham kiritish mumkin** (tashqi CDN) — lekin u **ochiq HTTPS** bo'lishi shart
+va o'lchamlar "noma'lum" bo'lib qoladi.

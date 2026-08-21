@@ -855,7 +855,9 @@ bu sezilmasdi (u yerda `/…` absolut URI emas). Shuning uchun `SafeStoredName` 
 | `DELETE content/posts/{id}` | `marketing.content` | `scheduled` → **bekor**; `published` → faqat CRM yozuvi (⚠️ javobda OCHIQ yoziladi); `processing` → rad |
 | `POST content/posts/{id}/publish` | `marketing.content` | Kutmaydi; audit **har doim** yoziladi (xatoda ham) |
 | `GET content/limit`, `content/status` | klass | `total=0` → `unknown=true`; `ScopeGranted` ATAYIN **`null`** |
-| `POST\|DELETE content/media` | `marketing.content` | Ochiq papkaga yuklash/o'chirish |
+| `POST\|DELETE content/media` | `marketing.content` | Ochiq papkaga yuklash/o'chirish (§18.9) |
+| `POST content/caption` | `marketing.content` | AI bilan matn yozdirish (§18.8) — ⚠️ **har doim HTTP 200**, natija `ok`/`error` da |
+| `GET content/caption/meta` | klass | Uslub/til ro'yxati + `geminiConfigured` — kalitlar frontendda **takrorlanmaydi** |
 
 ⚠️ `content/status` dagi **`ScopeGranted` har doim `null` ("noma'lum")**: berilgan OAuth
 ruxsatlari ro'yxati saqlanmaydi, ya'ni `instagram_business_content_publish` olinganini ishonch
@@ -865,13 +867,85 @@ bilan ayta olmaymiz. **Yolg'on "ha" dan ko'ra ochiq "noma'lum" yaxshi** — UI s
 ⚠️ Scope `IgConst.Scopes` ga qo'shilgan, lekin u **mavjud tokenga qo'llanmaydi** — akkauntni
 **QAYTA ULASH** shart.
 
-### 18.8. Testlar
+### 18.8. AI CAPTION (§5.10)
+
+`InstagramCaptionService` (sof funksiyalar) + `InstagramController.ContentAi.cs`.
+Foydalanuvchi **MAVZU** yozadi, servis markazning **bilim bazasi** asosida post matni va
+hashtaglarni qaytaradi.
+
+| Qoida | Nega |
+|---|---|
+| Model chaqiruvi **faqat `GeminiService`** orqali | Yangi provayder = yangi kalit = yangi billing — TAQIQ |
+| Bilim bazasi **`InstagramAgentService.LoadKnowledgeAsync`** dan | AI agenti va caption generatori AYNAN bir xil ma'lumotni ko'rsin |
+| Gemini kaliti yo'q → **tarmoqqa umuman chiqilmaydi** | Tekshiruv `GenerateAsync` ICHIDA, ya'ni kelajakdagi boshqa chaqiruvchi ham o'tkazib yubora olmaydi |
+| **Auditga YOZILMAYDI** | Matn yaratish hech narsani o'zgartirmaydi (`audit.md` §3.5, "AI tahlili" istisnosi). Matn ishlatilsa post SAQLANGANDA auditga tushadi |
+| Promptga faqat markaz nomi + bilim bazasi + mavzu | O'quvchi, telefon, to'lov — **hech qachon** (`InstagramAgentService` bilan bir xil chegara) |
+
+🔴 **NATIJA CHEGARALARGA SOLISHTIRILADI** (`Finalize`) — AI matni to'g'ridan-to'g'ri
+foydalanuvchiga berilmaydi. Aks holda u matnni maydonga qo'yib, **saqlashda** «Matn juda uzun»
+(`2207010`) xatosini olardi — ya'ni **yordamchi tugma muammo yasab bergan** bo'lardi.
+
+Tartib ATAYIN shunday:
+
+| # | Qadam | Nega shu tartibda |
+|---|---|---|
+| 1 | Mention > 20 → **RAD** | Matndan `@` ni olib tashlash ma'noni buzardi; promptda mention allaqachon TAQIQLANGAN, ya'ni bu holat deyarli bo'lmaydi |
+| 2 | Hashtaglar tozalanadi, **takrorlari va matnda ALLAQACHON borlari** tashlanadi | Aks holda bitta teg ikki marta chiqardi |
+| 3 | Uzunlik oshsa **AVVAL hashtaglar** oxiridan qirqiladi | Ular yordamchi; matn esa asosiy mazmun |
+| 4 | Keyin matn **SO'Z chegarasida** kesiladi va oxiriga `…` qo'yiladi | O'rtasidan kesish o'qib bo'lmaydigan natija berardi; `…` qirqilgani **KO'RINIB tursin** (jimgina kesish foydalanuvchini aldardi) |
+| 5 | Yakunda **yana `ValidateCaption`** | Saqlashda ishlatiladigan AYNAN o'sha darvoza — kutilmagan kamchilik foydalanuvchiga chiqmasin |
+
+⚠️ **AI'dan chegaraning O'ZI emas, ZAXIRALI qiymat so'raladi:** `TargetCaptionLength` = **1400**
+(chegara 2200), `WantedHashtags` = **12** (chegara 30). Model uzunlikni aniq hisoblay olmaydi va
+biroz oshirib yuborishi odatiy hol — zaxirasiz har uchinchi natija qirqilardi. 30 ta hashtag esa
+Instagram'da "spam" ko'rinadi.
+
+⚠️ **Qaytadigan `Caption` — TAYYOR matn** (hashtaglar allaqachon oxiriga qo'shilgan), `Hashtags`
+ro'yxati esa faqat **KO'RSATISH** uchun (chiplar). Ularni matnga qayta qo'shish **takror**
+bo'lardi.
+
+⚠️ **`NormalizeHashtag` da kamida bitta HARF/RAQAM bo'lishi SHART:** `#___` Instagram'da teg
+emas va bizning `CountHashtags` sanog'iga ham kirmasdi — ya'ni chegara hisobi buzilardi.
+
+⚠️ **Javob HAR DOIM HTTP 200**, muvaffaqiyat `ok` bayrog'ida. Sabab: xatolarning aksariyati
+TASHQI va vaqtinchalik (kalit sozlanmagan, timeout, format buzuq) — ularni 4xx/5xx qilib
+yuborish klientda "so'rov xato ketdi" degan **umumiy** matn chiqarardi, foydalanuvchiga esa
+AYNAN sabab kerak. ⚠️ Klient `ok` ni tekshirmasa maydonga **BO'SH matn** qo'yib qo'yardi.
+
+⚠️ **UI matn ustiga JIMGINA yozmaydi:** maydon bo'sh bo'lsa natija darhol qo'yiladi, matn BOR
+bo'lsa avval ko'rsatiladi va foydalanuvchi «Almashtirish» yoki «Oxiriga qo'shish» ni O'ZI
+tanlaydi — bir soatlik ishni bitta tugma o'chirib yuborishi mumkin edi.
+
+⚠️ Uslub/til kalitlari (`friendly`, `uz-Latn` …) frontendda **qo'lda yozilmaydi** — ular
+`GET content/caption/meta` dan keladi (`contacts.md` §6 dagi DRIFT sabog'i: kalit ikki joyda
+yozilsa "tanlash ro'yxati bo'sh" degan jimgina nosozlik chiqadi).
+
+### 18.9. Media o'lchovi — SERVER va BRAUZER birgalikda
+
+Yuklashda server fayl **sarlavhasidan** o'lchaydi: JPEG kengligi/balandligi (SOFn markeri),
+MP4/MOV davomiyligi (`mvhd` box'i — u ko'p enkoderlarda faylning OXIRIDA turadi, shuning uchun
+bosh va oxirgi 256 KB ko'riladi).
+
+🔴 **Server VIDEO KENGLIGI/BALANDLIGINI o'qimaydi va `0` qaytaradi.** `0` bu yerda
+**«noma'lum»** degani va tegishli tekshiruv o'tkazib yuboriladi (`IgMediaItem` kelishuvi).
+
+⚠️ Shu sababdan frontend server qiymatini **so'zsiz yozib qo'ymaydi**: `0` bo'lgan maydonlar
+brauzer o'lchovi bilan (`<video>`/`<img>` metadata) to'ldiriladi. Aks holda to'g'ri o'lcham
+yo'qolib, **Reels'ning 9:16 tekshiruvi umuman o'tkazib yuborilardi** va post `2207009` bilan
+faqat joylash paytida yiqilardi.
+
+Qoida: **server qiymati USTUN** (u faylning o'zidan o'qilgan, brauzerdan ishonchliroq), brauzer
+esa faqat **bo'sh** joylarni to'ldiradi. Brauzer o'lchovi yiqilsa yuklash **BEKOR QILINMAYDI** —
+fayl allaqachon serverda va manzil ishlaydi, o'lcham esa "noma'lum" bo'lib qoladi.
+
+### 18.10. Testlar
 
 | Test sinfi | Nimani qulflaydi |
 |---|---|
 | `InstagramPublishContractTests` (57) | Caption chegaralari (2200/30/20), JPEG-only, hajm/davomiylik/nisbat har tur uchun, o'lcham noma'lum bo'lsa nisbat tekshirilmasligi, karusel 2–10 va **bolasidagi caption XATO**, nisbat faqat birinchi element bo'yicha, konteyner so'rovi (image'da `media_type` yo'q, story'da caption yo'q), poll jadvali, 24 soat/10 daqiqa muddatlari, `QuotaExceeded` noma'lum limitda to'xtatmasligi, xato kodlari va **noma'lum kod jim yutilmasligi** |
 | `InstagramPublishServiceTests` (26) | **Modul o'chiq → so'rov yo'q**, limit to'lganda `scheduled`, noma'lum limit ishni to'xtatmasligi, `IN_PROGRESS` **workerni bloklamasligi**, chop etilgan post qayta joylanmasligi, 3 urinishdan keyin `failed`, buzuq JSON, **validatsiyadan o'tmagan post tarmoqqa chiqmasligi**, o'lik token, karusel oqimi, **chop etish xatosida qayta urinilmasligi**, bir tsiklda 3 ta post |
 | `IgPublishPayloadTests` | Buzuq JSON istisno otmasligi, **yo'q maydonlar standart qiymatga tushishi**, **nol `thumbOffset` saqlanishi**, yozib-o'qish davri |
+| `InstagramCaptionTests` (24) | Gemini JSON'ini o'qish (fence, ortiqcha matn, buzuq javob), hashtag normalizatsiyasi va yaroqsizini tashlash, **matnda allaqachon bor teg qayta qo'shilmasligi**, `#ingliz` ≠ `#inglizcha`, **uzunlik oshsa AVVAL hashtaglar qirqilishi**, so'z chegarasida qisqartirish, mention chegarasida rad etish, **natija HAR DOIM `ValidateCaption` dan o'tishi**, bo'sh mavzuda **AI umuman chaqirilmasligi** |
 | `MarketingPublicMediaTests` (33) | **Darvozasiz statik blok AYNAN BITTA**, sertifikat/selfi papkalari yopiqligi, MIME xaritasi yopiqligi, `AllowAnonymous` yo'qligi, **yo'ldan chiqish himoyasi**, auditga manzil yozilmasligi, `.jpg` niqobidagi HTML rad etilishi, JPEG o'lchami va MP4 davomiyligi parseri |
 
 ---
@@ -1058,10 +1132,10 @@ topilsa `IgConversation`/`IgMessage` ga `AdId` + `AdCampaignId` yoziladi.
 qiymat hech qayerda "aniq atributsiya" sifatida ko'rsatilmasligi kerak — chizilganda yoniga
 **"taxminiy"** deb yozilishi SHART.
 
-⚠️ **HOZIRGI HOLAT:** `AdId`/`AdCampaignId` bazaga **yoziladi**, lekin hali hech qanday DTO'ga
-chiqmaydi va Inbox'da ko'rinmaydi (spetsifikatsiyadagi 📢 belgisi va «Reklama izohidan kelgan
-lidlar» kesimi hali qilinmagan). Ya'ni ma'lumot **yig'ilmoqda**, ko'rsatilmayapti. Uni ekranga
-chiqaradigan odam uchun qoida: **"taxminiy" belgisisiz chizmang.**
+⚠️ **EKRANGA CHIQARADIGAN ODAM UCHUN QOIDA:** `AdId`/`AdCampaignId` — bu **taxmin**, ya'ni
+uni DTO'ga qo'shganda ham, Inbox'da chizganda ham **"taxminiy" belgisisiz ko'rsatmang** va bo'sh
+qiymatni "organik" deb yozma ("aniqlanmadi" de). Hisobotda esa bu qiymatga tayanib
+"reklama N ta izoh keltirdi" degan **aniq** son chiqarish mumkin emas.
 
 ⚠️ `effective_object_story_id` odatda **`"{page_id}_{post_id}"`** ko'rinishida, webhook'dagi
 `media.id` esa **yalang id** — to'g'ridan-to'g'ri solishtirish HECH QACHON mos kelmasdi.
@@ -1128,3 +1202,184 @@ esa umuman ishlanmaydi).
 |---|---|
 | `IgAdAttributionTests` | `MediaPart` ajratishi (`{page}_{post}` va yalang id), buzuq `"abc_"` da to'liq qiymat qolishi, mos kelmagan/bo'sh kirishda **moslik BERILMASLIGI**, bir post bir necha e'londa bo'lganda **tanlovning DETERMINISTIKLIGI**, `ad → adset → campaign` zanjiri |
 | `InstagramEventParserTests` (E6 qismi) | Story javobi id+url bilan o'qilishi, **oddiy xabarga javob story deb hisoblanmasligi**, story mention ajratilishi, `ig_post` attachment, **eski `share` turi qabul qilinmasligi**, `is_deleted` alohida hodisa turi berishi |
+
+---
+
+## 21. BILIM BAZASI RAG (E6.5) VA JAVOB SIFATI JURNALI (E6.6)
+
+Migratsiya: **`AddMarketingRagAndQuality`** (§17–§20 dan AYRI — ular `AddMarketingExpansion` da).
+Ikkala modul ham **mavjud AI agentini yaxshilaydi**, yangi ekran yoki yangi bayroq qo'shmaydi.
+
+### 21.1. 🔴 RAG — muammo va yechim
+
+**Ilgari:** `LoadKnowledgeAsync` barcha faol bo'laklarni ketma-ket qo'shib, natijani
+`IgConst.KnowledgeLimit` (**12000** belgi) da **KESARDI**. Bilim bazasi o'sganda oxirgi
+bo'laklar promptga **umuman tushmasdi** va AI "bunday ma'lumot yo'q" deb operatorga o'tkazardi.
+Nosozlik **jimgina** edi: u faqat "AI bilmayapti" shikoyati orqali ko'rinardi.
+
+**Endi:** har bo'lakning Gemini embedding vektori saqlanadi (`IgKnowledge.EmbeddingJson`),
+savol ham vektorga aylantiriladi va **kosinus** bo'yicha eng yaqin `TopN` = **6** bo'lak
+tanlanadi.
+
+🔴 **YANGI KUTUBXONA YO'Q** — `pgvector` ham. Vektor **JSON matn** sifatida saqlanadi, kosinus
+oddiy C# tsiklida hisoblanadi: bilim bazasi o'nlab bo'lakdan iborat, ya'ni bitta so'rovda bir
+necha ming ko'paytirish — **o'lchanadigan yuk emas**.
+
+### 21.2. 🔴 ZAXIRA YO'L — RAG modulni HECH QACHON to'xtatmaydi
+
+`LoadKnowledgeAsync(db, ct, query)` da tanlov `null` qaytsa **ESKI xatti-harakat** ishlaydi
+(butun bilim bazasi + `KnowledgeLimit`). `null` qaytadigan holatlar:
+
+| Holat | Nega zaxiraga o'tiladi |
+|---|---|
+| `query` bo'sh | Savolsiz "yaqin bo'lak" tushunchasi yo'q |
+| `CanUseRag == false` | §21.3 |
+| Gemini kaliti sozlanmagan | Tarmoqqa umuman chiqilmaydi |
+| Embedding so'rovi yiqildi (timeout, kvota, format) | Vektorsiz taqqoslash mumkin emas |
+| Hech bir bo'lak `MinScore` dan o'tmadi | Savol bilim bazasidagi hech qaysi mavzuga tegmagan |
+
+⚠️ **Yechim faqat "yaxshilash", majburiyat EMAS.** Vektorlar butunlay yo'q bo'lsa ham modul
+avvalgidek ishlaydi — bu `IgKnowledge` entity izohida ham qat'iy yozilgan.
+
+### 21.3. 🔴 `CanUseRag` ATAYIN QAT'IY
+
+Ikki shart: (1) bo'laklar soni `TopN` dan **KO'P** (kamroq bo'lsa hammasini yuborish ham arzon,
+ham xatosiz); (2) **HAR BIR** faol bo'lakning vektori bor.
+
+⚠️ (2) — eng muhim qaror. Yangi qo'shilgan, hali embedding qilinmagan bo'lak **aynan savolga
+javob** bo'lishi mumkin. Yarim tayyor bazada RAG ishlatilsa u **JIMGINA tashlab ketilardi** va
+sabab hech qayerda ko'rinmasdi. Fon xizmati bir necha soniyada yetib olgach RAG **o'zi**
+yoqiladi.
+
+### 21.4. Sozlamalar va nega aynan shunday
+
+| Konstanta | Qiymat | Nega |
+|---|---|---|
+| `TopN` | **6** | Kamroq bo'lsa yonma-yon mavzular ("narx" va "chegirma") tushib qolardi; ko'proq bo'lsa RAG'ning ma'nosi (promptni qisqartirish) yo'qolardi |
+| `MinScore` | **0.20** | ⚠️ ATAYIN past: RAG'da eng qimmat xato — **kerakli bo'lakni tashlab yuborish**. Ortiqcha bo'lak promptni biroz uzaytiradi, xolos |
+| `MaxDims` | 4096 | Buzuq/ulkan JSON xotirani yeb qo'ymasin (`text-embedding-004` — 768) |
+| `BatchPerTick` | 5 | Fon xizmatining bitta aylanishi cho'zilmasin — navbat undan keyin turadi |
+| `TextLimit` | 8000 belgi | Uzun bo'lak baribir bitta mavzuni ifodalaydi, dumi ma'noga ta'sir qilmaydi |
+| Worker oralig'i | **60 soniya** | Bilim bazasi kamdan-kam o'zgaradi; har tsiklda so'rash Gemini kvotasini bekorga yeyardi |
+
+⚠️ **`RETRIEVAL_DOCUMENT` va `RETRIEVAL_QUERY` HAR XIL bo'lishi SHART.** Gemini savol va
+hujjatni bir-biriga yaqinroq joylashtirish uchun aynan shu belgidan foydalanadi — ikkovini ham
+"document" qilib yuborish o'xshashlikni sezilarli **pasaytiradi**.
+
+⚠️ Embedding modeli uchun **yangi `.env` kaliti kiritilmadi** (`DefaultModel` konstantasi).
+Sabab: kalit `AppSecrets.EnvKeys` ga, `docker-compose.yml` ga va `.env.example` ga ham
+qo'shilishi kerak bo'lardi (`EnvKeysWiringTests`), model esa amalda o'zgarmaydi. Model almashsa
+konstanta yangilanadi va vektorlar **o'z-o'zidan** qayta hisoblanadi.
+
+⚠️ `Compose` **eski formatni AYNAN saqlaydi** (`## Sarlavha\nMatn\n\n`) va tartib **`Order`
+bo'yicha**, ball bo'yicha EMAS: operator bilim bazasini o'sha tartibda ko'radi va promptdagi
+tartib unga mos tursin. Aks holda RAG yoqilgan markazda promptning ko'rinishi **sababsiz**
+o'zgarardi.
+
+### 21.5. 🔴 `EmbeddedHash` — nega `UpdatedAt` YETARLI EMAS
+
+Bilim bazasi **bulk** saqlanadi: faqat **TARTIB** o'zgarganda ham har bo'lakning `UpdatedAt` i
+yangilanadi. Agar qayta hisoblash qaroriga `UpdatedAt` asos qilinsa, har saqlashda **BUTUN
+baza qaytadan embedding** qilinardi — o'nlab bekorga ketgan Gemini so'rovi.
+
+`NeedsEmbedding` to'rt sababni ko'radi:
+
+| Sabab | Izoh |
+|---|---|
+| Vektor **yo'q** | Yangi bo'lak |
+| Vektor **buzuq** | `ParseVector` bo'sh massiv qaytardi |
+| **Matn o'zgargan** | `ContentHash(title, content)` mos kelmadi — ⚠️ **sarlavha ham hashga kiradi** (u ham promptga tushadi va ma'noga ta'sir qiladi) |
+| **Model almashgan** | ⚠️ Har xil modelning vektorlari **boshqa fazoda** yotadi; ularni taqqoslash ma'nosiz natija berardi va **o'lcham mos kelib qolsa xato ham chiqmasdi** — eng yomon holat |
+
+⚠️ **Matni umuman yo'q bo'lak HECH QACHON navbatga tushmaydi:** Gemini bo'sh matnni rad etadi,
+navbatda qolsa esa har tsiklda qayta urinilib, **boshqa bo'laklarni surib qo'yardi**.
+
+⚠️ `EmbedPendingAsync` **birinchi XATODA to'xtaydi** (`break`): kalit noto'g'ri yoki kvota
+tugagan bo'lsa qolgan bo'laklarni urinib ko'rish faqat bekorga so'rov sarflardi. Keyingi tsiklda
+qaytadan uriniladi — bo'lak "hisoblanmagan" bo'lib qolaveradi.
+
+⚠️ **Darvoza:** `CenterMeta.InstagramEnabled == false` bo'lsa tashqariga **hech qanday so'rov
+ketmaydi** (vektor faqat AI agenti uchun kerak). Tekshiruv **ikki qavat**: worker ham,
+`EmbedPendingAsync` ning o'zi ham.
+
+⚠️ Vektor JSON'i **`InvariantCulture`** bilan yoziladi: server mintaqasi vergulli o'nlik
+ishlatsa `"0,12"` massivda **ikkita son** bo'lib o'qilardi.
+
+⚠️ `Cosine` bo'sh, `null` yoki **TURLI O'LCHAMDAGI** vektorda `0` qaytaradi (istisno emas) —
+turli o'lcham model almashganining belgisi; bunday bo'lak jimgina chetlab o'tiladi, butun javob
+buzilmaydi.
+
+⚠️ Izohda kelgan savolga **post matni (caption)** ham qo'shiladi (`QueryText`) — u kontekst
+beradi ("bu qaysi kurs haqidagi post"), lekin **200 belgigacha qisqartiriladi va xabardan KEYIN
+turadi**: uzun caption savolni "bo'g'ib" qo'yardi.
+
+### 21.6. 🔴 JAVOB SIFATI JURNALI — "taklif" nima
+
+`IgQualityLog.AttachSuggestionAsync` operator yozgan chiquvchi xabarga AI taklifini biriktiradi.
+**Taklif** = suhbatdagi **ENG OXIRGI CHIQUVCHI** xabar AI yozgan bo'lsa (`IsAi`) va u
+**3 soat** (`SuggestionWindowMinutes` = 180) ichida yozilgan bo'lsa.
+
+| Qoida | Nega |
+|---|---|
+| Oxirgi chiquvchi xabar **OPERATORNIKI** bo'lsa taklif YO'Q | Bu suhbatning davomi, tahrir emas. Aks holda operatorning ketma-ket ikki xabari "AI javobini tahrirladi" bo'lib sanalib, hisobot **yolg'on** chiqardi |
+| AI javobi **YUBORILMAGAN** bo'lsa ham (`Error` to'la) u taklif hisoblanadi | ⚠️ Aynan shu holat **eng foydalisi**: AI matn yozdi, mijozga ketmadi, odam qaytadan yozdi |
+| 3 soatdan eski taklif hisobga olinmaydi | Mijoz ertasi kuni qayta yozganda operator kechagi bot javobini tahrirlamaydi — bu yangi qadam |
+| Buzuq `CreatedAt` → **taklif emas** | Noaniq qiymat asosida hisobotga qator yozishdan ko'ra yozmagan yaxshi |
+
+⚠️ **`AttachSuggestionAsync` `Add` dan OLDIN chaqiriladi** — so'rov bazaga ketadi va hali
+yozilmagan qatorni "taklif" deb olib qo'ymaydi. **SaveChanges QILMAYDI**: chaqiruvchining
+tranzaksiyasi bilan birga ketadi (`AuditService.Record` bilan bir xil siyosat).
+
+⚠️ **Xato JIM YUTILADI:** sifat jurnali — ichki tahlil ma'lumoti, uning tufayli operatorning
+javobi yuborilmay qolishi mumkin emas.
+
+### 21.7. 🔴 `AiSuggestedIntent` NEGA ALOHIDA USTUN
+
+Niyatni mavjud `IgMessage.AiIntent` ga yozish vasvasasi bor, lekin **`GET /analytics`
+niyatlarni AYNAN o'sha ustun bo'yicha guruhlaydi**. Operator xabariga ham niyat yozilsa bitta
+suhbat **ikki marta** sanalib, mavjud hisobot **ikki barobar shishardi** — va buni hech kim
+darhol sezmasdi.
+
+Uch maydon (`AiSuggestedText` · `AiSuggestedIntent` · `WasEdited`) **FAQAT operator yozgan
+chiquvchi xabarda** to'ldiriladi, AI'ning o'z javobida bo'sh qoladi.
+
+### 21.8. Matn solishtirish va hisobot
+
+O'xshashlik — **normallashtirilgan Levenshtein**: `1 − masofa / uzunroq matn`, natija 0..1
+(hisobotda 0..100%).
+
+⚠️ **Normallashtirish:** kichik harf + **apostroflar bir ko'rinishga** + ketma-ket bo'shliqlar
+bitta bo'shliqqa. Apostrof birxillashtirish — `ContactService.TopWords` bilan AYNAN bir sabab:
+matn turli klaviaturalardan kiritiladi va aks holda operator **faqat apostrofni** almashtirsa
+ham "tahrirladi" deb sanalardi.
+
+⚠️ **O'xshashlik SAQLANMAYDI** (ustun yo'q) — ikkala matn joyida turgani uchun **o'qishda**
+hisoblanadi. Yagona manba `IgQualityLog.Similarity`: jadval, ro'yxat va kelajakdagi eksport
+bir xil raqamni ko'rsatsin.
+
+`GET /api/admin/instagram/quality?from&to&limit` (sinf darajasidagi `marketing` ruxsati):
+
+| Qoida | Nega |
+|---|---|
+| **O'rtacha farq FAQAT tahrirlanganlar bo'yicha** | O'zgartirilmagan javoblar 100% o'xshashlik bilan o'rtachani sun'iy ko'tarib, "AI matni deyarli aynan qoldirilgan" degan **yolg'on** taassurot berardi |
+| Taklif AYNAN qabul qilingan holat ham **kiradi** (`WasEdited=false`) | "AI to'g'ri yozdi" ham o'lchov |
+| Niyat kesimi **eng ko'p TAHRIRLANADIGAN** niyat bo'yicha tartiblanadi | Savol — "AI qayerda ko'proq yanglishadi", "qaysi niyat ko'p uchraydi" emas (bunisi analitikada bor) |
+| Jamlanma **ro'yxatdan emas**, `QualityScanLimit` (2000) to'plamdan | `books.md` sabog'i: sahifalangan ro'yxatdan qo'shib chiqarilgan son noto'g'ri bo'ladi |
+| Chegaradan oshgani **JIM QIRQILMAYDI** | Javobda `Truncated` bayrog'i — ekranda ochiq yozilishi SHART |
+| Buzuq sana → **standart davr** (oxirgi 30 kun) | 500 bermasin |
+
+🔴 **MAXFIYLIK — javobda MIJOZNING HECH QANDAY BELGISI YO'Q:** na username, na Instagram ID,
+na telefon, na **mijoz yozgan matn**. Faqat BIZNING ikki chiquvchi matnimiz (AI taklifi va
+operator yuborgani), niyat, kanal va **XODIM** ismi.
+
+⚠️ **`ConversationId` ham qaytmaydi** — u orqali suhbatni ochib mijozni topish mumkin bo'lardi,
+ya'ni "faqat matnlar" qoidasi **bilvosita** buzilardi. Bu ICHKI SIFAT ma'lumoti; "kim bilan
+yozishilgani" savolining joyi — Inbox.
+
+### 21.9. Testlar
+
+| Test sinfi | Nimani qulflaydi |
+|---|---|
+| `IgKnowledgeRagTests` (44) | Vektor JSON'iga yozib-o'qish va **o'nlik ajratgich HAR DOIM nuqta**, buzuq/ulkan JSON istisno otmasligi; kosinus (ayni vektor → 1, perpendikulyar → 0, **turli o'lcham va nol vektorda YIQILMASLIK**); tanlov tartibi, chegaradan o'tmagan bo'lak, **teng ballda BARQAROR tartib**; **kichik bazada va bitta bo'lak embedding qilinmaganda RAG ISHLATILMASLIGI**; `Compose` eski formatni saqlashi va chegaradan oshmasligi; `NeedsEmbedding` to'rt sababi va **sarlavhaning hashga kirishi**; `QueryText` da xabar oldinda turishi |
+| `IgQualityLogTests` | Bosh harf/bo'shliq va **turli apostroflar** farq emasligi, Levenshtein masofasi, ayni matn → 100%, bitta tomon bo'sh → 0; **operatorning o'z xabari va kiruvchi xabar taklif EMASLIGI**, eski taklif va buzuq sanali xabar olinmasligi |
+| `InstagramCaptionTests` (24) | §18.10 jadvalida |
