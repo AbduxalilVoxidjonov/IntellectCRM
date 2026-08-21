@@ -37,7 +37,7 @@ namespace IntellectCRM.Server.Controllers;
 // berilgan xodim "Javob qoidalari"ni yoki ulanish sozlamalarini o'zgartira olmasin.
 [AdminPerm("marketing", ReadRequiresPerm = true)]
 [Route("api/admin/instagram")]
-public class InstagramController(
+public partial class InstagramController(
     AppDbContext db,
     InstagramApi api,
     MetaAdsApi adsApi,

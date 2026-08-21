@@ -13,8 +13,33 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public static class IgConst
 {
+    /* ---- GRAPH API VERSIYASI (yagona manba) ----
+       Versiya ilgari har bir URL ichiga yopishtirilgan edi: ko'tarish kerak bo'lganda uni
+       fayllar bo'ylab qidirib chiqish kerak bo'lardi va bitta joyi tushib qolsa modulning bir
+       qismi eski, bir qismi yangi versiyada ishlab, sababi tushunarsiz farqlar berardi.
+
+       ⚠️ Ikki versiya ATAYIN AYRI konstanta, garchi hozir qiymatlari bir xil bo'lsa ham:
+       Instagram Login yo'li (`graph.instagram.com`) va Facebook Graph (reklama, CAPI) —
+       Meta'da BOSHQA-BOSHQA mahsulot va ular ayri jadval bo'yicha eskiradi. Bittasini
+       ko'tarish kerak bo'lganda ikkinchisiga tegmaslik imkoni qolsin.
+
+       ⚠️ VERSIYANI MUZLATISH SIZNI HIMOYA QILMAYDI. Meta'ning ba'zi o'zgarishlari versiyaga
+       BOG'LIQ EMAS va eski versiyada ham darhol kuchga kiradi: metrikaning o'chirilishi,
+       atributsiya oynalarining o'zgarishi, ruxsat/limit siyosati. Ya'ni "v23.0 da qoldik,
+       demak hech narsa buzilmaydi" degan xulosa NOTO'G'RI — raqamlar jimgina o'zgarishi
+       mumkin, shuning uchun `AttributionSetting` kabi kontekst saqlanadi. */
+
+    /// <summary>Instagram Graph API versiyasi ("Instagram Login" yo'li — izoh, DM, kontent chop etish).
+    /// <para>Ko'tarishdan oldin O'ZGARISHLAR JURNALI o'qiladi; ko'tarish — bitta joydan.</para></summary>
+    public const string GraphVersion = "v23.0";
+
+    /// <summary>Facebook Graph API versiyasi — reklama lidlari, Ads Insights va CAPI uchun.
+    /// <para><see cref="GraphVersion"/> dan AYRI: bular boshqa mahsulot va boshqa jadval bo'yicha
+    /// eskiradi (yuqoridagi izoh).</para></summary>
+    public const string FbGraphVersion = "v23.0";
+
     /// <summary>⚠️ <c>graph.facebook.com</c> EMAS — "Instagram Login" yo'lida baza shu.</summary>
-    public const string GraphBase = "https://graph.instagram.com/v23.0";
+    public const string GraphBase = $"https://graph.instagram.com/{GraphVersion}";
     /// <summary>Token almashish (OAuth) uchun alohida host.</summary>
     public const string OauthTokenUrl = "https://api.instagram.com/oauth/access_token";
     public const string GraphRoot = "https://graph.instagram.com";
@@ -26,8 +51,8 @@ public static class IgConst
        (`leads_retrieval` ham Page tokeni bilan ishlaydi). Izoh/DM esa avvalgidek
        `GraphBase` orqali — ikkisini aralashtirib yubormaslik uchun nomlar ochiq ajratilgan. */
 
-    /// <summary>Facebook Graph API bazasi — FAQAT reklama lidlari uchun.</summary>
-    public const string FbGraphBase = "https://graph.facebook.com/v23.0";
+    /// <summary>Facebook Graph API bazasi — reklama lidlari, Ads Insights va CAPI uchun.</summary>
+    public const string FbGraphBase = $"https://graph.facebook.com/{FbGraphVersion}";
 
     /// <summary>Webhook payloadidagi obyekt turi: reklama lidi <c>page</c> obyektidan keladi
     /// (izoh/DM esa <c>instagram</c> dan).</summary>

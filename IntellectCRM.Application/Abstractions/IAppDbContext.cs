@@ -203,6 +203,16 @@ public interface IAppDbContext
     DbSet<IgAdPage> IgAdPages { get; }
     DbSet<IgAdLead> IgAdLeads { get; }
 
+    // Marketing: REKLAMA STATISTIKASI (Meta Ads Insights) — ulangan reklama akkaunti (ads_read
+    // tokeni bilan), kampaniya/adset/e'lon iyerarxiyasi va kunlik faktlar.
+    DbSet<IgAdAccount> IgAdAccounts { get; }
+    DbSet<IgAdEntity> IgAdEntities { get; }
+    DbSet<IgAdInsight> IgAdInsights { get; }
+
+    // Marketing: kontent rejalashtirish navbati va CAPI (lid sifatini Meta'ga qaytarish) navbati.
+    DbSet<IgScheduledPost> IgScheduledPosts { get; }
+    DbSet<IgCapiEvent> IgCapiEvents { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

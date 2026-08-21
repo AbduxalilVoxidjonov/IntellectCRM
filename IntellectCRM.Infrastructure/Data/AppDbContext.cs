@@ -201,6 +201,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<IgAdPage> IgAdPages => Set<IgAdPage>();
     public DbSet<IgAdLead> IgAdLeads => Set<IgAdLead>();
 
+    /* ---------- Marketing: reklama statistikasi (Meta Ads Insights) ---------- */
+    public DbSet<IgAdAccount> IgAdAccounts => Set<IgAdAccount>();
+    public DbSet<IgAdEntity> IgAdEntities => Set<IgAdEntity>();
+    public DbSet<IgAdInsight> IgAdInsights => Set<IgAdInsight>();
+
+    /* ---------- Marketing: kontent rejalashtirish va CAPI ---------- */
+    public DbSet<IgScheduledPost> IgScheduledPosts => Set<IgScheduledPost>();
+    public DbSet<IgCapiEvent> IgCapiEvents => Set<IgCapiEvent>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -373,6 +382,68 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<IgAdLead>().HasIndex(l => l.CreatedTime);
         b.Entity<IgAdPage>().Property(p => p.PageId).HasMaxLength(200);
         b.Entity<IgAdPage>().HasIndex(p => p.PageId);
+
+        // REKLAMA STATISTIKASI (Meta Ads Insights).
+        // 1) `IgAdAccount.AdAccountId` — UNIKAL: akkaunt ikki marta ulanmasin. Admin "act_" ni
+        //    yozmay qo'yishi juda ehtimolli, shuning uchun qiymat saqlashdan OLDIN prefiksli
+        //    ko'rinishga keltiriladi — aks holda bitta akkaunt ikki xil satr bo'lib, indeks
+        //    to'qnashuvni umuman ko'rmasdi.
+        // 2) `IgAdEntity.ExternalId` — UNIKAL: iyerarxiya HAR sinxronizatsiyada qayta o'qiladi va
+        //    upsert qilinadi. Usiz har kuni yangi nusxalar qo'shilib, hisobotdagi JOIN bitta
+        //    e'lonni bir necha marta ko'rsatardi. Uch daraja bitta jadvalda tursa ham to'qnashuv
+        //    yo'q — Meta id'lari tizim bo'ylab yagona.
+        // 3) `(AdAccountId, Level)` — "shu akkauntning kampaniyalari" ro'yxati (ekranning asosiy
+        //    so'rovi) shu ikkalasi bo'yicha filtrlanadi.
+        // 4) `IgAdInsight` UNIKAL `(Level, ExternalId, StatDate, Platform)` — ENG MUHIM indeks.
+        //    Meta oxirgi kunlarning raqamlarini keyin ham tuzatadi (atributsiya kechikadi),
+        //    ya'ni o'sha kunlar QAYTA yuklanadi. Unikal kalitsiz har sinxronizatsiya sarfni
+        //    ikkilantirib yuborardi va buni hisobotdan sezish deyarli imkonsiz bo'lardi.
+        //    `Platform` kalitga ATAYIN kiradi: kesimli (`instagram`/`facebook`) va kesimsiz
+        //    (`all`) qatorlar BIRGA saqlanadi.
+        // 5) `StatDate` — barcha hisobotlar sana ORALIG'I bo'yicha o'qiladi (oylik/haftalik).
+        b.Entity<IgAdAccount>().Property(a => a.AdAccountId).HasMaxLength(200);
+        b.Entity<IgAdAccount>().HasIndex(a => a.AdAccountId).IsUnique();
+        b.Entity<IgAdEntity>().Property(e => e.ExternalId).HasMaxLength(200);
+        b.Entity<IgAdEntity>().HasIndex(e => e.ExternalId).IsUnique();
+        b.Entity<IgAdEntity>().Property(e => e.AdAccountId).HasMaxLength(200);
+        b.Entity<IgAdEntity>().Property(e => e.Level).HasMaxLength(32);
+        b.Entity<IgAdEntity>().HasIndex(e => new { e.AdAccountId, e.Level });
+        b.Entity<IgAdInsight>().Property(i => i.ExternalId).HasMaxLength(200);
+        b.Entity<IgAdInsight>().Property(i => i.Level).HasMaxLength(32);
+        b.Entity<IgAdInsight>().Property(i => i.StatDate).HasMaxLength(32);
+        b.Entity<IgAdInsight>().Property(i => i.Platform).HasMaxLength(32);
+        b.Entity<IgAdInsight>()
+         .HasIndex(i => new { i.Level, i.ExternalId, i.StatDate, i.Platform }).IsUnique();
+        b.Entity<IgAdInsight>().HasIndex(i => i.StatDate);
+
+        // KONTENT REJALASHTIRISH.
+        // 1) `Status` — worker har siklda faqat `scheduled` (va yarim qolgan `processing`)
+        //    qatorlarni tanlaydi; chop etilganlar jadvalda abadiy to'planib boradi, ya'ni
+        //    indekssiz skan jadval o'sgani sayin sekinlashardi (`IgWebhookEvent.Status` bilan
+        //    bir xil sabab).
+        // 2) `ScheduledAt` — "vaqti kelganlar" AYNAN shu ustun bo'yicha saralanib olinadi va
+        //    kalendar ko'rinishi ham shu bo'yicha o'qiladi.
+        b.Entity<IgScheduledPost>().Property(p => p.Status).HasMaxLength(32);
+        b.Entity<IgScheduledPost>().HasIndex(p => p.Status);
+        // ⚠️ Indekslanadigan ISO sana ustuniga uzunlik SHART: usiz SQL Server'da u
+        // `nvarchar(max)` bo'lib qoladi va indeks umuman yaratilmaydi (faylning boshidagi izoh).
+        b.Entity<IgScheduledPost>().Property(p => p.ScheduledAt).HasMaxLength(32);
+        b.Entity<IgScheduledPost>().HasIndex(p => p.ScheduledAt);
+
+        // CAPI NAVBATI.
+        // 1) `Status` — yuborish sikli faqat `pending` qatorlarni oladi.
+        // 2) `EventId` — UNIKAL: dedup kaliti deterministik (`{leadgenId}_{unix}`) va bir hodisa
+        //    ikki marta navbatga tushmasligi kerak. Meta tomonidagi dedup oynasi atigi 48 soat,
+        //    ya'ni unga tayanib bo'lmaydi — kechikkan qayta urinish konversiyani IKKILANTIRIB,
+        //    reklama optimizatsiyasini buzardi.
+        // 3) `LeadId` — "bu lid bo'yicha qaysi bosqich allaqachon yuborilgan?" tekshiruvi kunlik
+        //    skanda HAR lid uchun qilinadi (indekssiz N ta seq-scan).
+        b.Entity<IgCapiEvent>().Property(e => e.Status).HasMaxLength(32);
+        b.Entity<IgCapiEvent>().HasIndex(e => e.Status);
+        b.Entity<IgCapiEvent>().Property(e => e.EventId).HasMaxLength(200);
+        b.Entity<IgCapiEvent>().HasIndex(e => e.EventId).IsUnique();
+        b.Entity<IgCapiEvent>().Property(e => e.LeadId).HasMaxLength(200);
+        b.Entity<IgCapiEvent>().HasIndex(e => e.LeadId);
 
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<TeacherAiAnalysis>().HasIndex(a => new { a.TeacherId, a.Date });

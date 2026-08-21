@@ -1758,6 +1758,67 @@ public class CenterMeta
     /// (<see cref="InstagramLeadSource"/>) bilan ATAYIN har xil: birida odam o'zi yozgan, bunda
     /// esa pul to'langan reklama olib kelgan — voronkada ular aralashib ketmasin.</summary>
     public string InstagramAdsLeadSource { get; set; } = "Instagram reklama";
+
+    /// <summary>REKLAMA STATISTIKASI (Meta Ads Insights) yoqilganmi. <b>Default FALSE</b> —
+    /// o'chiq bo'lsa `graph.facebook.com/act_.../insights` ga HECH QANDAY so'rov ketmaydi
+    /// (modul darvozasi qoidasi).
+    /// <para>⚠️ Boshqa Instagram bayroqlaridan MUSTAQIL: markaz AI agentini ham, reklama
+    /// lidlarini ham ishlatmasdan faqat statistikani yig'ishi mumkin.</para></summary>
+    public bool InstagramAdsStatsEnabled { get; set; }
+
+    /// <summary>Statistika har kuni SOAT NECHADA sinxronlansin (0..23, server vaqti).
+    /// <para>Nega kechasi (default 5)? Insights rate limiti qattiq va backfill og'ir; kunduzi
+    /// ishlasa boshqa Meta so'rovlari (lid olish, javob yuborish) limit tufayli rad etilishi
+    /// mumkin edi. Bundan tashqari o'tgan kun raqamlari faqat kun yopilgandan keyin
+    /// barqarorlashadi.</para></summary>
+    public int InstagramAdsSyncHour { get; set; } = 5;
+
+    /// <summary>BIRINCHI yuklashda necha kunlik tarix olinsin (default 90).
+    /// <para>⚠️ Bu son to'g'ridan-to'g'ri so'rovlar soniga aylanadi — juda katta qilinsa birinchi
+    /// sinxronizatsiya rate limitga urilib, yarim yuklangan holatda to'xtaydi. Har kunlik
+    /// sinxronizatsiyada esa faqat oxirgi bir necha kun QAYTA yuklanadi (Meta atributsiyani
+    /// keyin ham tuzatadi), ya'ni bu qiymat faqat boshlanishga tegishli.</para></summary>
+    public int InstagramAdsBackfillDays { get; set; } = 90;
+
+    /// <summary>KONTENT REJALASHTIRISH (Instagram Content Publishing) yoqilganmi.
+    /// <b>Default FALSE</b> — o'chiq bo'lsa rejalashtirilgan post navbatda qoladi, lekin
+    /// Meta'ga chop etilmaydi.
+    /// <para>⚠️ Modul yangi OAuth ruxsatini talab qiladi
+    /// (<c>instagram_business_content_publish</c>), ya'ni bayroqni yoqishning o'zi YETMAYDI —
+    /// foydalanuvchi Sozlamalarda «Qayta ulash» bosib akkauntni qayta avtorizatsiya qilishi
+    /// kerak. Aks holda chop etish `permission` xatosi bilan yiqilardi va sababi tushunarsiz
+    /// bo'lardi.</para></summary>
+    public bool InstagramPublishEnabled { get; set; }
+
+    /// <summary>CAPI (Conversions API) — lid sifatini Meta'ga qaytarish yoqilganmi.
+    /// <b>Default FALSE</b> — o'chiq bo'lsa hodisa navbatiga yozilmaydi va tashqariga hech narsa
+    /// ketmaydi.
+    /// <para>⚠️ Bu bayroq MIJOZ MA'LUMOTINI (hashlangan bo'lsa ham) Meta'ga uzatishni yoqadi —
+    /// yoqishdan oldin markaz maxfiylik siyosati va Meta'ning Data Protection Assessment
+    /// talablarini bajarganiga ishonch hosil qilinishi kerak, shuning uchun default o'chiq.</para></summary>
+    public bool InstagramCapiEnabled { get; set; }
+
+    /// <summary>Events Manager'dagi dataset (piksel) ID — hodisalar SHUNGA yuboriladi.
+    /// Bo'sh bo'lsa modul yoqilgan bo'lsa ham so'rov qilinmaydi (manzilsiz yuborib bo'lmaydi).</summary>
+    public string InstagramCapiDatasetId { get; set; } = string.Empty;
+
+    /// <summary>CAPI uchun Access Token.
+    /// <para>⚠️ Qiymat HECH QACHON javobga, DTO'ga, logga yoki auditga TUSHMAYDI — tashqariga
+    /// faqat "sozlangan / sozlanmagan" bayrog'i chiqadi (<see cref="IgAdPage.AccessToken"/>
+    /// bilan bir xil qoida). Forma bo'sh yuborilsa mavjud token saqlanadi.</para></summary>
+    public string InstagramCapiToken { get; set; } = string.Empty;
+
+    /// <summary>"Sifatli lid" bosqichi uchun CAPI hodisasining NOMI.
+    /// <para>🔴 Kodga yozib qo'yilmaydi ATAYIN: Conversion Leads oqimida <c>event_name</c> —
+    /// ERKIN MATN va u Events Manager'da sozlangan bosqich nomi bilan AYNAN bir xil bo'lishi
+    /// shart. Markaz bosqichni "Marketing Qualified Lead" deb nomlagan bo'lsa, kodda qotib
+    /// qolgan satr hodisani jimgina yaroqsiz qilib qo'yardi.</para></summary>
+    public string InstagramCapiStageQualified { get; set; } = "Sifatli lid";
+
+    /// <summary>"To'lov qildi" bosqichi uchun CAPI hodisasining NOMI (yuqoridagi izoh bilan bir xil
+    /// sabab). Bu hodisaga qiymat (<c>value</c>) va valyuta ham qo'shiladi — Meta ROAS bo'yicha
+    /// optimallashtira olsin.</summary>
+    public string InstagramCapiStageWon { get; set; } = "To'lov qildi";
 }
 
 /// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali
@@ -3876,6 +3937,23 @@ public class IgConversation
     /// `""` bilan chalkashtirilmasligi kerak.</summary>
     public string? LeadId { get; set; }
 
+    /// <summary>Suhbat REKLAMA izohidan boshlangan bo'lsa — o'sha e'lonning id'si. Bo'sh = organik.
+    /// <para><b>Nega kerak?</b> ROI hisobotida reklama faqat forma lidini emas, izoh orqali kelgan
+    /// lidni ham keltirgani ko'rinsin. Usiz reklama byudjeti "bekorga ketgan" bo'lib
+    /// ko'rinardi.</para>
+    /// <para>⚠️ Atributsiya <b>TAXMINIY</b>: Instagram Login yo'lidagi <c>comments</c> webhook'ida
+    /// <c>ad_id</c> UMUMAN YO'Q (u faqat Facebook Login payloadida bor). Bog'lanish
+    /// <c>media.id</c> ni <see cref="IgAdEntity.CreativeStoryId"/> bilan solishtirish orqali
+    /// TIKLANADI: boostlangan organik postda ishlaydi, "dark post" va dinamik katalog
+    /// reklamasida ishlamaydi. Shu sabab UI'da "taxminiy" deb belgilanishi SHART — aks holda
+    /// bo'sh qiymat "reklamadan kelmagan" degan XATO xulosa berardi.</para></summary>
+    public string AdId { get; set; } = string.Empty;
+
+    /// <summary>Aniqlangan e'lonning kampaniyasi (<see cref="IgAdEntity.ParentId"/> zanjiri
+    /// orqali). Denormalizatsiya: inbox ro'yxatida kampaniya nomini ko'rsatish uchun har suhbatda
+    /// iyerarxiya bo'ylab yurish (N+1) kerak bo'lmasin. Bo'sh = aniqlanmagan.</summary>
+    public string AdCampaignId { get; set; } = string.Empty;
+
     public string CreatedAt { get; set; } = string.Empty;
 }
 
@@ -3911,6 +3989,18 @@ public class IgMessage
     /// <summary>Yuborishda xato bo'lsa — o'zbekcha matn. Xabar qatori BARIBIR saqlanadi:
     /// "javob ketmadi" ni operator ko'rishi kerak (jim yo'qolgan javob eng yomon holat).</summary>
     public string Error { get; set; } = string.Empty;
+
+    /// <summary>Bu xabar (odatda IZOH) qaysi reklama e'loni ostida yozilgani. Bo'sh = organik.
+    /// <para>Suhbat darajasidagi <see cref="IgConversation.AdId"/> dan AYRI turadi ATAYIN:
+    /// odam bir reklama ostida izoh yozib, keyin boshqasiga o'tishi mumkin, suhbat esa bitta
+    /// bo'lib qoladi. Suhbatdagi qiymat — BIRINCHI teginish, xabardagi qiymat — o'sha izohning
+    /// o'zi.</para>
+    /// <para>⚠️ Atributsiya TAXMINIY (<see cref="IgConversation.AdId"/> izohiga qarang).</para></summary>
+    public string AdId { get; set; } = string.Empty;
+
+    /// <summary>Aniqlangan e'lonning kampaniyasi — ro'yxatda kampaniya nomini N+1 so'rovsiz
+    /// ko'rsatish uchun denormalizatsiya. Bo'sh = aniqlanmagan.</summary>
+    public string AdCampaignId { get; set; } = string.Empty;
 
     public string CreatedAt { get; set; } = string.Empty;
 }
@@ -4089,6 +4179,420 @@ public class IgAdLead
 
     /// <summary>Qayta ishlashdagi xato (o'zbekcha). Bo'sh = muvaffaqiyatli.</summary>
     public string Error { get; set; } = string.Empty;
+}
+
+// =================================================================================================
+//  REKLAMA STATISTIKASI (Meta Ads Insights)
+// =================================================================================================
+// "Bu oyda reklamaga N so'm sarfladik, M ta lid keldi, bittasi K so'mga tushdi" degan savolga
+// javob beradigan qatlam. Ads Manager lid SONINI biladi, lekin qaysi lid PUL TO'LAGANINI
+// bilmaydi — CRM biladi, shuning uchun statistika mahalliy jadvallarda saqlanadi.
+//
+// ⚠️ Bu ham `graph.facebook.com` yo'li (reklama lidlari kabi), `graph.instagram.com` EMAS:
+// Insights Ad Account obyektiga tegishli. Lekin token BOSHQA — reklama lidlari uchun Page
+// tokeni (`leads_retrieval`), statistika uchun esa `ads_read` ruxsatli System User tokeni
+// kerak. Page tokeni bilan Insights so'ralsa `OAuthException 190/200` chiqadi va sababini
+// topish qiyin bo'ladi, shuning uchun token AYRI entity'da turadi.
+
+/// <summary>
+/// Statistika olinadigan Meta REKLAMA AKKAUNTI (Ad Account).
+///
+/// <para><b>Nega token bazada va UI'dan kiritiladi?</b> <see cref="IgAdPage"/> bilan AYNAN bir xil
+/// naqsh: Business Manager'da System User yaratiladi, unga reklama akkaunti biriktiriladi va
+/// <c>ads_read</c> ruxsati bilan MUDDATSIZ token generatsiya qilinadi. Bunday token `.env` ga
+/// yozilmaydi (u ish vaqtida, admin qo'lida paydo bo'ladi) va OAuth oqimi ham kerak emas.
+/// Qiymat HECH QACHON javobga, DTO'ga, logga yoki auditga tushmaydi — tashqariga faqat
+/// "sozlangan / sozlanmagan" holati chiqadi.</para>
+/// </summary>
+public class IgAdAccount
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Meta'dagi reklama akkaunti id — <b>"act_" PREFIKSI BILAN</b> saqlanadi
+    /// (<c>act_1234567890</c>).
+    /// <para>⚠️ Prefiks tashlab yuborilsa Graph so'rovi 404/`code 100` beradi, chunki so'rov yo'li
+    /// aynan <c>/act_{id}/insights</c> ko'rinishida bo'ladi. Admin raqamni prefikssiz kiritishi
+    /// juda ehtimolli, shuning uchun normalizatsiya SAQLASHDAN OLDIN qilinadi va bazada har doim
+    /// prefiksli qiymat turadi — aks holda bir xil akkaunt ikki xil satr bo'lib, unikal indeks
+    /// ham yordam bermasdi.</para></summary>
+    public string AdAccountId { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Valyuta ISO kodi (<c>USD</c> | <c>UZS</c>) — <c>GET /act_{id}?fields=currency</c>.</summary>
+    public string Currency { get; set; } = string.Empty;
+
+    /// <summary>Minor unit uchun o'nlik xona soni: 2 = tiyin/sent, 0 = "zero-decimal" valyuta.
+    /// <para>⚠️ <b>Bu qiymat Meta'dan KELMAYDI.</b> Ad Account tugunida <c>currency_offset</c>
+    /// degan maydon YO'Q (u eskirgan Currency tugunida edi), so'ralsa butun so'rov `code 100`
+    /// bilan rad etiladi. Offset bizning tomonda, valyuta kodidan sof funksiya bilan
+    /// hisoblanadi; noma'lum kod uchun xavfsiz default — <b>2</b>. UZS ham 2.</para></summary>
+    public int CurrencyOffset { get; set; } = 2;
+
+    /// <summary>Akkauntning vaqt zonasi nomi (<c>Asia/Tashkent</c>).
+    /// <para>⚠️ Kunlik statistikaning SANASI Meta tomonida AYNAN shu zonada kesiladi, bizning
+    /// server zonasida emas. Sanani qayta hisoblashga urinish "bir kunlik siljish" xatosini
+    /// keltirib chiqaradi (kecha sarflangan pul bugunga tushib qoladi), shuning uchun
+    /// <see cref="IgAdInsight.StatDate"/> Meta bergan ko'rinishda YOZILADI, zona esa faqat
+    /// ekranda tushuntirish uchun saqlanadi.</para></summary>
+    public string TimezoneName { get; set; } = string.Empty;
+
+    /// <summary>System User tokeni (<c>ads_read</c> ruxsati bilan).
+    /// <para>⚠️ Javobga TUSHMAYDI — DTO'da faqat <c>tokenSet</c> bayrog'i qaytadi. Forma bo'sh
+    /// yuborilsa mavjud token saqlanadi (akkaunt nomini tahrirlash uchun tokenni qayta yozish
+    /// shart bo'lmasin).</para></summary>
+    public string AccessToken { get; set; } = string.Empty;
+
+    /// <summary>Uzilganda qator O'CHIRILMAYDI (yig'ilgan statistika tarixi saqlansin) — faqat
+    /// <c>false</c> va token tozalanadi.</summary>
+    public bool IsActive { get; set; } = true;
+
+    public string ConnectedAt { get; set; } = string.Empty;
+    public string ConnectedBy { get; set; } = string.Empty;
+
+    /// <summary>Oxirgi muvaffaqiyatli sinxronizatsiya (ISO). Bo'sh = hali umuman yuklanmagan
+    /// (ya'ni birinchi ishga tushishda backfill qilinadi).</summary>
+    public string LastSyncAt { get; set; } = string.Empty;
+
+    /// <summary>Oxirgi xato (o'zbekcha) — token muddati tugagani, rate limit yoki ruxsat
+    /// yetishmagani. Bo'sh = muammo yo'q. Sozlamalar sahifasida ko'rsatiladi: aks holda
+    /// nosozlik "reklama ishlayapti, statistika yangilanmayapti" bo'lib ko'rinardi.</summary>
+    public string LastError { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Reklama iyerarxiyasining bitta tuguni: <b>kampaniya → reklama to'plami (adset) → e'lon (ad)</b>.
+///
+/// <para><b>Nega alohida jadval?</b> Insights faqat ID qaytaradi, NOM qaytarmaydi. Nomlarsiz
+/// hisobot o'qib bo'lmaydigan raqamlar to'plamiga aylanadi, har hisobot uchun Meta'dan nom
+/// so'rash esa rate limitni yeb qo'yardi. Shuning uchun iyerarxiya bir marta sinxronlanadi va
+/// hisobot mahalliy JOIN bilan quriladi.</para>
+///
+/// <para>⚠️ Reklama Meta'da <b>o'chirilsa ham qator qoladi</b> — o'tgan oyning hisoboti
+/// buzilmasligi kerak. "Hozir ishlayaptimi" savoliga <see cref="EffectiveStatus"/> javob
+/// beradi.</para>
+/// </summary>
+public class IgAdEntity
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Qaysi reklama akkauntiga tegishli (<c>act_...</c>).</summary>
+    public string AdAccountId { get; set; } = string.Empty;
+
+    /// <summary><c>campaign</c> | <c>adset</c> | <c>ad</c> — tugunning darajasi.</summary>
+    public string Level { get; set; } = string.Empty;
+
+    /// <summary>Meta'dagi id — <b>UNIKAL indeks</b> (qayta sinxronda upsert kaliti).
+    /// <para>Uch daraja bitta jadvalda tursa ham to'qnashuv bo'lmaydi: Meta id'lari butun
+    /// tizim bo'ylab yagona.</para></summary>
+    public string ExternalId { get; set; } = string.Empty;
+
+    /// <summary>Ota tugun: adset → campaign, ad → adset. Kampaniyada bo'sh.
+    /// <para>⚠️ Ataylab FOREIGN KEY EMAS: bolalar ota-onasidan oldin kelishi mumkin (Meta uchta
+    /// alohida so'rovda beradi) va FK bo'lsa sinxronizatsiya tartibi buzilganda butun paket
+    /// yiqilardi.</para></summary>
+    public string ParentId { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Foydalanuvchi qo'ygan holat: <c>ACTIVE</c> | <c>PAUSED</c> | <c>DELETED</c>...</summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>HAQIQIY holat — ota tugun pauzada bo'lsa yoki byudjet tugagan bo'lsa bu yerda
+    /// ko'rinadi (<c>CAMPAIGN_PAUSED</c>, <c>ADSET_PAUSED</c>...). "Nega e'lon ACTIVE, lekin
+    /// ko'rsatilmayapti" savoliga javob AYNAN shu ustunda.</summary>
+    public string EffectiveStatus { get; set; } = string.Empty;
+
+    /// <summary>Kampaniya maqsadi (<c>OUTCOME_LEADS</c>, <c>OUTCOME_ENGAGEMENT</c>...) — lid
+    /// maqsadidagi kampaniyani boshqasidan ajratish uchun (CPL faqat lid kampaniyasida ma'noli).</summary>
+    public string Objective { get; set; } = string.Empty;
+
+    /// <summary>Kunlik byudjet — <b>MINOR UNIT</b> (tiyin/sent), butun son.
+    /// <para>🔴 Meta'da ASSIMETRIYA bor: byudjet MINOR unit'da butun son bo'lib keladi
+    /// (<c>5000</c> = 50.00 USD), <see cref="IgAdInsight.SpendMinor"/> manbasi bo'lgan
+    /// <c>spend</c> esa MAJOR unit'da MATN bo'lib keladi (<c>"312.45"</c>). Ikkalasi bazada
+    /// bir xil (minor) ko'rinishga keltiriladi — aks holda "sarf byudjetdan 100 barobar katta"
+    /// kabi hisobotlar chiqardi.</para></summary>
+    public long DailyBudgetMinor { get; set; }
+
+    /// <summary>Umrbod byudjet — MINOR UNIT (yuqoridagi izohga qarang). Kunlik byudjet bilan
+    /// odatda faqat bittasi to'ldirilgan bo'ladi.</summary>
+    public long LifetimeBudgetMinor { get; set; }
+
+    public string StartTime { get; set; } = string.Empty;
+    /// <summary>Tugash vaqti (ISO). Bo'sh = tugash sanasi qo'yilmagan (uzluksiz).</summary>
+    public string StopTime { get; set; } = string.Empty;
+
+    /// <summary>Creative'ning <c>effective_object_story_id</c> — reklama ostidagi HAQIQIY
+    /// media/post identifikatori.
+    /// <para>Reklama izohlari atributsiyasi (E3) uchun kerak: izoh webhook'ida <c>ad_id</c>
+    /// YO'Q, faqat <c>media.id</c> keladi. Shu ustun orqali "bu izoh qaysi reklamaga tegishli"
+    /// savoliga javob topiladi.</para>
+    /// <para>⚠️ Bu <b>TAXMINIY</b> atributsiya: boostlangan organik postda ishlaydi, "dark post"
+    /// (chop etilmagan reklama) va dinamik katalog reklamasida ishlamaydi. Bo'sh bo'lishi
+    /// normal.</para></summary>
+    public string CreativeStoryId { get; set; } = string.Empty;
+
+    /// <summary>Oxirgi marta qachon sinxronlangani (ISO).</summary>
+    public string SyncedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// BIR KUNLIK fakt: bitta tugun (kampaniya/adset/e'lon) uchun bitta sanadagi ko'rsatkichlar.
+///
+/// <para><b>Nega mahalliy nusxa?</b> (1) ROI hisoboti sarfni CRM'dagi to'lovlar bilan JOIN
+/// qilishi kerak — buni Meta tomonida qilib bo'lmaydi; (2) Insights rate limiti qattiq, har
+/// ekran ochilganda so'rov yuborib bo'lmaydi; (3) Meta ma'lumotni chegaralangan muddat saqlaydi,
+/// biz esa yillik taqqoslash ko'rsatamiz.</para>
+///
+/// <para>⚠️ Qatorlar <b>UPSERT</b> qilinadi, faqat qo'shilmaydi: Meta oxirgi kunlarning
+/// raqamlarini keyin ham tuzatadi (atributsiya kechikadi). Kalit —
+/// <c>(Level, ExternalId, StatDate, Platform)</c> unikal indeksi; usiz har sinxronizatsiya
+/// sarfni ikkilantirib yuborardi.</para>
+/// </summary>
+public class IgAdInsight
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    public string AdAccountId { get; set; } = string.Empty;
+
+    /// <summary><c>campaign</c> | <c>adset</c> | <c>ad</c> — qaysi darajadagi fakt.
+    /// <para>⚠️ Uch daraja bir jadvalda turadi, ya'ni hisobotda ular <b>QO'SHILMASLIGI</b> kerak:
+    /// kampaniya qatori o'z e'lonlari yig'indisi bilan bir xil, birga sanalsa sarf ikki-uch
+    /// barobar ko'rinardi. Har so'rov bitta darajani tanlaydi.</para></summary>
+    public string Level { get; set; } = string.Empty;
+
+    /// <summary>Tugunning Meta id'si — <see cref="IgAdEntity.ExternalId"/> bilan bog'lanadi
+    /// (nom shu orqali topiladi).</summary>
+    public string ExternalId { get; set; } = string.Empty;
+
+    /// <summary>Sana <c>yyyy-MM-dd</c> — <b>reklama akkauntining vaqt zonasida</b>
+    /// (<see cref="IgAdAccount.TimezoneName"/>).
+    /// <para>⚠️ Meta bergan ko'rinishda YOZILADI, qayta hisoblanmaydi: konvertatsiya "bir kunlik
+    /// siljish" xatosini keltirib chiqaradi va Ads Manager bilan raqamlar mos kelmay qoladi
+    /// ("nega CRM'da kechagi sarf 0?").</para>
+    /// <para>ISO vaqt EMAS, ataylab qisqa sana: guruhlash va oralik filtri AYNAN shu ustun
+    /// bo'yicha ketadi va <c>Substring</c> bilan guruhlash indeksdan foydalana olmasdi.</para></summary>
+    public string StatDate { get; set; } = string.Empty;
+
+    /// <summary><c>instagram</c> | <c>facebook</c> | <c>all</c> — qaysi platformadagi kesim.
+    /// <para><c>all</c> = kesimsiz (butun e'lon bo'yicha). Kesim bilan va kesimsiz qatorlar
+    /// BIRGA saqlanadi (shuning uchun u unikal indeksning bir qismi), lekin hisobotda
+    /// aralashtirib qo'shilmaydi — aks holda sarf ikkilanardi.</para></summary>
+    public string Platform { get; set; } = "all";
+
+    public long Impressions { get; set; }
+    /// <summary>Erishilgan noyob odamlar soni.
+    /// <para>⚠️ Reach kunlar bo'yicha <b>QO'SHILMAYDI</b> (bir odam ikki kun ko'rsa ikki marta
+    /// sanaladi). Oylik reach kerak bo'lsa Meta'dan AYRI so'raladi; mahalliy yig'indi faqat
+    /// "taxminiy" deb ko'rsatilishi mumkin.</para></summary>
+    public long Reach { get; set; }
+    /// <summary>Barcha bosishlar (like, izoh, profilga o'tish ham kiradi).</summary>
+    public long Clicks { get; set; }
+    /// <summary><c>inline_link_clicks</c> — faqat HAVOLA bosilgani. CTR va CPC hisoblarida
+    /// odatda AYNAN shu ishlatiladi, <see cref="Clicks"/> emas.</summary>
+    public long LinkClicks { get; set; }
+
+    /// <summary>Sarf — <b>MINOR UNIT</b> (tiyin/sent).
+    /// <para>🔴 Meta <c>spend</c> ni MAJOR unit'da MATN qilib beradi (<c>"312.45"</c>) —
+    /// u <c>InvariantCulture</c> bilan o'qilib, <see cref="IgAdAccount.CurrencyOffset"/> ga
+    /// ko'paytiriladi. O'zbek lokalida <c>decimal.Parse</c> nuqtani ajratuvchi deb o'qimasligi
+    /// mumkin, ya'ni <c>"312.45"</c> → 31245 bo'lib ketardi.</para>
+    /// <para>Butun sonda saqlanishining sababi: <c>double</c> da pul yig'indisi yaxlitlash
+    /// xatosini to'playdi, hisobot esa tiyingacha to'g'ri bo'lishi kerak.</para></summary>
+    public long SpendMinor { get; set; }
+
+    /// <summary><c>onsite_conversion.lead_grouped</c> — Meta'ning INSTANT FORM lidlari
+    /// (formani Meta o'zi ko'rsatgan). Reklama lidlari moduli aynan shularni oladi.</summary>
+    public int LeadsOnsite { get; set; }
+
+    /// <summary><c>offsite_conversion.fb_pixel_lead</c> — SAYTDAGI piksel lidi.
+    /// <para>⚠️ <see cref="LeadsOnsite"/> bilan <b>QO'SHILMAYDI</b>: bitta odam ikkala hodisani
+    /// ham keltirib chiqarishi mumkin (formani to'ldirdi, keyin saytga ham o'tdi) va yig'indi
+    /// lidlar sonini shishirardi. Ular ayri ko'rsatiladi.</para></summary>
+    public int LeadsPixel { get; set; }
+
+    /// <summary><c>messaging_conversation_started_7d</c> — reklamadan keyin BOSHLANGAN
+    /// yozishmalar (DM). "Xabar yuborish" maqsadidagi kampaniyaning asosiy natijasi.
+    /// <para>⚠️ 7 kunlik atributsiya oynasi nom ichida — ya'ni bu son bir necha kun davomida
+    /// ORQAGA qarab o'zgaradi, shuning uchun oxirgi kunlar qayta yuklanadi (upsert).</para></summary>
+    public int MsgStarted { get; set; }
+
+    /// <summary>Meta bergan XOM <c>actions</c> massivi (JSON).
+    /// <para>Nega saqlanadi: kerakli hodisa turi keyinchalik o'zgaradi (Meta yangi
+    /// <c>action_type</c> qo'shadi yoki eskisini o'chiradi), xom JSON bo'lsa ustun qo'shmasdan
+    /// ham eski kunlarni qayta o'qib chiqish mumkin. Bo'sh massiv ham normal.</para></summary>
+    public string ActionsJson { get; set; } = string.Empty;
+
+    /// <summary>Meta qaytargan atributsiya sozlamasi (masalan <c>7d_click,1d_view</c>).
+    /// <para>⚠️ Bu sozlama Meta tomonida O'ZGARISHI mumkin va o'zgargan zahoti eski raqamlar
+    /// yangisi bilan taqqoslanmaydigan bo'lib qoladi. Saqlanmasa "nega konversiya birdan
+    /// tushdi" savoliga hech qanday iz qolmasdi.</para></summary>
+    public string AttributionSetting { get; set; } = string.Empty;
+
+    /// <summary>Bu qator qachon olingani (ISO) — upsertda yangilanadi. "Ma'lumot qanchalik
+    /// yangi" degan savol ekranda shu bo'yicha ko'rsatiladi.</summary>
+    public string FetchedAt { get; set; } = string.Empty;
+}
+
+// =================================================================================================
+//  KONTENT REJALASHTIRISH (Instagram Content Publishing)
+// =================================================================================================
+// ⚠️ Instagram'da NATIVE rejalashtirish YO'Q: `POST /{ig-user-id}/media` da
+// `scheduled_publish_time` degan parametr mavjud emas, yaratilgan konteyner esa 24 soatdan
+// keyin o'ladi. Demak navbat BIZDA: worker vaqt kelganini ko'radi → konteyner yaratadi →
+// statusini so'raydi → `FINISHED` bo'lgach chop etadi. Konteynerni oldindan yaratib qo'yish
+// TAQIQLANADI — u chop etishgacha eskirib qolishi mumkin.
+
+/// <summary>
+/// Rejalashtirilgan bitta post (feed rasm/video, Reels, Story yoki karusel).
+///
+/// <para>Navbat DB jadvalida — kesh yoki <c>Task.Run</c> emas: server qayta ishga tushganda
+/// rejalashtirilgan post jimgina yo'qolib ketmasligi kerak.</para>
+/// </summary>
+public class IgScheduledPost
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary><c>image</c> | <c>video</c> | <c>reels</c> | <c>story</c> | <c>carousel</c> —
+    /// Meta'ga yuboriladigan konteyner turi va media talablari shundan kelib chiqadi
+    /// (hajm, davomiylik, nisbat har turda BOSHQA).</summary>
+    public string PostType { get; set; } = "image";
+
+    /// <summary>Post matni (≤2200 belgi, ≤30 hashtag, ≤20 mention).
+    /// <para>⚠️ Karuselda caption faqat OTA-ONA konteynerida ishlaydi — bolalarga berilgani
+    /// jimgina e'tiborsiz qoldiriladi.</para></summary>
+    public string Caption { get; set; } = string.Empty;
+
+    /// <summary>Media elementlari (JSON massiv): <c>[{url,type,coverUrl,thumbOffset,altText}]</c>.
+    /// <para>Nega JSON, alohida jadval emas: element soni 1..10, ular faqat SHU post bilan birga
+    /// o'qiladi va alohida qidirilmaydi — jadval qo'shish JOIN va migratsiya qo'shardi, foydasiz.</para>
+    /// <para>🔴 <c>url</c> — <b>ochiq HTTPS</b> bo'lishi SHART: faylni Meta O'ZI yuklab oladi.
+    /// Autentifikatsiya, IP cheklov yoki redirect ishlamaydi. Loyihadagi <c>/uploads</c> esa
+    /// login ortida (`UploadsGuard`) — ya'ni oddiy upload manzilini bu yerga qo'yib bo'lmaydi.</para></summary>
+    public string MediaJson { get; set; } = string.Empty;
+
+    /// <summary>Qo'shimcha sozlamalar (JSON): <c>{shareToFeed,locationId,collaborators,audioName}</c>.
+    /// <para>Ular tur bo'yicha har xil qo'llaniladi (masalan <c>shareToFeed</c> faqat Reels'da),
+    /// ustun qilib ajratilsa jadvalda doim bo'sh turadigan maydonlar to'planardi.</para></summary>
+    public string OptionsJson { get; set; } = string.Empty;
+
+    /// <summary>Rejalashtirilgan vaqt (ISO) — <b>BIZNING navbat vaqti</b>, Meta'niki emas
+    /// (§ yuqoridagi izoh). Worker shu vaqt kelganini ko'rib ishni boshlaydi.</summary>
+    public string ScheduledAt { get; set; } = string.Empty;
+
+    /// <summary><c>scheduled</c> | <c>processing</c> | <c>published</c> | <c>failed</c> |
+    /// <c>cancelled</c>.
+    /// <para><c>processing</c> ALOHIDA holat ekani muhim: konteyner yaratilgan, lekin hali chop
+    /// etilmagan oraliq bor va u daqiqalar davom etadi. Usiz worker o'zi boshlagan ishni qayta
+    /// boshlab, bitta post IKKI MARTA chop etilishi mumkin edi.</para></summary>
+    public string Status { get; set; } = "scheduled";
+
+    /// <summary>Meta yaratgan konteyner id (birinchi bosqich natijasi).
+    /// <para>⚠️ Konteyner 24 soatdan keyin o'ladi — qayta urinishda ESKISINI ishlatib bo'lmaydi,
+    /// yangisi yaratiladi.</para></summary>
+    public string ContainerId { get; set; } = string.Empty;
+
+    /// <summary>Konteynerning oxirgi holati: <c>IN_PROGRESS</c> | <c>FINISHED</c> |
+    /// <c>ERROR</c> | <c>EXPIRED</c> | <c>PUBLISHED</c>. Faqat <c>FINISHED</c> da chop etiladi.</summary>
+    public string ContainerStatus { get; set; } = string.Empty;
+
+    /// <summary>Chop etilgandan keyingi media id.</summary>
+    public string MediaId { get; set; } = string.Empty;
+    /// <summary>Postning ochiq havolasi — admin natijani darhol ko'ra olsin.</summary>
+    public string Permalink { get; set; } = string.Empty;
+
+    /// <summary>Nechta marta urinilgani — cheksiz qayta urinishdan himoya (chegara oshsa
+    /// <c>failed</c>). Chop etish limiti ham cheklangan resurs, uni bo'sh urinishlarga
+    /// sarflab bo'lmaydi.</summary>
+    public int Attempts { get; set; }
+
+    /// <summary>Oxirgi xato (o'zbekcha). Post <c>failed</c> bo'lsa admin SABABINI ko'rishi kerak:
+    /// media talabiga mos kelmadimi, limit tugadimi yoki token muddati o'tdimi.</summary>
+    public string Error { get; set; } = string.Empty;
+
+    public string CreatedBy { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+
+    /// <summary>Haqiqatan chop etilgan vaqt (ISO) — rejalashtirilganidan farq qilishi mumkin
+    /// (konteyner tayyorlanishi kutiladi), shuning uchun AYRI ustun.</summary>
+    public string PublishedAt { get; set; } = string.Empty;
+}
+
+// =================================================================================================
+//  CAPI — LID SIFATINI META'GA QAYTARISH (Conversions API)
+// =================================================================================================
+// Hozir Meta faqat "lid keldi" ni biladi. "Bu lid o'quvchi bo'ldi va pul to'ladi" ni bilmaydi.
+// Shu ma'lumot qaytarilsa Meta HAQIQIY mijoz keltiradigan auditoriyaga optimallashadi.
+//
+// 🔴 MAXFIYLIK: hodisa navbati xom telefon/email SAQLAMAYDI — faqat hashlangan (SHA-256)
+// ko'rinish. Xom PII faqat `Lead` jadvalida qoladi.
+
+/// <summary>
+/// Meta'ga yuboriladigan BITTA konversiya hodisasi (Conversions API navbati).
+///
+/// <para><b>Nega navbat jadvali?</b> Yuborish tashqi tarmoqqa bog'liq va xato bo'lishi mumkin;
+/// jadval bo'lsa qayta urinish, dedup va "nima yuborildi" tarixi qoladi. To'g'ridan-to'g'ri
+/// yuborish restartda hodisani yo'qotardi.</para>
+/// </summary>
+public class IgCapiEvent
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>CRM'dagi <see cref="Lead"/>.Id — hodisa qaysi lid haqida.</summary>
+    public string LeadId { get; set; } = string.Empty;
+
+    /// <summary>Meta'ning lid id'si (<see cref="IgAdLead.LeadgenId"/>, 15–17 raqam).
+    /// <para>⚠️ CAPI'ning "Conversion Leads" oqimi AYNAN shu id orqali ishlaydi — usiz Meta
+    /// hodisani hech qanday reklamaga bog'lay olmaydi. Ya'ni faqat REKLAMA FORMASIDAN kelgan
+    /// lidlar uchun hodisa yaratiladi; DM/izohdan kelgan lid bu navbatga tushmaydi.</para></summary>
+    public string LeadgenId { get; set; } = string.Empty;
+
+    /// <summary>Hodisa nomi — <b>ERKIN MATN</b>, kodga yozib qo'yilmaydi.
+    /// <para>🔴 Meta hech qanday qat'iy satrni talab qilmaydi (qat'iy enum faqat Business
+    /// Messaging CAPI'da). Shart bitta: Events Manager'da sozlangan bosqich nomi bilan AYNAN
+    /// bir xil bo'lishi. Shuning uchun nomlar <see cref="CenterMeta.InstagramCapiStageQualified"/>
+    /// va <see cref="CenterMeta.InstagramCapiStageWon"/> sozlamalaridan olinadi — markaz
+    /// Events Manager'dagi nomni o'zgartirsa kod qayta yig'ilmaydi.</para></summary>
+    public string EventName { get; set; } = string.Empty;
+
+    /// <summary>Dedup kaliti (<c>"{leadgenId}_{unix}"</c>) — <b>UNIKAL indeks</b>.
+    /// <para>⚠️ Deterministik bo'lishi SHART: <c>Guid</c>/<c>Random</c> ishlatilsa qayta
+    /// urinishda AYNI hodisa Meta'ga ikkinchi marta boshqa kalit bilan tushib, konversiya
+    /// ikkilanardi. Meta tomonidagi dedup oynasi — <c>event_name</c> + <c>event_id</c> bo'yicha
+    /// 48 soat; bizdagi unikal indeks esa uzoq muddatli qavat.</para></summary>
+    public string EventId { get; set; } = string.Empty;
+
+    /// <summary>Hodisa vaqti (ISO).
+    /// <para>⚠️ <b>7 kundan eski bo'lmasin</b> — Meta bunday hodisani rad etadi va rad javobi
+    /// BUTUN paketga tegishli bo'ladi (bitta eski qator tufayli 1000 ta hodisa yo'qoladi).
+    /// Shuning uchun eskirgan qator yuborilmaydi, <c>skipped</c> qilinadi.</para></summary>
+    public string EventTime { get; set; } = string.Empty;
+
+    /// <summary><c>pending</c> | <c>sent</c> | <c>failed</c> | <c>skipped</c>.
+    /// <para><c>skipped</c> — yuborishga urinilmagan, lekin qayta ham urinilmaydi (muddati
+    /// o'tgan yoki modul o'chiq bo'lgan hodisa). U <c>failed</c> dan ATAYIN ayrilgan: "xato"
+    /// deb ko'rsatilsa admin muammo izlab vaqt sarflardi.</para></summary>
+    public string Status { get; set; } = "pending";
+
+    /// <summary>Yuborishga nechta urinilgani — cheksiz qayta urinishdan himoya.</summary>
+    public int Attempts { get; set; }
+
+    /// <summary>Oxirgi xato (o'zbekcha). Bo'sh = muammo yo'q.</summary>
+    public string Error { get; set; } = string.Empty;
+
+    /// <summary>Meta'ga ketgan tananing nusxasi (JSON) — diagnostika uchun.
+    /// <para>🔴 <b>XOM PII YOZILMAYDI.</b> Telefon va email faqat normalizatsiya qilingan va
+    /// SHA-256 bilan hashlangan holda tushadi. Data Protection Assessment aynan shuni
+    /// tekshiradi; bundan tashqari bu ustunni ko'rgan har qanday xodim mijoz raqamini olib
+    /// qolardi.</para>
+    /// <para>⚠️ <c>test_event_code</c> ham bu yerga tushmasin — u faqat sinovda ishlatiladi va
+    /// produksiyada so'rovdan butunlay olib tashlanadi.</para></summary>
+    public string PayloadJson { get; set; } = string.Empty;
+
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Muvaffaqiyatli yuborilgan vaqt (ISO). Bo'sh = hali yuborilmagan.</summary>
+    public string SentAt { get; set; } = string.Empty;
 }
 
 /// <summary>Landing sahifasidagi o'qituvchi kartochkasi va to'liq ma'lumotlari.</summary>
