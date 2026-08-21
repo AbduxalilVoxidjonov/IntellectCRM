@@ -194,6 +194,21 @@ export interface IgConversation {
   leadScore: number
   leadId?: string | null
   createdAt: string
+
+  /**
+   * 🔴 REKLAMA ATRIBUTSIYASI — **TAXMINIY** (E3).
+   *
+   * Suhbat reklama ostidagi izohdan boshlangan bo'lsa topilgan e'lon id'si. Bog'lanish
+   * webhook'dagi `media.id` ni reklama creative'i bilan solishtirib TIKLANADI: boostlangan
+   * postda ishlaydi, "dark post" va dinamik reklamada **ishlamaydi**.
+   *
+   * ⚠️ Bo'sh qiymat "reklamadan kelmagan" degani EMAS — "aniqlanmadi" degani. Shu sababdan
+   * ekranda chip HAR DOIM "taxminiy" izohi bilan chiziladi va hech qayerda "aniq" deyilmaydi.
+   */
+  adId: string
+  adCampaignId: string
+  /** Kampaniya NOMI (serverdan biriktiriladi); topilmasa id'ning O'ZI, bo'lmasa e'lon id'si. */
+  adCampaignName: string
 }
 
 /** Suhbatdagi bitta xabar. */
@@ -241,11 +256,20 @@ export interface IgConversationList {
   total: number
 }
 
+/** Inbox MANBA filtri. `'ads'` — faqat reklama izohidan boshlangan (TAXMINIY) suhbatlar. */
+export type IgConversationSource = 'ads'
+
 export interface IgConversationFilters {
   status?: IgConversationStatus | ''
   needsOperator?: boolean
   q?: string
   channel?: IgChannel | ''
+  /**
+   * `'ads'` — faqat atributsiyasi TOPILGAN suhbatlar.
+   * ⚠️ Bu "reklamadan kelganlarning hammasi" emas, "aniqlanganlari" — chip yorlig'i ham
+   * shuni aytadi.
+   */
+  source?: IgConversationSource | ''
   page?: number
   pageSize?: number
 }

@@ -26,6 +26,14 @@ namespace IntellectCRM.Application.Services;
 /// <param name="Reach">Qamrovning <b>PASTKI chegarasi</b> — qarang <see cref="ReachApprox"/>.</param>
 /// <param name="ReachUpper">Qamrovning YUQORI chegarasi (xom yig'indi, takrorlar bilan).</param>
 /// <param name="MetaLeads">Meta hisoblagan lidlar: <c>LeadsOnsite + LeadsPixel</c>.</param>
+/// <param name="MsgStarted">Meta hisoblagan <b>BOSHLANGAN YOZISHMALAR</b>
+/// (<c>onsite_conversion.messaging_conversation_started_7d</c>) — "Xabar yuborish"
+/// (Click-to-Direct) maqsadidagi kampaniyaning ASOSIY natijasi: bunday reklamada forma
+/// umuman bo'lmaydi, ya'ni <paramref name="MetaLeads"/> nol bo'lib turaveradi.
+/// <para>⚠️ Lidlar bilan <b>QO'SHILMAYDI</b>: bitta odam formani ham to'ldirib, DM ham yozishi
+/// mumkin. Ayri ustun/KPI sifatida ko'rsatiladi.</para>
+/// <para>⚠️ 7 kunlik atributsiya oynasi tufayli bu son ORQAGA qarab o'zgaradi — oxirgi kunlar
+/// qayta yuklanadi.</para></param>
 /// <param name="AdLeadRows">CRM'ga kelgan XOM lid qatorlari (dublikatlar bilan).</param>
 /// <param name="CrmLeads">TAKRORSIZ CRM lidlari (<c>DISTINCT LeadId</c>).</param>
 /// <param name="CrmLeadsDeleted">Shulardan CRM'da endi mavjud bo'lmaganlari (o'chirilgan).</param>
@@ -43,6 +51,7 @@ public sealed record IgRoiNodeDto(
     long Clicks,
     long LinkClicks,
     int MetaLeads,
+    int MsgStarted,
     int AdLeadRows,
     int CrmLeads,
     int CrmLeadsDeleted,
@@ -72,6 +81,16 @@ public sealed record IgRoiPlatformDto(
 /// lekin javob baribir 200 — UI "ulanmagan" holatini chizadi.</param>
 /// <param name="InsightLevel">Statistika QAYSI darajadan yig'ildi (<see cref="MetaAdsRoi.PickLevel"/>).</param>
 /// <param name="Notes">Foydalanuvchiga OCHIQ aytiladigan ogohlantirishlar (o'zbekcha).</param>
+/// <param name="AttributionSetting">Meta bergan <b>ATRIBUTSIYA OYNASI</b>
+/// (<c>attribution_setting</c>, masalan <c>7d_click,1d_view</c>) — Meta konversiyalari QAYSI
+/// oyna bo'yicha sanalgani.
+/// <para>⚠️ Qiymat Meta bergan HOLICHA qaytadi va <b>tarjima qilinmaydi</b>: bu Ads Manager'dagi
+/// sozlamaning texnik nomi, uni o'zbekchalashtirish Meta interfeysi bilan solishtirishni
+/// buzardi.</para>
+/// <para>Bir davrda bir necha xil qiymat uchrasa (sozlama o'rtada o'zgargan) hammasi
+/// <c>" · "</c> bilan sanab ko'rsatiladi — jimgina bittasi tanlanmaydi, aks holda hisobot
+/// "bitta oyna bo'yicha" bo'lib ko'rinardi.</para>
+/// <para>Bo'sh — Meta bermagan (eski sinxronizatsiya yoki xarajat yo'q).</para></param>
 public sealed record IgRoiReportDto(
     bool Connected,
     string AdAccountId,
@@ -90,7 +109,8 @@ public sealed record IgRoiReportDto(
     IReadOnlyList<IgRoiDayDto> Daily,
     IReadOnlyList<IgRoiPlatformDto> Platforms,
     IReadOnlyList<IgRoiNodeDto> Campaigns,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    string AttributionSetting);
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
 
@@ -305,18 +325,21 @@ public static class MetaAdsRoi
         public long ReachLower;   // MAX
         public long ReachUpper;   // SUM
         public int MetaLeads;
+        /// <summary>Boshlangan yozishmalar (Click-to-Direct natijasi) — lidlarga QO'SHILMAYDI.</summary>
+        public int MsgStarted;
         public int AdLeadRows;
         /// <summary>TAKRORSIZ CRM lid id'lari — konversiya AYNAN shular bo'yicha sanaladi.</summary>
         public readonly HashSet<string> LeadIds = new(StringComparer.Ordinal);
 
         public void AddInsight(long spend, long impressions, long reach, long clicks,
-                               long linkClicks, int metaLeads)
+                               long linkClicks, int metaLeads, int msgStarted)
         {
             Spend += spend;
             Impressions += impressions;
             Clicks += clicks;
             LinkClicks += linkClicks;
             MetaLeads += metaLeads;
+            MsgStarted += msgStarted;
             if (reach > 0)
             {
                 if (reach > ReachLower) ReachLower = reach;   // pastki chegara — MAX
@@ -386,7 +409,7 @@ public static class MetaAdsRoi
             {
                 i.Level, i.ExternalId, i.StatDate, i.Platform,
                 i.Impressions, i.Reach, i.Clicks, i.LinkClicks, i.SpendMinor,
-                i.LeadsOnsite, i.LeadsPixel,
+                i.LeadsOnsite, i.LeadsPixel, i.MsgStarted, i.AttributionSetting,
             })
             .ToListAsync(ct);
 
@@ -452,6 +475,10 @@ public static class MetaAdsRoi
         var ads = new Dictionary<string, Agg>(StringComparer.Ordinal);
         var total = new Agg();
 
+        // ⚠️ TARTIBLI to'plam: bir necha qiymat bo'lsa ro'yxat har so'rovda bir xil chiqsin
+        // (aks holda kesh yozuvi bir xil bo'lgani holda matn "goh u, goh bu" ko'rinardi).
+        var attributionSettings = new SortedSet<string>(StringComparer.Ordinal);
+
         var daily = new Dictionary<string, (long Spend, long Impressions, long Clicks, int MetaLeads, HashSet<string> Leads)>(StringComparer.Ordinal);
         var byPlatform = new Dictionary<string, (long Spend, long Impressions, int MetaLeads, HashSet<string> Leads)>(StringComparer.Ordinal);
 
@@ -465,11 +492,17 @@ public static class MetaAdsRoi
             if (camp.Length > 0 && campId != camp) continue;
 
             if (!string.IsNullOrEmpty(adId))
-                Bucket(ads, adId).AddInsight(r.SpendMinor, r.Impressions, r.Reach, r.Clicks, r.LinkClicks, metaLeads);
+                Bucket(ads, adId).AddInsight(r.SpendMinor, r.Impressions, r.Reach, r.Clicks, r.LinkClicks, metaLeads, r.MsgStarted);
             if (!string.IsNullOrEmpty(adsetId))
-                Bucket(adsets, adsetId).AddInsight(r.SpendMinor, r.Impressions, r.Reach, r.Clicks, r.LinkClicks, metaLeads);
-            Bucket(campaigns, campId).AddInsight(r.SpendMinor, r.Impressions, r.Reach, r.Clicks, r.LinkClicks, metaLeads);
-            total.AddInsight(r.SpendMinor, r.Impressions, r.Reach, r.Clicks, r.LinkClicks, metaLeads);
+                Bucket(adsets, adsetId).AddInsight(r.SpendMinor, r.Impressions, r.Reach, r.Clicks, r.LinkClicks, metaLeads, r.MsgStarted);
+            Bucket(campaigns, campId).AddInsight(r.SpendMinor, r.Impressions, r.Reach, r.Clicks, r.LinkClicks, metaLeads, r.MsgStarted);
+            total.AddInsight(r.SpendMinor, r.Impressions, r.Reach, r.Clicks, r.LinkClicks, metaLeads, r.MsgStarted);
+
+            // Atributsiya oynasi — qaysi qiymatlar UCHRAGANI (kesilgan qatorlardan emas,
+            // hisobga KIRGANLARIDAN): ekranda "Meta konversiyalari qaysi oyna bo'yicha" deb
+            // ko'rsatiladi.
+            if (!string.IsNullOrWhiteSpace(r.AttributionSetting))
+                attributionSettings.Add(r.AttributionSetting.Trim());
 
             var day = daily.TryGetValue(r.StatDate, out var d)
                 ? d
@@ -584,7 +617,8 @@ public static class MetaAdsRoi
             Daily: dailyRows,
             Platforms: platformRows,
             Campaigns: campaignNodes,
-            Notes: notes);
+            Notes: notes,
+            AttributionSetting: string.Join(" · ", attributionSettings));
     }
 
     // ───────────────────────── Yordamchilar ─────────────────────────
@@ -696,6 +730,7 @@ public static class MetaAdsRoi
             Clicks: agg.Clicks,
             LinkClicks: agg.LinkClicks,
             MetaLeads: agg.MetaLeads,
+            MsgStarted: agg.MsgStarted,
             AdLeadRows: agg.AdLeadRows,
             CrmLeads: crmLeads,
             CrmLeadsDeleted: deleted,
@@ -719,10 +754,11 @@ public static class MetaAdsRoi
             InsightLevel: "",
             Totals: EmptyNode(),
             Daily: [], Platforms: [], Campaigns: [],
-            Notes: ["Reklama akkaunti ulanmagan — Sozlamalar bo'limidan ulang."]);
+            Notes: ["Reklama akkaunti ulanmagan — Sozlamalar bo'limidan ulang."],
+            AttributionSetting: "");
 
     /// <summary>Nol qiymatli jamlanma qatori (bo'sh holat uchun).</summary>
     private static IgRoiNodeDto EmptyNode() =>
-        new(LevelTotal, "", "", "", 0, 0, 0, 0, true, 0, 0, 0, 0, 0, 0,
+        new(LevelTotal, "", "", "", 0, 0, 0, 0, true, 0, 0, 0, 0, 0, 0, 0,
             null, 0, 0, 0, null, null, []);
 }

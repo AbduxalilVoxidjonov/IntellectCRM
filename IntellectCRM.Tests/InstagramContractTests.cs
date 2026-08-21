@@ -386,4 +386,58 @@ public class InstagramHardeningTests
         // 0 bilan boshlanadigan mahalliy raqam ham yo'q.
         Assert.Equal("", InstagramContract.ExtractPhone("012345678"));
     }
+
+    // ═══════════════════════ REKLAMA ATRIBUTSIYASI (E3) — ko'rinadigan qism ═══════════════════════
+
+    /// <summary>
+    /// `?source=ads` filtri: faqat AYNAN shu kalit ishlaydi, noma'lum qiymat esa filtrni
+    /// UMUMAN qo'llamaydi.
+    ///
+    /// <para>⚠️ Nega shunday: klientdagi xato kalit tufayli inbox butunlay bo'shab qolsa
+    /// operator "suhbat yo'q" deb o'ylardi (jurnaldagi noma'lum tur bilan bir xil siyosat).</para>
+    /// </summary>
+    [Fact]
+    public void WantsAdsOnly_faqat_ads_kalitida_ishlaydi()
+    {
+        Assert.True(InstagramContract.WantsAdsOnly("ads"));
+        Assert.True(InstagramContract.WantsAdsOnly(" ADS "));
+        Assert.Equal("ads", IgConst.SourceAds);
+
+        Assert.False(InstagramContract.WantsAdsOnly(""));
+        Assert.False(InstagramContract.WantsAdsOnly(null));
+        Assert.False(InstagramContract.WantsAdsOnly("organik"));
+        Assert.False(InstagramContract.WantsAdsOnly("advertisement"));
+    }
+
+    /// <summary>"Reklamadan kelganmi" — e'lon id'si bor bo'lsa HA (kampaniya aniqlanmagan
+    /// bo'lsa ham: iyerarxiya hali sinxronlanmagan bo'lishi mumkin).</summary>
+    [Fact]
+    public void FromAd_elon_idsi_bolsa_true()
+    {
+        Assert.True(InstagramContract.FromAd("120200000000000"));
+        Assert.False(InstagramContract.FromAd(""));
+        Assert.False(InstagramContract.FromAd("   "));
+        Assert.False(InstagramContract.FromAd(null));
+    }
+
+    /// <summary>
+    /// Kampaniya yorlig'i: nom bo'lsa nom, bo'lmasa id'ning O'ZI, u ham bo'lmasa e'lon id'si.
+    /// <para>⚠️ Sun'iy "Noma'lum kampaniya" YOZILMAYDI — id Ads Manager'da qidirsa bo'ladigan
+    /// qiymat, o'ylab topilgan matn esa emas (<c>MetaAdsRoi.BuildNode</c> bilan bir xil qoida).</para>
+    /// </summary>
+    [Fact]
+    public void AdCampaignLabel_nom_yoq_bolsa_id_qaytadi()
+    {
+        Assert.Equal("Yoz-2026", InstagramContract.AdCampaignLabel("c1", "Yoz-2026"));
+        Assert.Equal("c1", InstagramContract.AdCampaignLabel("c1", ""));
+        Assert.Equal("c1", InstagramContract.AdCampaignLabel("c1", "   "));
+        Assert.Equal("c1", InstagramContract.AdCampaignLabel("c1", null));
+
+        // Kampaniya umuman aniqlanmagan — hech bo'lmasa e'lon id'si ko'rinsin.
+        Assert.Equal("ad9", InstagramContract.AdCampaignLabel("", "", "ad9"));
+
+        // Hech narsa yo'q — BO'SH satr (chip umuman chizilmaydi).
+        Assert.Equal("", InstagramContract.AdCampaignLabel("", "", ""));
+        Assert.Equal("", InstagramContract.AdCampaignLabel(null, null, null));
+    }
 }

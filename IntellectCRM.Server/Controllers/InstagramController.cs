@@ -282,10 +282,17 @@ public partial class InstagramController(
     /// Suhbatlar ro'yxati. Tartib ATAYIN shunday: avval <b>operator kerak</b> bo'lganlar, so'ng
     /// oxirgi KIRUVCHI xabar bo'yicha — operatorning savoli "kim javob kutyapti".
     /// </summary>
+    /// <param name="source">
+    /// <c>ads</c> — faqat REKLAMA izohidan boshlangan suhbatlar (E3 atributsiyasi topilgan).
+    /// Boshqa qiymat filtrsiz qoladi (<see cref="InstagramContract.WantsAdsOnly"/>).
+    /// <para>⚠️ Atributsiya TAXMINIY: bu kesim "reklamadan kelganlarning ANIQLANGAN qismi",
+    /// "reklamadan kelganlarning HAMMASI" emas.</para>
+    /// </param>
     [HttpGet("conversations")]
     public async Task<ActionResult<IgConversationListDto>> Conversations(
         [FromQuery] string? status, [FromQuery] bool? needsOperator, [FromQuery] string? q,
-        [FromQuery] string? channel, [FromQuery] int page = 1, [FromQuery] int pageSize = 30,
+        [FromQuery] string? channel, [FromQuery] string? source,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 30,
         CancellationToken ct = default)
     {
         page = Math.Max(1, page);
@@ -302,6 +309,10 @@ public partial class InstagramController(
         }
         if (!string.IsNullOrWhiteSpace(channel))
             query = query.Where(c => db.IgMessages.Any(m => m.ConversationId == c.Id && m.Channel == channel));
+        // Suhbat darajasidagi `AdId` — birinchi atributsiyalangan xabarda TO'LDIRILADI
+        // (`InstagramPipeline`), ya'ni xabarlar jadvaliga kirish shart emas.
+        if (InstagramContract.WantsAdsOnly(source))
+            query = query.Where(c => c.AdId != "");
 
         var total = await query.CountAsync(ct);
         var items = await query
@@ -313,8 +324,13 @@ public partial class InstagramController(
             .Select(c => new IgConversationDto(
                 c.Id, c.IgUserId, c.Username, c.Status, c.LastInboundAt, c.LastOutboundAt,
                 c.LastMessageText, c.MessageCount, c.Unread, c.NeedsOperator, c.NeedsOperatorReason,
-                c.Language, c.Intent, c.LeadScore, c.LeadId, c.CreatedAt, c.OperatorPausedUntil))
+                c.Language, c.Intent, c.LeadScore, c.LeadId, c.CreatedAt, c.OperatorPausedUntil,
+                c.AdId, c.AdCampaignId, ""))
             .ToListAsync(ct);
+
+        // Kampaniya NOMLARI — BITTA so'rovda (N+1 emas): sahifadagi takrorsiz id'lar yig'iladi
+        // va bitta `IN (...)` bilan olinadi. Nom topilmasa id'ning O'ZI qoladi.
+        items = await AttachCampaignNamesAsync(items, ct);
 
         return new IgConversationListDto(items, total, page, pageSize);
     }
@@ -347,20 +363,74 @@ public partial class InstagramController(
         }
 
         return new IgConversationDetailDto(
-            ToConversationDto(c),
+            ToConversationDto(c, await CampaignNameAsync(c.AdCampaignId, ct)),
             messages.Select(ToMessageDto).ToList(),
             lead,
             InstagramContract.DmWindowOpen(c.LastInboundAt, AppClock.Now));
+    }
+
+    /// <summary>
+    /// Ro'yxatdagi qatorlarga KAMPANIYA NOMINI biriktiradi — <b>bitta</b> so'rov bilan.
+    ///
+    /// <para>⚠️ N+1 dan qochish: sahifada 100 tagacha suhbat bo'ladi va har biri uchun
+    /// <c>IgAdEntity</c> ga alohida borish 100 ta so'rov degani. Shu sabab avval TAKRORSIZ
+    /// kampaniya id'lari yig'iladi, keyin ular bitta <c>Contains</c> (SQL <c>IN</c>) bilan
+    /// olinadi. Reklama izohi kam uchraydi, ya'ni ro'yxatda umuman atributsiya bo'lmasa
+    /// qo'shimcha so'rov <b>umuman ketmaydi</b>.</para>
+    ///
+    /// <para>Nom topilmasa qator o'zgarishsiz qoladi — DTO'da allaqachon id turadi
+    /// (<see cref="InstagramContract.AdCampaignLabel"/>).</para>
+    /// </summary>
+    private async Task<List<IgConversationDto>> AttachCampaignNamesAsync(
+        List<IgConversationDto> items, CancellationToken ct)
+    {
+        var ids = items
+            .Where(i => i.AdCampaignId.Length > 0)
+            .Select(i => i.AdCampaignId)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (ids.Count == 0)
+            return items.Select(i => i with
+            {
+                AdCampaignName = InstagramContract.AdCampaignLabel(i.AdCampaignId, "", i.AdId),
+            }).ToList();
+
+        var names = await db.IgAdEntities.AsNoTracking()
+            .Where(e => ids.Contains(e.ExternalId))
+            .Select(e => new { e.ExternalId, e.Name })
+            .ToDictionaryAsync(e => e.ExternalId, e => e.Name ?? "", StringComparer.Ordinal, ct);
+
+        return items.Select(i => i with
+        {
+            AdCampaignName = InstagramContract.AdCampaignLabel(
+                i.AdCampaignId, names.GetValueOrDefault(i.AdCampaignId, ""), i.AdId),
+        }).ToList();
+    }
+
+    /// <summary>BITTA suhbat uchun kampaniya nomi (detal paneli). Atributsiya yo'q bo'lsa
+    /// so'rov umuman yuborilmaydi.</summary>
+    private async Task<string> CampaignNameAsync(string campaignId, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(campaignId)) return "";
+        return await db.IgAdEntities.AsNoTracking()
+            .Where(e => e.ExternalId == campaignId)
+            .Select(e => e.Name)
+            .FirstOrDefaultAsync(ct) ?? "";
     }
 
     private static IgMessageDto ToMessageDto(IgMessage m) => new(
         m.Id, m.ConversationId, m.Direction, m.Channel, m.Text, m.ActorName, m.IsAi, m.AiIntent,
         m.AiScore, m.Error, m.CommentId, m.MediaId, m.IgMessageId, m.CreatedAt);
 
-    private static IgConversationDto ToConversationDto(IgConversation c) => new(
+    /// <summary>Entity → DTO. <paramref name="adCampaignName"/> chaqiruvchidan beriladi:
+    /// bu metod SOF (bazaga bormaydi), aks holda har chaqirilganda kampaniya nomi uchun
+    /// alohida so'rov ketardi.</summary>
+    private static IgConversationDto ToConversationDto(IgConversation c, string adCampaignName = "") => new(
         c.Id, c.IgUserId, c.Username, c.Status, c.LastInboundAt, c.LastOutboundAt,
         c.LastMessageText, c.MessageCount, c.Unread, c.NeedsOperator, c.NeedsOperatorReason,
-        c.Language, c.Intent, c.LeadScore, c.LeadId, c.CreatedAt, c.OperatorPausedUntil);
+        c.Language, c.Intent, c.LeadScore, c.LeadId, c.CreatedAt, c.OperatorPausedUntil,
+        c.AdId, c.AdCampaignId,
+        InstagramContract.AdCampaignLabel(c.AdCampaignId, adCampaignName, c.AdId));
 
     /// <summary>
     /// OPERATOR JAVOBI (DM). Yuborishdan oldin <b>24 soatlik oyna</b> tekshiriladi: mijoz oxirgi
@@ -1332,11 +1402,26 @@ public record IgAdLeadListDto(
 /// AYNAN bir xil bo'lishi kerak va admin uni nusxa oladi.</summary>
 public record IgConnectUrlDto(string Url, string RedirectUri);
 
+/// <summary>
+/// Inbox qatori.
+///
+/// <para>🔴 <paramref name="AdId"/> · <paramref name="AdCampaignId"/> ·
+/// <paramref name="AdCampaignName"/> — <b>TAXMINIY</b> reklama atributsiyasi (E3):
+/// izoh kelgan media <c>IgAdEntity.CreativeStoryId</c> bilan solishtirib TIKLANADI.
+/// Boostlangan postda ishlaydi, "dark post" va dinamik reklamada ishlamaydi, ya'ni
+/// <b>bo'sh qiymat "reklamadan kelmagan" degani EMAS</b> — "aniqlanmadi" degani.
+/// Shu sabab UI'da chip HAR DOIM "taxminiy" deb belgilanadi (<c>IgAdAttribution</c> izohi).</para>
+///
+/// <para><paramref name="AdCampaignName"/> — <c>IgAdEntity</c> dan olingan nom; topilmasa
+/// id'ning O'ZI (sun'iy "Noma'lum" yozilmaydi). Ro'yxatda nomlar <b>bitta</b> so'rovda
+/// olinadi — qator boshiga so'rov (N+1) YO'Q.</para>
+/// </summary>
 public record IgConversationDto(
     string Id, string IgUserId, string Username, string Status, string LastInboundAt,
     string LastOutboundAt, string LastMessageText, int MessageCount, bool Unread,
     bool NeedsOperator, string NeedsOperatorReason, string Language, string Intent,
-    int LeadScore, string? LeadId, string CreatedAt, string OperatorPausedUntil);
+    int LeadScore, string? LeadId, string CreatedAt, string OperatorPausedUntil,
+    string AdId, string AdCampaignId, string AdCampaignName);
 
 public record IgConversationListDto(List<IgConversationDto> Items, int Total, int Page, int PageSize);
 

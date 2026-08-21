@@ -539,15 +539,14 @@ initsializatorini MAVJUD qatorlarga qo'llamaydi, ya'ni ishlab turgan markazda `S
 ⚠️ Akkaunt uzilganda **qator O'CHIRILMAYDI** (`IsActive=false` + token tozalanadi) — o'tgan
 oylarning hisoboti buzilmasin. Reklama Meta'da o'chirilsa ham `IgAdEntity` qatori qoladi.
 
-⚠️ **YIG'ILADI, LEKIN HALI ISHLATILMAYDI** (bila turib qoldirilgan, chunki qayta sinxronizatsiya
-qimmat — keyin kerak bo'lsa bazadan hisoblanadi):
+**YIG'ILADIGAN, LEKIN ODDIY BO'LMAGAN maydonlar:**
 
-| Maydon | Nima | Nega hozircha ko'rsatilmaydi |
+| Maydon | Nima | Holati |
 |---|---|---|
-| `IgAdInsight.MsgStarted` | `messaging_conversation_started_7d` | Click-to-Direct kampaniyalari uchun; ROI hisobotida ustun yo'q |
-| `IgAdInsight.AttributionSetting` | Ad set'ning atributsiya oynasi | Har ad set'da har xil — hisobotni to'g'ri o'qish uchun kerak bo'ladi |
-| `IgAdInsight.ActionsJson` | XOM `actions` massivi | Yangi `action_type` kerak bo'lsa **qayta sinxronizatsiyasiz** hisoblash uchun (`ActionValueFromJson`) |
-| `cost_per_action_type` | So'raladi, lekin **parse qilinmaydi** | CPL biz tomonda CRM lidlari bo'yicha hisoblanadi |
+| `IgAdInsight.MsgStarted` | `messaging_conversation_started_7d` | ✅ **KO'RSATILADI** (2026-08-21): «Yozishma boshlandi» KPI + kampaniya jadvalidagi ustun. Click-to-Direct reklamasining ASOSIY natijasi — bunday kampaniyada forma yo'q, ya'ni `MetaLeads` nol turadi. ⚠️ Lidlarga **QO'SHILMAYDI** (bitta odam ikkalasini ham qilishi mumkin) va 7 kunlik oyna tufayli son **orqaga qarab o'zgaradi** |
+| `IgAdInsight.AttributionSetting` | Ad set'ning atributsiya oynasi | ✅ **KO'RSATILADI** (2026-08-21): `IgRoiReportDto.AttributionSetting` → kampaniya jadvali ostidagi kichik izoh. ⚠️ Meta bergan **HOLICHA**, tarjima QILINMAYDI (Ads Manager'dagi texnik nom). Davrda bir necha qiymat uchrasa **hammasi** `" · "` bilan sanaladi — jimgina bittasi tanlansa hisobot "bitta oyna bo'yicha" bo'lib ko'rinardi |
+| `IgAdInsight.ActionsJson` | XOM `actions` massivi | ⏸️ Yig'iladi, ko'rsatilmaydi — yangi `action_type` kerak bo'lsa **qayta sinxronizatsiyasiz** hisoblash uchun (`ActionValueFromJson`) |
+| `cost_per_action_type` | So'raladi, lekin **parse qilinmaydi** | ⏸️ ATAYIN: CPL biz tomonda **CRM lidlari** bo'yicha hisoblanadi (Meta'niki o'z lid ta'rifi bo'yicha va boshqa son berardi). So'rovdan olib tashlanmaydi ham — maydonlar ro'yxati Meta bilan shartnoma, uni qisqartirish hech narsa tejamaydi, kerak bo'lganda esa qayta sinxronizatsiya talab qilardi |
 
 ### 17.3. 🔴 PUL BIRLIGI ASSIMETRIYASI — №1 xato manbai
 
@@ -1137,6 +1136,29 @@ uni DTO'ga qo'shganda ham, Inbox'da chizganda ham **"taxminiy" belgisisiz ko'rsa
 qiymatni "organik" deb yozma ("aniqlanmadi" de). Hisobotda esa bu qiymatga tayanib
 "reklama N ta izoh keltirdi" degan **aniq** son chiqarish mumkin emas.
 
+### 20.1.1. KO'RINADIGAN QISM (2026-08-21)
+
+| Qayerda | Nima |
+|---|---|
+| `IgConversationDto` · `IgConversationDetailDto` | `adId`, `adCampaignId`, **`adCampaignName`** |
+| Inbox ro'yxati | qatorda `📢 <kampaniya> · taxminiy` chipi (tooltip bilan) |
+| Inbox detali | `📢 Reklama izohidan kelgan — taxminiy` bloki: kampaniya, e'lon id va **cheklovlar ochiq yozilgan** |
+| Filtr | `GET /conversations?source=ads` + «📢 Reklamadan (taxminiy)» chipi |
+
+⚠️ **"taxminiy" so'zi TOOLTIPDA EMAS, MATNDA** — tooltip sichqonchasiz qurilmada umuman
+ko'rinmaydi va yagona kanal bo'lib qola olmaydi.
+
+⚠️ **KAMPANIYA NOMI — BITTA so'rovda** (`AttachCampaignNamesAsync`): sahifadagi takrorsiz
+kampaniya id'lari yig'ilib, bitta `IN (...)` bilan olinadi. Qator boshiga so'rov (N+1)
+TAQIQLANADI — inbox sahifasida 100 tagacha suhbat bo'ladi. Atributsiya umuman bo'lmasa
+qo'shimcha so'rov **ketmaydi ham**.
+
+⚠️ Nom topilmasa **id'ning O'ZI** ko'rsatiladi (`InstagramContract.AdCampaignLabel`,
+`MetaAdsRoi.BuildNode` bilan bir xil qoida) — sun'iy "Noma'lum kampaniya" yozilmaydi.
+
+⚠️ `?source=` da **noma'lum qiymat filtrni UMUMAN qo'llamaydi** (`WantsAdsOnly`) — klientdagi
+xato kalit tufayli inbox bo'shab qolib, operator "suhbat yo'q" deb o'ylab qolmasin.
+
 ⚠️ `effective_object_story_id` odatda **`"{page_id}_{post_id}"`** ko'rinishida, webhook'dagi
 `media.id` esa **yalang id** — to'g'ridan-to'g'ri solishtirish HECH QACHON mos kelmasdi.
 `MediaPart` oxirgi `_` dan keyingi qismni oladi; `Matches` uch xil moslikni qabul qiladi
@@ -1200,6 +1222,8 @@ esa umuman ishlanmaydi).
 
 | Test sinfi | Nimani qulflaydi |
 |---|---|
+| `InstagramContractTests` (E3 qismi) | `WantsAdsOnly` faqat `ads` kalitida ishlashi va **noma'lum qiymat filtrni qo'llamasligi**, `FromAd`, `AdCampaignLabel` nom → id → e'lon id zanjiri |
+| `MetaAdsRoiTests` (E3/E5 qismi) | `MsgStarted` daraxt bo'ylab ko'tarilishi va **lidlarga qo'shilmasligi**, atributsiya oynasi Meta bergan holicha qaytishi, bir necha qiymat **hammasi** sanalishi, bo'sh davr/akkauntsiz holat |
 | `IgAdAttributionTests` | `MediaPart` ajratishi (`{page}_{post}` va yalang id), buzuq `"abc_"` da to'liq qiymat qolishi, mos kelmagan/bo'sh kirishda **moslik BERILMASLIGI**, bir post bir necha e'londa bo'lganda **tanlovning DETERMINISTIKLIGI**, `ad → adset → campaign` zanjiri |
 | `InstagramEventParserTests` (E6 qismi) | Story javobi id+url bilan o'qilishi, **oddiy xabarga javob story deb hisoblanmasligi**, story mention ajratilishi, `ig_post` attachment, **eski `share` turi qabul qilinmasligi**, `is_deleted` alohida hodisa turi berishi |
 

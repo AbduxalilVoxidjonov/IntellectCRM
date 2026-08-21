@@ -371,7 +371,7 @@ export function InstagramAdsStats() {
               </div>
             )}
 
-            {/* ───────────── 2. KPI kartochkalari (7 ta) ───────────── */}
+            {/* ───────────── 2. KPI kartochkalari (8 ta) ───────────── */}
             <div
               className="grid-stats"
               style={{ marginBottom: 22, gridTemplateColumns: 'repeat(auto-fit, minmax(158px, 1fr))' }}
@@ -392,6 +392,14 @@ export function InstagramAdsStats() {
                 label="CRM lidlari"
                 value={num(totals.crmLeads)}
                 hint={`Meta: ${num(totals.metaLeads)} · CRM: ${num(totals.crmLeads)}`}
+              />
+              {/* ⚠️ Lidlar bilan QO'SHILMAYDI — bu AYRI natija turi (Click-to-Direct).
+                  Kampaniyada forma bo'lmasa "CRM lidlari" nol turadi-yu, reklama aslida
+                  ishlagan bo'ladi: aynan shu son buni ko'rsatadi. */}
+              <Kpi
+                label="Yozishma boshlandi"
+                value={num(totals.msgStarted)}
+                hint="Click-to-Direct natijasi · Meta, 7 kunlik oyna"
               />
               <Kpi
                 label="CPL — lid narxi"
@@ -578,7 +586,7 @@ function ChartCard({
  * chiqarilmaydi: kampaniyalar 200 tada qirqilishi mumkin va u holda jamlanma noto'g'ri
  * bo'lardi (`books.md` dagi saboq).
  *
- * ⚠️ Jadval 13 ustunli — u gorizontal SKROLL ichida turadi; sahifaning O'ZI hech qachon
+ * ⚠️ Jadval 14 ustunli — u gorizontal SKROLL ichida turadi; sahifaning O'ZI hech qachon
  * yon tomonga siljimaydi.
  */
 function CampaignTable({
@@ -617,7 +625,7 @@ function CampaignTable({
         ? <MkEmpty text="Bu davrda kampaniya yo'q" hint="Boshqa oraliq yoki platformani tanlab ko'ring." />
         : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="mk-table" style={{ minWidth: 1080 }}>
+            <table className="mk-table" style={{ minWidth: 1160 }}>
               <thead>
                 <tr>
                   <th>Nomi</th>
@@ -625,6 +633,8 @@ function CampaignTable({
                   <th style={{ textAlign: 'right' }}>Ko'rsatish</th>
                   <th style={{ textAlign: 'right' }}>Qamrov ≈</th>
                   <th style={{ textAlign: 'right' }}>Meta lid</th>
+                  {/* Yozishma — lidlarga QO'SHILMAYDIGAN alohida natija (Click-to-Direct). */}
+                  <th style={{ textAlign: 'right' }}>Yozishma</th>
                   <th style={{ textAlign: 'right' }}>CRM lid</th>
                   <th style={{ textAlign: 'right' }}>CPL</th>
                   <th style={{ textAlign: 'right' }}>O'quvchi</th>
@@ -646,6 +656,7 @@ function CampaignTable({
                   <td className="mk-num">{num(data.totals.impressions)}</td>
                   <td className="mk-num">≈ {num(data.totals.reach)}</td>
                   <td className="mk-num">{num(data.totals.metaLeads)}</td>
+                  <td className="mk-num">{num(data.totals.msgStarted)}</td>
                   <td className="mk-num">{num(data.totals.crmLeads)}</td>
                   <td className="mk-num">
                     {data.totals.cplMinor == null ? '—' : formatAdsMoney(data.totals.cplMinor, offset, currency)}
@@ -663,6 +674,19 @@ function CampaignTable({
             </table>
           </div>
         )}
+
+      {/* ───────────── Hisobot ostidagi izoh: ATRIBUTSIYA OYNASI ─────────────
+          ⚠️ Qiymat Meta bergan HOLICHA (`7d_click,1d_view`) — TARJIMA QILINMAYDI: bu Ads
+          Manager'dagi sozlamaning texnik nomi va marketolog uni o'sha yerda topishi kerak.
+          ⚠️ Nega muhim: Meta lidlari qaysi oyna bo'yicha sanalganini bilmasdan ularni CRM
+          lidlari bilan taqqoslash noto'g'ri xulosa beradi. */}
+      {data.attributionSetting && (
+        <div className="field-hint" style={{ marginTop: 12, lineHeight: 1.5 }}>
+          Atributsiya oynasi: <strong>{data.attributionSetting}</strong> — Meta konversiyalari
+          (lidlar, yozishmalar) shu oyna bo'yicha sanalgan. CRM lidlari esa haqiqiy kelgan
+          vaqti bo'yicha, ya'ni ikki son to'g'ridan-to'g'ri taqqoslanmaydi.
+        </div>
+      )}
     </div>
   )
 }
@@ -726,6 +750,9 @@ function TreeRows({
                 ≈ {num(n.reach)}
               </td>
               <td className="mk-num">{num(n.metaLeads)}</td>
+              <td className="mk-num" title="Meta hisoblagan boshlangan yozishmalar (7 kunlik oyna)">
+                {num(n.msgStarted)}
+              </td>
               <td className="mk-num" title={`xom qatorlar: ${num(n.adLeadRows)}`}>{num(n.crmLeads)}</td>
               <td className="mk-num">{n.cplMinor == null ? '—' : formatAdsMoney(n.cplMinor, offset, currency)}</td>
               <td className="mk-num">{num(n.converted)}</td>

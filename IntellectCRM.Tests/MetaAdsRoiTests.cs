@@ -50,11 +50,13 @@ public class MetaAdsRoiTests
     private static IgAdInsight Insight(
         string level, string externalId, string date, long spendMinor,
         long impressions = 1000, long reach = 500, long clicks = 50,
-        int leadsOnsite = 0, int leadsPixel = 0, string platform = MetaAdsRoi.PlatformInstagram) => new()
+        int leadsOnsite = 0, int leadsPixel = 0, string platform = MetaAdsRoi.PlatformInstagram,
+        int msgStarted = 0, string attributionSetting = "") => new()
     {
         AdAccountId = Act, Level = level, ExternalId = externalId, StatDate = date,
         Platform = platform, SpendMinor = spendMinor, Impressions = impressions, Reach = reach,
         Clicks = clicks, LinkClicks = clicks / 2, LeadsOnsite = leadsOnsite, LeadsPixel = leadsPixel,
+        MsgStarted = msgStarted, AttributionSetting = attributionSetting,
         FetchedAt = "2026-08-20T05:00:00",
     };
 
@@ -625,5 +627,107 @@ public class MetaAdsRoiTests
         Assert.True(string.CompareOrdinal("2026-08-31T23:59:59+0000", bound) <= 0);
         Assert.True(string.CompareOrdinal("2026-08-31T23:59:59", bound) <= 0);
         Assert.True(string.CompareOrdinal("2026-09-01T00:00:00", bound) > 0);
+    }
+
+    // ═══════════════════════ 8) MsgStarted va atributsiya oynasi ═══════════════════════
+
+    /// <summary>
+    /// «Yozishma boshlandi» (Click-to-Direct) — daraxtning HAR bir darajasiga ko'tariladi va
+    /// lidlarga QO'SHILMAYDI.
+    ///
+    /// <para>⚠️ Aynan shu holat modulning bo'shlig'i edi: forma YO'Q kampaniyada
+    /// <c>MetaLeads</c> nol turadi va reklama "hech narsa keltirmagan" bo'lib ko'rinardi.</para>
+    /// </summary>
+    [Fact]
+    public async Task Yozishma_boshlandi_daraxt_boylab_kotariladi_va_lidga_qoshilmaydi()
+    {
+        using var t = TestDb.Sqlite();
+        var db = t.Context;
+        db.Add(NewAccount());
+        AddTree(db);
+        // Forma lidi UMUMAN yo'q — faqat DM orqali kelgan yozishmalar.
+        db.Add(Insight(MetaAdsRoi.LevelAd, "ad1", "2026-08-05", spendMinor: 10_000_000, msgStarted: 3));
+        db.Add(Insight(MetaAdsRoi.LevelAd, "ad1", "2026-08-06", spendMinor: 5_000_000, msgStarted: 4));
+        await db.SaveChangesAsync();
+
+        var report = await Build(db);
+
+        Assert.Equal(7, report.Totals.MsgStarted);
+        Assert.Equal(0, report.Totals.MetaLeads);   // lidlar bilan aralashmaydi
+        Assert.Equal(0, report.Totals.CrmLeads);
+
+        var campaign = Assert.Single(report.Campaigns);
+        Assert.Equal(7, campaign.MsgStarted);
+        var adset = Assert.Single(campaign.Children);
+        Assert.Equal(7, adset.MsgStarted);
+        var ad = Assert.Single(adset.Children);
+        Assert.Equal(7, ad.MsgStarted);
+    }
+
+    /// <summary>Atributsiya oynasi Meta bergan HOLICHA qaytadi (tarjima qilinmaydi).</summary>
+    [Fact]
+    public async Task Atributsiya_oynasi_Meta_bergan_holicha_qaytadi()
+    {
+        using var t = TestDb.Sqlite();
+        var db = t.Context;
+        db.Add(NewAccount());
+        AddTree(db);
+        db.Add(Insight(MetaAdsRoi.LevelAd, "ad1", "2026-08-05", spendMinor: 1_000_000,
+                       attributionSetting: "7d_click,1d_view"));
+        db.Add(Insight(MetaAdsRoi.LevelAd, "ad1", "2026-08-06", spendMinor: 1_000_000,
+                       attributionSetting: "7d_click,1d_view"));
+        await db.SaveChangesAsync();
+
+        var report = await Build(db);
+        Assert.Equal("7d_click,1d_view", report.AttributionSetting);
+    }
+
+    /// <summary>
+    /// Davr ichida sozlama O'ZGARGAN bo'lsa IKKALASI ham ko'rsatiladi — jimgina bittasi
+    /// tanlansa hisobot "bitta oyna bo'yicha" bo'lib ko'rinardi.
+    /// </summary>
+    [Fact]
+    public async Task Bir_nechta_atributsiya_oynasi_hammasi_sanab_korsatiladi()
+    {
+        using var t = TestDb.Sqlite();
+        var db = t.Context;
+        db.Add(NewAccount());
+        AddTree(db);
+        db.Add(Insight(MetaAdsRoi.LevelAd, "ad1", "2026-08-05", spendMinor: 1_000_000,
+                       attributionSetting: "1d_click"));
+        db.Add(Insight(MetaAdsRoi.LevelAd, "ad1", "2026-08-06", spendMinor: 1_000_000,
+                       attributionSetting: "7d_click,1d_view"));
+        await db.SaveChangesAsync();
+
+        var report = await Build(db);
+        Assert.Contains("1d_click", report.AttributionSetting);
+        Assert.Contains("7d_click,1d_view", report.AttributionSetting);
+    }
+
+    /// <summary>Meta qiymat bermagan bo'lsa — BO'SH satr (sun'iy matn o'ylab topilmaydi).</summary>
+    [Fact]
+    public async Task Atributsiya_oynasi_berilmagan_bolsa_bosh_qoladi()
+    {
+        using var t = TestDb.Sqlite();
+        var db = t.Context;
+        db.Add(NewAccount());
+        AddTree(db);
+        db.Add(Insight(MetaAdsRoi.LevelAd, "ad1", "2026-08-05", spendMinor: 1_000_000));
+        await db.SaveChangesAsync();
+
+        var report = await Build(db);
+        Assert.Equal("", report.AttributionSetting);
+    }
+
+    /// <summary>Akkaunt ulanmagan bo'sh hisobotda ham maydonlar mavjud va NOL/BO'SH.</summary>
+    [Fact]
+    public async Task Akkauntsiz_bosh_hisobotda_yangi_maydonlar_nol()
+    {
+        using var t = TestDb.Sqlite();
+        var report = await Build(t.Context);
+
+        Assert.False(report.Connected);
+        Assert.Equal(0, report.Totals.MsgStarted);
+        Assert.Equal("", report.AttributionSetting);
     }
 }

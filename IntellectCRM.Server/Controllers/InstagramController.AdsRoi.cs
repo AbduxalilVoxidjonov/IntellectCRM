@@ -78,7 +78,8 @@ public partial class InstagramController
             report.Currency, report.CurrencyOffset, report.TimezoneName,
             report.From, report.To, report.Platform, report.CampaignId,
             report.LastSyncAt, report.LastError, report.InsightLevel,
-            report.Totals, report.Daily, report.Platforms, report.Notes);
+            report.Totals, report.Daily, report.Platforms, report.Notes,
+            report.AttributionSetting);
     }
 
     /// <summary>
@@ -100,7 +101,8 @@ public partial class InstagramController
         return new IgRoiCampaignsDto(
             report!.Connected, report.From, report.To, report.Platform, report.CampaignId,
             report.Currency, report.CurrencyOffset, report.InsightLevel,
-            report.Totals, report.Campaigns, report.Notes);
+            report.Totals, report.Campaigns, report.Notes,
+            report.AttributionSetting);
     }
 
     /// <summary>
@@ -213,7 +215,10 @@ public record IgRoiOverviewDto(
     IgRoiNodeDto Totals,
     IReadOnlyList<IgRoiDayDto> Daily,
     IReadOnlyList<IgRoiPlatformDto> Platforms,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    /// <summary>Meta bergan atributsiya oynasi (<c>attribution_setting</c>) — HISOBOT OSTIDA
+    /// kichik izoh sifatida ko'rsatiladi, TARJIMA QILINMAYDI.</summary>
+    string AttributionSetting);
 
 /// <summary>Kampaniya → adset → e'lon daraxti (jamlanma bilan birga — jadval ostidagi
 /// "Jami" qatori AYNAN shundan chiziladi, qatorlarni qo'shib chiqarilmaydi).</summary>
@@ -228,4 +233,7 @@ public record IgRoiCampaignsDto(
     string InsightLevel,
     IgRoiNodeDto Totals,
     IReadOnlyList<IgRoiNodeDto> Campaigns,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    /// <summary>Meta bergan atributsiya oynasi — jadval ostidagi izoh uchun (overview bilan
+    /// AYNAN bir xil qiymat: ikkala tab bitta hisobotdan oziqlanadi).</summary>
+    string AttributionSetting);

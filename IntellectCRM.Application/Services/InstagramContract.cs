@@ -96,6 +96,14 @@ public static class IgConst
     public const string DirIn = "in", DirOut = "out";
     public const string KindComment = "comment", KindDm = "dm", KindEcho = "echo";
 
+    /// <summary>Inbox ro'yxatining MANBA filtri (<c>?source=</c>).
+    /// <para>Hozircha yagona qiymat — <c>ads</c>: "reklama ostidagi izohdan boshlangan suhbatlar"
+    /// (<see cref="IgConversation.AdId"/> to'ldirilgan). Boshqa har qanday qiymat filtrsiz
+    /// qoladi — klientdagi xato kalit tufayli inbox butunlay bo'shab qolmasin (jurnaldagi
+    /// noma'lum tur bilan bir xil siyosat).</para>
+    /// <para>⚠️ Bu atributsiya TAXMINIY — qarang <see cref="IgAdAttribution"/>.</para></summary>
+    public const string SourceAds = "ads";
+
     /// <summary>Javobni kim yozgani (<see cref="IgMessage.ActorName"/>) — inbox lentasida ko'rinadi.</summary>
     public const string ActorAi = "AI agent";
     public const string ActorRule = "Avto-qoida";
@@ -232,6 +240,43 @@ public static class InstagramContract
 
     /// <summary>Kontakt (telefon yoki boshqa aloqa) berilganmi.</summary>
     public static bool HasContact(IgAgentOutput o) => !string.IsNullOrWhiteSpace(o.LeadContact);
+
+    // ─────────────────────── REKLAMA ATRIBUTSIYASI (E3) — ko'rinadigan qism ───────────────────────
+
+    /// <summary>
+    /// Inbox filtri "faqat reklamadan kelganlar" nimi (<c>?source=ads</c>).
+    ///
+    /// <para>⚠️ Noma'lum qiymat <c>false</c> qaytaradi, ya'ni filtr UMUMAN qo'llanmaydi va
+    /// ro'yxat to'liq ko'rinadi. Xato kalit tufayli operator bo'sh ekran ko'rib "suhbat yo'q"
+    /// deb o'ylab qolmasin.</para>
+    /// </summary>
+    public static bool WantsAdsOnly(string? source) =>
+        string.Equals((source ?? "").Trim(), IgConst.SourceAds, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Suhbat reklama izohidan boshlanganmi — <b>YAGONA</b> tekshiruv (UI ham, filtr ham shuni
+    /// ishlatadi). Kampaniya aniqlanmagan, lekin e'lon topilgan holat ham "reklama" hisoblanadi:
+    /// iyerarxiya hali sinxronlanmagan bo'lsa suhbat organik bo'lib ko'rinib qolmasin.
+    /// </summary>
+    public static bool FromAd(string? adId) => !string.IsNullOrWhiteSpace(adId);
+
+    /// <summary>
+    /// Ekranda ko'rsatiladigan kampaniya YORLIG'I.
+    ///
+    /// <para>Nomi topilmasa <b>id'ning O'ZI</b> qaytadi (<c>MetaAdsRoi.BuildNode</c> bilan bir xil
+    /// qoida): sun'iy "Noma'lum kampaniya" matni haqiqiy tugundan ajratib bo'lmas, id esa Ads
+    /// Manager'da qidirsa bo'ladigan qiymat. Kampaniya ham, e'lon ham bo'sh bo'lsa — bo'sh satr
+    /// (chip umuman chizilmaydi).</para>
+    /// </summary>
+    public static string AdCampaignLabel(string? campaignId, string? campaignName, string? adId = null)
+    {
+        var name = (campaignName ?? "").Trim();
+        if (name.Length > 0) return name;
+        var id = (campaignId ?? "").Trim();
+        if (id.Length > 0) return id;
+        // Kampaniya aniqlanmagan (iyerarxiya sinxronlanmagan) — hech bo'lmasa e'lon id'si.
+        return (adId ?? "").Trim();
+    }
 
     /// <summary>
     /// DM'ning 24 soatlik javob oynasi ochiqmi (mijoz oxirgi marta qachon yozgan).

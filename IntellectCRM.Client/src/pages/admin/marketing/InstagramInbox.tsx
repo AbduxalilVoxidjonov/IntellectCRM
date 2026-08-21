@@ -20,6 +20,18 @@ const STATUS_LABEL: Record<IgConversationStatus, string> = {
   closed: 'Yopilgan',
 }
 
+/**
+ * 🔴 REKLAMA ATRIBUTSIYASI TOOLTIPI — hech qayerda "aniq" deb ko'rsatilmaydi.
+ *
+ * Instagram Login yo'lidagi izoh webhook'ida `ad_id` UMUMAN YO'Q; bog'lanish media id'sini
+ * reklama creative'i bilan solishtirib TIKLANADI. Boostlangan postda ishlaydi, "dark post" va
+ * dinamik (katalog) reklamada ishlamaydi — ya'ni belgining YO'QLIGI "organik" degani emas.
+ * Shu sabab yorliqda "taxminiy" so'zi KO'RINIB turadi (faqat tooltipda emas).
+ */
+const AD_HINT = "Reklama izohi (taxminiy — media bo'yicha aniqlangan). "
+  + "Boostlangan postda ishlaydi; \"dark post\" va dinamik reklamada aniqlanmaydi, "
+  + "ya'ni belgisi yo'q suhbat ham reklamadan kelgan bo'lishi mumkin."
+
 /** Xabar kanali yorliqlari. */
 const CHANNEL_LABEL: Record<string, string> = {
   comment: 'Izoh',
@@ -62,6 +74,8 @@ export function InstagramInbox() {
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<IgConversationStatus | ''>('')
   const [onlyOperator, setOnlyOperator] = useState(false)
+  /** «Reklamadan» chipi — atributsiyasi TOPILGAN suhbatlar (`?source=ads`). */
+  const [onlyAds, setOnlyAds] = useState(false)
 
   const activeId = params.get('id') ?? ''
   const [detail, setDetail] = useState<IgConversationDetail | null>(null)
@@ -85,13 +99,14 @@ export function InstagramInbox() {
       q: q.trim(),
       status,
       needsOperator: onlyOperator ? true : undefined,
+      source: onlyAds ? 'ads' : '',
       page: 1,
       pageSize: 100,
     })
       .then((r) => { setItems(r.items); setTotal(r.total) })
       .catch((e) => setListError(apiErrorMessage(e, "Suhbatlarni yuklab bo'lmadi")))
       .finally(() => setListLoading(false))
-  }, [q, status, onlyOperator])
+  }, [q, status, onlyOperator, onlyAds])
 
   // Qidiruv yozilayotganda har harfda so'rov ketmasin.
   useEffect(() => {
@@ -216,6 +231,15 @@ export function InstagramInbox() {
               >
                 Operator kerak
               </button>
+              {/* ⚠️ Yorliqda "taxminiy" ATAYIN yozilgan: bu kesim "reklamadan kelganlarning
+                  HAMMASI" emas, "ANIQLANGANLARI". */}
+              <button
+                className={'conv-filter ' + (onlyAds ? 'active' : '')}
+                onClick={() => setOnlyAds(!onlyAds)}
+                title={AD_HINT}
+              >
+                📢 Reklamadan (taxminiy)
+              </button>
             </div>
           </div>
 
@@ -247,6 +271,15 @@ export function InstagramInbox() {
                     {c.needsOperator && <span className="badge badge-danger">Operator kerak</span>}
                     {c.status === 'operator' && <span className="badge badge-warning">Operatorda</span>}
                     {c.status === 'closed' && <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>Yopilgan</span>}
+                    {c.adId && (
+                      <span
+                        className="badge"
+                        style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}
+                        title={AD_HINT}
+                      >
+                        📢 {c.adCampaignName || 'Reklama'} · taxminiy
+                      </span>
+                    )}
                     {c.leadId && <span className="badge badge-success">Lid</span>}
                     {c.leadScore > 0 && <span className="badge badge-ai">Ball {c.leadScore}</span>}
                   </div>
@@ -316,7 +349,7 @@ export function InstagramInbox() {
                 )}
               </div>
 
-              {(conv.needsOperator || actionError || detail?.lead) && (
+              {(conv.needsOperator || actionError || detail?.lead || conv.adId) && (
                 <div style={{ padding: '12px 18px 0' }}>
                   {conv.needsOperator && (
                     <div className="mk-alert" style={{ marginBottom: 10 }}>
@@ -324,6 +357,27 @@ export function InstagramInbox() {
                       <div style={{ flex: 1 }}>
                         <div className="mk-alert-title">Operator aralashuvi kerak</div>
                         <div>{conv.needsOperatorReason || 'Sabab ko‘rsatilmagan'}</div>
+                      </div>
+                    </div>
+                  )}
+                  {/* 🔴 TAXMINIY atributsiya — "aniq" deb ko'rsatilmaydi va cheklovlari
+                      ochiq yozib qo'yiladi (tooltip yagona kanal bo'lib qolmasin). */}
+                  {conv.adId && (
+                    <div className="mk-alert" style={{ marginBottom: 10 }} title={AD_HINT}>
+                      <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>📢</span>
+                      <div style={{ flex: 1 }}>
+                        <div className="mk-alert-title">
+                          Reklama izohidan kelgan — taxminiy
+                        </div>
+                        <div>
+                          Kampaniya: {conv.adCampaignName || conv.adCampaignId || '—'}
+                          {conv.adId && <> · e'lon: {conv.adId}</>}
+                        </div>
+                        <div style={{ marginTop: 4, fontSize: 12 }}>
+                          Bog'lanish media bo'yicha aniqlangan: boostlangan postda ishlaydi,
+                          "dark post" va dinamik reklamada aniqlanmaydi. Belgining yo'qligi
+                          "reklamadan kelmagan" degani emas.
+                        </div>
                       </div>
                     </div>
                   )}

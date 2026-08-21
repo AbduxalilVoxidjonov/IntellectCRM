@@ -93,6 +93,16 @@ export interface IgRoiNode {
   linkClicks: number
   /** Meta hisoblagan lidlar (`LeadsOnsite + LeadsPixel`). */
   metaLeads: number
+  /**
+   * Meta hisoblagan BOSHLANGAN YOZISHMALAR
+   * (`onsite_conversion.messaging_conversation_started_7d`).
+   *
+   * "Xabar yuborish" (Click-to-Direct) reklamasining ASOSIY natijasi: bunday reklamada forma
+   * umuman bo'lmaydi, ya'ni `metaLeads` nol turaveradi.
+   * ⚠️ Lidlar bilan QO'SHILMAYDI — bitta odam ikkalasini ham qilishi mumkin.
+   * ⚠️ 7 kunlik oyna tufayli son orqaga qarab o'zgaradi.
+   */
+  msgStarted: number
   /** CRM'ga kelgan XOM lid qatorlari (dublikatlar bilan). */
   adLeadRows: number
   /** TAKRORSIZ CRM lidlari — barcha konversiya sanoqlari AYNAN shular bo'yicha. */
@@ -148,6 +158,14 @@ interface IgRoiCommon {
   totals: IgRoiNode
   /** ⚠️ O'zbekcha OGOHLANTIRISHLAR — ekranda ko'rsatilishi SHART, yutib yuborilmaydi. */
   notes: string[]
+  /**
+   * Meta bergan ATRIBUTSIYA OYNASI (`attribution_setting`, masalan `7d_click,1d_view`) —
+   * Meta konversiyalari qaysi oyna bo'yicha sanalgani.
+   *
+   * ⚠️ Meta bergan HOLICHA ko'rsatiladi, **tarjima qilinmaydi**: bu Ads Manager'dagi
+   * sozlamaning texnik nomi. Bo'sh — Meta bermagan.
+   */
+  attributionSetting: string
 }
 
 /** KPI + kunlik qator + platforma kesimi (kampaniya daraxtisiz — u og'ir). */
