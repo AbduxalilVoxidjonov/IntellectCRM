@@ -30,6 +30,8 @@ public interface IAppDbContext
     DbSet<Lead> Leads { get; }
     DbSet<LeadStage> LeadStages { get; }
     DbSet<LeadEvent> LeadEvents { get; }
+    /// <summary>Lid haqida Telegramga yuborilgan xabarlar (lid × chat) — kartani TAHRIRLASH uchun.</summary>
+    DbSet<LeadTelegramMessage> LeadTelegramMessages { get; }
     DbSet<TrialLesson> TrialLessons { get; }
     DbSet<TestResult> TestResults { get; }
     DbSet<TestScore> TestScores { get; }

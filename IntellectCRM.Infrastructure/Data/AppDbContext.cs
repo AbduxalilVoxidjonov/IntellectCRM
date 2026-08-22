@@ -30,6 +30,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<LeadStage> LeadStages => Set<LeadStage>();
     public DbSet<LeadEvent> LeadEvents => Set<LeadEvent>();
+    public DbSet<LeadTelegramMessage> LeadTelegramMessages => Set<LeadTelegramMessage>();
     public DbSet<TrialLesson> TrialLessons => Set<TrialLesson>();
     public DbSet<TestResult> TestResults => Set<TestResult>();
     public DbSet<TestScore> TestScores => Set<TestScore>();
@@ -269,6 +270,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<StudentGroup>().HasIndex(sg => sg.GroupId);
         b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.IsActive });
         b.Entity<LeadEvent>().HasIndex(e => e.LeadId);
+        // Lid kartasi HAR CHAT uchun bitta: unikal indeks bir guruhda ikkinchi karta paydo
+        // bo'lishiga yo'l qo'ymaydi (aks holda ikkalasi ham yangilanib, guruhda dubl ko'rinardi).
+        // LeadId indeksda qatnashgani uchun uzunligi cheklanadi (SQL Server nvarchar(max) ni
+        // indekslay olmaydi — yuqoridagi ro'yxat bilan bir xil qoida).
+        b.Entity<LeadTelegramMessage>().Property(m => m.LeadId).HasMaxLength(200);
+        b.Entity<LeadTelegramMessage>().HasIndex(m => new { m.LeadId, m.ChatId }).IsUnique();
         // Lid TELEFON KALITI (oxirgi 9 raqam) — "shu odamning lidi bormi" savolini SQL tomonda
         // hal qiladi (`LeadIntake.FindByPhoneAsync`). Qiymatni SaveChanges o'zi yozadi.
         b.Entity<Lead>().Property(l => l.PhoneKey).HasMaxLength(16);

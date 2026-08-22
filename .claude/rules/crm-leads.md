@@ -20,6 +20,12 @@ paths:
   uni `Phone` dan o'zi yozadi, ya'ni lid yaratadigan/telefonini o'zgartiradigan YANGI joy
   qo'shilganda ham unutilmaydi (unutilsa — o'sha lidga dublikat ochilardi).
 
+- **Lid o'zgarishi TELEGRAM KARTASIDA aks etadi:** guruhdagi lid xabari — karta, u yangi xabar
+  bilan emas, `editMessageText` bilan JOYIDA yangilanadi (`LeadNotifier.SyncCardAsync`, har
+  `SaveChanges` dan KEYIN). ⚠️ Kartasi YO'Q eski lidga karta YARATILMAYDI. Yangi lid endpointi
+  qo'shsangiz — sinxronizatsiya chaqiruvini ham qo'shing. Batafsil: `.claude/rules/messaging.md`
+  → «LID KARTASI».
+
 - **`Lead.RepeatCount` / `LastRepeatAt`** — TAKRORIY murojaat (odam formani/daraja testini yana
   to'ldirdi). Bosqich ATAYIN o'zgarmaydi, belgisi kanban kartasida «Takroriy ×N» chipi va lid
   oynasida alohida qator bo'lib chiqadi. Batafsil: `.claude/rules/lead-forms.md` §4.

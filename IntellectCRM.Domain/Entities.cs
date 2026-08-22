@@ -1096,6 +1096,50 @@ public class Lead
     public string LastRepeatAt { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Lid haqida Telegramga YUBORILGAN xabar (karta) — uni keyin TAHRIRLASH uchun bog'lovchi yozuv.
+///
+/// <para>NEGA ALOHIDA JADVAL, <c>Lead</c> ga ikkita ustun EMAS: bitta lid kartasi BIR NECHTA chatga
+/// ketadi (har superadminning shaxsiy chati + har bir faol guruh — <c>LeadNotifier</c>). Lidda
+/// <c>ChatId</c>/<c>MessageId</c> juftligi bo'lsa faqat BITTA chatdagi xabar eslab qolinardi,
+/// qolganlari esa yangilanmay, eski (bosqichi o'zgarmagan) holicha osilib qolardi.</para>
+///
+/// <para>Har lid × chat uchun bitta qator: unikal indeks <c>(LeadId, ChatId)</c> — aks holda bir
+/// guruhda ikkita karta paydo bo'lib, ikkalasi ham yangilanaverardi.</para>
+/// </summary>
+public class LeadTelegramMessage
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi lidning kartasi (<see cref="Lead"/>.Id).</summary>
+    public string LeadId { get; set; } = string.Empty;
+    /// <summary>Telegram chat (superadminning shaxsiy chati yoki guruh).</summary>
+    public long ChatId { get; set; }
+    /// <summary>Yuborilgan xabar id'si — TAHRIRLASH (<c>editMessageText</c>) aynan shunga tayanadi.</summary>
+    public long MessageId { get; set; }
+    /// <summary>
+    /// Oxirgi yuborilgan matnning SHA256'si.
+    ///
+    /// <para>NEGA KERAK: Telegram AYNAN o'sha matn bilan tahrirlashga <c>message is not modified</c>
+    /// xatosini qaytaradi. Ya'ni matn o'zgarmaganini oldindan bilmasak, har bir arzimas
+    /// o'zgarishda har bir chatga bekorga so'rov ketardi (tezlik chegarasi ham shunga sarflanardi).
+    /// Hash tenglashsa — so'rov umuman yuborilmaydi.</para>
+    /// </summary>
+    public string TextHash { get; set; } = string.Empty;
+    /// <summary>
+    /// Xabar o'chirilgan / topilmadi (bot guruhdan chiqarilgan, xabar qo'lda o'chirilgan) —
+    /// boshqa urinilmaydi.
+    ///
+    /// <para>NEGA KERAK: yo'q xabarni tahrirlash har safar xato qaytaradi, lekin biz buni
+    /// eslab qolmasak, lidning HAR o'zgarishida (bosqich, izoh, birinchi dars, konversiya)
+    /// yana urinilardi — bu Telegram tezlik chegarasini yeb, haqiqiy xabarlarni kechiktirardi.</para>
+    /// </summary>
+    public bool IsDead { get; set; }
+    /// <summary>Xabar birinchi yuborilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Oxirgi muvaffaqiyatli tahrir vaqti (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string UpdatedAt { get; set; } = string.Empty;
+}
+
 /// <summary>Lid bosqichi (kanban ustuni).</summary>
 public class LeadStage
 {

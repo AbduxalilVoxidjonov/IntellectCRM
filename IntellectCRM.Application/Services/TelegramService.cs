@@ -5,6 +5,21 @@ using System.Text.Json;
 
 namespace IntellectCRM.Application.Services;
 
+/// <summary>Xabarni tahrirlash natijasi — chaqiruvchi har biriga BOSHQACHA javob beradi.</summary>
+public enum TgEditResult
+{
+    /// <summary>Tahrirlandi.</summary>
+    Ok,
+    /// <summary>Telegram: matn AYNAN eski («message is not modified») — muvaffaqiyat deb qaraladi.</summary>
+    NotModified,
+    /// <summary>Xabar yo'q: o'chirilgan, id buzuq, chat topilmadi yoki bot chiqarilgan. QAYTA URINILMAYDI.</summary>
+    Gone,
+    /// <summary>429 — tezlik chegarasi. Keyingi o'zgarishda yana urinsa bo'ladi.</summary>
+    RateLimited,
+    /// <summary>Boshqa xato (tarmoq, noma'lum sabab).</summary>
+    Failed,
+}
+
 /// <summary>
 /// Telegram Bot API bilan ishlash: e'lon yuborish (sendMessage) va bot yangilanishlarini olish
 /// (getUpdates, long polling).
@@ -48,9 +63,14 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
 
     /// <summary>Berilgan chatga matn yuboradi (ixtiyoriy reply_markup va parseMode bilan). Muvaffaqiyat — true.
     /// parseMode="HTML" bersa — masalan &lt;code&gt; bilan o'ralgan qism Telegram mijozlarida
-    /// bosilganda avtomatik nusxa olinadigan (tap-to-copy) monospace bo'lib ko'rinadi.</summary>
+    /// bosilganda avtomatik nusxa olinadigan (tap-to-copy) monospace bo'lib ko'rinadi.
+    /// <para><paramref name="replyToMessageId"/> berilsa xabar o'sha xabarga JAVOB bo'lib ketadi —
+    /// masalan takroriy murojaat signali lid kartasiga javob qilinadi va bosilganda kartaga sakraydi.
+    /// ⚠️ Parametr ataylab ENG OXIRIDA: mavjud chaqiruvchilar pozitsiyaviy argument uzatadi
+    /// (<c>SendMessageAsync(chatId, text, kb, ct, "HTML")</c>), o'rtaga qo'shilsa hammasi sinardi.</para></summary>
     public async Task<bool> SendMessageAsync(
-        long chatId, string text, object? replyMarkup = null, CancellationToken ct = default, string? parseMode = null)
+        long chatId, string text, object? replyMarkup = null, CancellationToken ct = default,
+        string? parseMode = null, long? replyToMessageId = null)
     {
         if (!IsConfigured) return false;
         try
@@ -58,6 +78,7 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
             var payload = new Dictionary<string, object?> { ["chat_id"] = chatId, ["text"] = text };
             if (replyMarkup is not null) payload["reply_markup"] = replyMarkup;
             if (parseMode is not null) payload["parse_mode"] = parseMode;
+            if (replyToMessageId is not null) payload["reply_to_message_id"] = replyToMessageId;
             using var content = new StringContent(
                 JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             var resp = await Client().PostAsync($"{ApiBase}/sendMessage", content, ct);
@@ -71,9 +92,12 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
     }
 
     /// <summary>Xabar yuboradi va Telegram bergan <c>message_id</c>ni qaytaradi (keyin o'sha xabarni
-    /// JOYIDA yangilash uchun — masalan onlayn test javob varaqasi). Xato bo'lsa null.</summary>
+    /// JOYIDA yangilash uchun — masalan onlayn test javob varaqasi yoki lid kartasi). Xato bo'lsa null.
+    /// <para><paramref name="replyToMessageId"/> — yuboriladigan xabar JAVOB bo'ladigan xabar id'si
+    /// (ENG OXIRGI parametr: mavjud pozitsiyaviy chaqiruvlar buzilmasin).</para></summary>
     public async Task<long?> SendMessageReturningIdAsync(
-        long chatId, string text, object? replyMarkup = null, CancellationToken ct = default, string? parseMode = null)
+        long chatId, string text, object? replyMarkup = null, CancellationToken ct = default,
+        string? parseMode = null, long? replyToMessageId = null)
     {
         if (!IsConfigured) return null;
         try
@@ -81,6 +105,7 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
             var payload = new Dictionary<string, object?> { ["chat_id"] = chatId, ["text"] = text };
             if (replyMarkup is not null) payload["reply_markup"] = replyMarkup;
             if (parseMode is not null) payload["parse_mode"] = parseMode;
+            if (replyToMessageId is not null) payload["reply_to_message_id"] = replyToMessageId;
             using var content = new StringContent(
                 JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             var resp = await Client().PostAsync($"{ApiBase}/sendMessage", content, ct);
@@ -101,12 +126,31 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
 
     /// <summary>Mavjud xabar MATNINI va tugmalarini joyida yangilaydi (editMessageText) — onlayn test
     /// javob varaqasi har bosishda yangi xabar yubormasdan shu yerda o'zgaradi. Muvaffaqiyat — true
-    /// (xabar eskirgan/o'chirilgan bo'lsa false, chaqiruvchi yangi xabar yuborishi mumkin).</summary>
+    /// (xabar eskirgan/o'chirilgan bo'lsa false, chaqiruvchi yangi xabar yuborishi mumkin).
+    /// <para>Bu — <see cref="EditMessageTextDetailedAsync"/> ustidagi SODDA qobiq (imzosi ataylab
+    /// o'zgarmagan, eski chaqiruvchilar buzilmasin). <see cref="TgEditResult.NotModified"/> ham
+    /// TRUE deb qaraladi: matn allaqachon aynan shunday bo'lsa ish BAJARILGAN hisoblanadi —
+    /// ilgari bu holat false qaytarib, chaqiruvchini bekorga yangi xabar yuborishga majburlardi.</para></summary>
     public async Task<bool> EditMessageTextAsync(
         long chatId, long messageId, string text, object? replyMarkup = null,
         CancellationToken ct = default, string? parseMode = null)
     {
-        if (!IsConfigured) return false;
+        var result = await EditMessageTextDetailedAsync(chatId, messageId, text, replyMarkup, ct, parseMode);
+        return result is TgEditResult.Ok or TgEditResult.NotModified;
+    }
+
+    /// <summary>
+    /// <see cref="EditMessageTextAsync"/> bilan AYNAN bir xil so'rov yuboradi, farqi — javob TANASINI
+    /// ham o'qiydi va xatoni TASNIFLAYDI. Kerak, chunki chaqiruvchi har xatoga boshqacha javob beradi:
+    /// «matn o'zgarmagan» — muvaffaqiyat, «xabar o'chirilgan» — qayta urinmaslik, «429» — keyinroq.
+    /// Yalang <c>bool</c> hammasini bir xil «false» qilib ko'rsatardi.
+    /// </summary>
+    public async Task<TgEditResult> EditMessageTextDetailedAsync(
+        long chatId, long messageId, string text, object? replyMarkup = null,
+        CancellationToken ct = default, string? parseMode = null)
+    {
+        // Token yo'q — xizmat sozlanmagan; bu tarmoq xatosi emas, lekin tahrir ham bo'lmadi.
+        if (!IsConfigured) return TgEditResult.Failed;
         try
         {
             var payload = new Dictionary<string, object?>
@@ -118,13 +162,82 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
             using var content = new StringContent(
                 JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             var resp = await Client().PostAsync($"{ApiBase}/editMessageText", content, ct);
-            return resp.IsSuccessStatusCode;
+
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            var ok = resp.IsSuccessStatusCode && OkFlag(body) is not false;
+            if (ok) return TgEditResult.Ok;
+
+            // Telegram xatoni {"ok":false,"description":"..."} ko'rinishida qaytaradi — sabab SHU YERDA.
+            var description = DescriptionOf(body);
+            var result = ClassifyEditError((int)resp.StatusCode, description);
+            // ⚠️ Logga chat id yoki token TUSHMAYDI (maxfiylik) — faqat tasnif va Telegram izohi.
+            if (result is not TgEditResult.NotModified)
+                logger.LogWarning("Telegram editMessageText rad etdi: {Result} ({Description})", result, description);
+            return result;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Telegram editMessageText xatosi");
-            return false;
+            return TgEditResult.Failed;
         }
+    }
+
+    /// <summary>
+    /// Telegram xato javobini (HTTP kodi + <c>description</c>) <see cref="TgEditResult"/> ga aylantiradi.
+    /// SOF funksiya — tarmoqsiz testlanadi, shuning uchun tasnif mantig'i so'rov yuborishdan ajratilgan.
+    /// Solishtirish registrga BOG'LIQ EMAS: Telegram xato matnlari vaqt o'tishi bilan o'zgaradi.
+    /// </summary>
+    internal static TgEditResult ClassifyEditError(int statusCode, string? description)
+    {
+        var d = description ?? "";
+
+        // «Matn aynan eski» — xato emas, ish allaqachon bajarilgan. Eng oldin tekshiriladi.
+        if (Has(d, "message is not modified")) return TgEditResult.NotModified;
+
+        // Xabar/chat YO'Q yoki bot u yerda emas — qayta urinishning ma'nosi yo'q.
+        if (Has(d, "message to edit not found")
+            || Has(d, "MESSAGE_ID_INVALID")
+            || Has(d, "chat not found")
+            || Has(d, "message can't be edited")
+            || Has(d, "bot was kicked")
+            || Has(d, "bot is not a member")
+            || Has(d, "chat_id is empty"))
+            return TgEditResult.Gone;
+
+        // Tezlik chegarasi — keyingi o'zgarishda yana urinsa bo'ladi.
+        if (statusCode == 429 || Has(d, "Too Many Requests")) return TgEditResult.RateLimited;
+
+        return TgEditResult.Failed;
+
+        static bool Has(string haystack, string needle) =>
+            haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Javob tanasidan <c>"ok"</c> bayrog'ini oladi (JSON buzuq bo'lsa — null, ya'ni
+    /// "bilib bo'lmadi": u holda HTTP kodiga tayanamiz).</summary>
+    private static bool? OkFlag(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("ok", out var ok) && ok.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? ok.GetBoolean()
+                : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>Javob tanasidan <c>"description"</c> matnini oladi (bo'lmasa/buzuq bo'lsa — null).</summary>
+    private static string? DescriptionOf(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("description", out var d) ? d.GetString() : null;
+        }
+        catch (JsonException) { return null; }
     }
 
     /// <summary>Mavjud xabarning inline-klaviaturasini (reply_markup) yangilaydi (editMessageReplyMarkup).

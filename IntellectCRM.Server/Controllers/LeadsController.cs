@@ -96,6 +96,7 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         invite.SmsRequestId = reqId;
         AddEvent(lead.Id, "note", ok ? $"Daraja testi havolasi yuborildi: {test.Title}" : $"Test havolasi SMS xato: {status}");
         await db.SaveChangesAsync();
+        await LeadNotifier.SyncCardAsync(db, telegram, lead.Id);
 
         return new SendLeadTestResultDto(ok, status, link);
     }
@@ -119,6 +120,9 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         if (p.DistrictId is not null) lead.DistrictId = p.DistrictId;
         if (p.SchoolId is not null) lead.SchoolId = p.SchoolId;
         await db.SaveChangesAsync();
+        // Telegramdagi lid kartasi JOYIDA yangilanadi (yangi xabar yuborilmaydi) — kartasi yo'q
+        // eski lidga esa hech narsa yuborilmaydi (`SyncCardAsync` izohiga qarang).
+        await LeadNotifier.SyncCardAsync(db, telegram, lead.Id);
         return NoContent();
     }
 
@@ -135,6 +139,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         AddEvent(id, "stage", $"Bosqich: {stage?.Title ?? req.Stage}",
             fromStage: oldStage, toStage: req.Stage);
         await db.SaveChangesAsync();
+        // Bosqich — kartadagi eng muhim qator, shuning uchun karta darhol qayta chiziladi.
+        await LeadNotifier.SyncCardAsync(db, telegram, lead.Id);
         return NoContent();
     }
 
@@ -155,6 +161,10 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         audit.Record("Lead", id, "delete",
             $"Lid o'chirildi ({lead.FullName})" + (reason.Length > 0 ? $" — sabab: {reason}" : ""));
         await db.SaveChangesAsync();
+        // ⚠️ Lid o'chgach `SyncCardAsync` uni topa olmaydi (va Telegram `deleteMessage` 48 soatdan
+        // keyin ishlamaydi) — shuning uchun karta MATNI "🗑 Lid o'chirildi" ga almashtiriladi va
+        // bog'lovchi yozuvlar tozalanadi. Ism o'chirilgan obyektdan (xotirada) o'qiladi.
+        await LeadNotifier.MarkDeletedAsync(db, telegram, id, lead.FullName);
         return NoContent();
     }
 
@@ -173,6 +183,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         if (await db.Leads.FindAsync(id) is null) return NotFound();
         AddEvent(id, string.IsNullOrWhiteSpace(req.Type) ? "note" : req.Type, req.Text);
         await db.SaveChangesAsync();
+        // Yangi izoh kartaning "Oxirgi izohlar" blokida ko'rinadi.
+        await LeadNotifier.SyncCardAsync(db, telegram, id);
         return Ok(new { ok = true });
     }
 
@@ -202,6 +214,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         db.TrialLessons.Add(trial);
         AddEvent(id, "trial", $"Sinov darsi belgilandi: {group?.Name ?? req.GroupId} — {req.ScheduledAt}");
         await db.SaveChangesAsync();
+        // Birinchi (sinov) dars sanasi kartaga chiqadi.
+        await LeadNotifier.SyncCardAsync(db, telegram, id);
         return Ok(new { ok = true, trialId = trial.Id });
     }
 
@@ -244,6 +258,7 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         trial.Result = req.Result;
         AddEvent(trial.LeadId, "trial", $"Sinov darsi natijasi: {(req.Result == "stayed" ? "qoldi" : "ketdi")}");
         await db.SaveChangesAsync();
+        await LeadNotifier.SyncCardAsync(db, telegram, trial.LeadId);
         return Ok(new { ok = true });
     }
 
@@ -316,6 +331,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
             ? (groupFull ? $" — guruh to'lgan, qo'shilmadi: {group.Name}" : $" — guruh: {group.Name}")
             : ""));
         await db.SaveChangesAsync();
+        // Kartada "✅ O'quvchi bo'ldi" qatori paydo bo'ladi.
+        await LeadNotifier.SyncCardAsync(db, telegram, id);
         return Ok(new { studentId = student.Id, groupFull });
     }
 
