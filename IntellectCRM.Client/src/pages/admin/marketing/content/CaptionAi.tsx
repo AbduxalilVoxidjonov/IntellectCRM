@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { apiErrorMessage } from '@/lib/utils'
-import {
-  generateIgCaption, getIgCaptionMeta,
-  type IgCaptionMeta, type IgPostType,
-} from '@/api/services/instagramContent'
+import { type IgCaptionMeta } from '@/api/services/instagramContent'
 import { Icon } from '../mk'
+
+/** AI qaytargan natija — tayyor matn + KO'RSATISH uchun hashtag ro'yxati. */
+export interface CaptionAiResult {
+  caption: string
+  hashtags: string[]
+}
 
 /**
  * ✨ AI BILAN CAPTION YOZISH (§5.10) — mavzu → tayyor post matni.
@@ -21,64 +22,44 @@ import { Icon } from '../mk'
  * solishtirilgan va hashtaglar matn oxiriga qo'shilgan. Shuning uchun ro'yxatdagi hashtag
  * chiplari faqat KO'RSATISH uchun — ular matnga qayta qo'shilmaydi.
  *
+ * 🔴 PANEL BOSHQARILADIGAN (controlled): mavzu, natija, "yozilmoqda" bayrog'i va uslub/til
+ * ro'yxati `ContentComposer` da turadi, bu yerda HECH QANDAY holat yo'q. Sabab: panel faqat
+ * «Matn» bosqichida chiziladi, ya'ni bosqich almashishi bilan UNMOUNT bo'ladi. Holat ichkarida
+ * bo'lganda foydalanuvchi mavzuni yozib «Matn yozdirish» ni bosgach (javob 10–20 soniya)
+ * «Vaqt» bosqichiga o'tsa — PULI TO'LANGAN Gemini javobi ham, yozilgan mavzu ham JIMGINA
+ * yo'qolardi, «Almashtirish / Oxiriga qo'shish» tanlovi esa umuman chiqmasdi. «Yozilmoqda…»
+ * indikatori ham yo'qolgani uchun odam ikkinchi marta bosib IKKITA so'rov yuborardi.
+ *
  * ⚠️ Ilgari bu panel 900px'lik modal ichida siqilgan edi: mavzu maydoni ikki qatorli,
  * natija esa 220px oynachada skrollanardi. Endi composer to'liq ekranda — mavzu maydoni
  * kattaroq, uslub/til yonma-yon, natija esa o'qishga qulay kenglikda. MANTIQ o'zgarmadi.
  */
 export function CaptionAi({
-  postType, hasText, onApply, onClose,
+  meta, metaError, topic, tone, language, busy, error, result,
+  onTopic, onTone, onLanguage, onRun, onApply, onAgain, onClose,
 }: {
-  postType: IgPostType
-  hasText: boolean
+  /** `null` — ro'yxat hali kelmagan (yoki xato). */
+  meta: IgCaptionMeta | null
+  metaError: string
+  topic: string
+  tone: string
+  language: string
+  busy: boolean
+  error: string
+  result: CaptionAiResult | null
+  onTopic: (v: string) => void
+  onTone: (v: string) => void
+  onLanguage: (v: string) => void
+  onRun: () => void
   onApply: (text: string, mode: 'replace' | 'append') => void
+  /** «Boshqattan yozdirish» — natijani tozalaydi (mavzu joyida qoladi). */
+  onAgain: () => void
   onClose: () => void
 }) {
-  const [meta, setMeta] = useState<IgCaptionMeta | null>(null)
-  const [metaError, setMetaError] = useState('')
-  const [topic, setTopic] = useState('')
-  const [tone, setTone] = useState('')
-  const [language, setLanguage] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState<{ caption: string; hashtags: string[] } | null>(null)
-
-  useEffect(() => {
-    let alive = true
-    getIgCaptionMeta()
-      .then((m) => {
-        if (!alive) return
-        setMeta(m)
-        setTone(m.defaultTone)
-        setLanguage(m.defaultLanguage)
-      })
-      .catch((e) => { if (alive) setMetaError(apiErrorMessage(e, "Sozlamalarni olib bo'lmadi")) })
-    return () => { alive = false }
-  }, [])
-
   // ⚠️ Gemini kaliti yo'q bo'lsa tugma OLDINDAN o'chiriladi va sabab ko'rinadi — foydalanuvchi
   // bosib, kutib, keyin xato olishi kerak emas.
   const ready = !!meta && meta.geminiConfigured
   const canRun = ready && !busy && topic.trim().length > 0
-
-  const run = async () => {
-    setBusy(true)
-    setError('')
-    setResult(null)
-    try {
-      const res = await generateIgCaption({ postType, topic: topic.trim(), tone, language })
-      // ⚠️ Javob 200 bo'lgani MUVAFFAQIYAT DEGANI EMAS: sabab `ok`/`error` da (kalit
-      // sozlanmagan, Gemini timeout, format buzuq). `ok` ni tekshirmaslik foydalanuvchiga
-      // BO'SH matn qo'yib qo'yardi.
-      if (!res.ok) { setError(res.error || 'AI matn yoza olmadi.'); return }
-      // Maydon bo'sh — yo'qotadigan narsa yo'q, tasdiq ham so'ralmaydi.
-      if (!hasText) { onApply(res.caption, 'replace'); return }
-      setResult({ caption: res.caption, hashtags: res.hashtags })
-    } catch (e) {
-      setError(apiErrorMessage(e, "AI'ga so'rov yuborib bo'lmadi"))
-    } finally {
-      setBusy(false)
-    }
-  }
 
   return (
     <div className="mk-kb-item" style={{ marginBottom: 16 }}>
@@ -115,7 +96,7 @@ export function CaptionAi({
           rows={4}
           value={topic}
           placeholder="Masalan: yozgi ingliz tili guruhiga qabul, dars kuniga 1 soat, chegirma bor"
-          onChange={(e) => setTopic(e.target.value)}
+          onChange={(e) => onTopic(e.target.value)}
         />
         <div className="field-hint">
           Matn markazning <b>bilim bazasi</b> asosida yoziladi — narx va jadval o‘ylab topilmaydi.
@@ -126,13 +107,13 @@ export function CaptionAi({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
         <div className="field" style={{ margin: 0 }}>
           <label className="field-label">Uslub</label>
-          <select className="input" value={tone} onChange={(e) => setTone(e.target.value)}>
+          <select className="input" value={tone} onChange={(e) => onTone(e.target.value)}>
             {(meta?.tones ?? []).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </div>
         <div className="field" style={{ margin: 0 }}>
           <label className="field-label">Til</label>
-          <select className="input" value={language} onChange={(e) => setLanguage(e.target.value)}>
+          <select className="input" value={language} onChange={(e) => onLanguage(e.target.value)}>
             {(meta?.languages ?? []).map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
           </select>
         </div>
@@ -146,7 +127,7 @@ export function CaptionAi({
       )}
 
       {!result && (
-        <button className="btn btn-primary btn-sm" disabled={!canRun} onClick={() => void run()}>
+        <button className="btn btn-primary btn-sm" disabled={!canRun} onClick={onRun}>
           <Icon name="sparkle" /> {busy ? 'Yozilmoqda…' : 'Matn yozdirish'}
         </button>
       )}
@@ -184,7 +165,7 @@ export function CaptionAi({
             <button className="btn btn-outline btn-sm" onClick={() => onApply(result.caption, 'append')}>
               <Icon name="plus" /> Oxiriga qo‘shish
             </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setResult(null)}>
+            <button className="btn btn-ghost btn-sm" onClick={onAgain}>
               <Icon name="refresh" /> Boshqattan yozdirish
             </button>
           </div>

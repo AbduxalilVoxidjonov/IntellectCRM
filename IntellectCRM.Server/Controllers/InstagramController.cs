@@ -43,6 +43,9 @@ public partial class InstagramController(
     MetaAdsApi adsApi,
     AuditService audit,
     IConfiguration config,
+    // Lid kartasini guruhda JOYIDA yangilash uchun (`LeadNotifier.SyncCardAsync`) — bot
+    // sozlanmagan bo'lsa chaqiruv o'zi darhol qaytadi, ya'ni qo'shimcha shart kerak emas.
+    TelegramService telegram,
     ILogger<InstagramController> logger) : ControllerBase
 {
     /// <summary>Audit yozuvlaridagi yagona `EntityType` (`AuditSections`: `marketing`).</summary>
@@ -630,6 +633,11 @@ public partial class InstagramController(
                 ? $"Instagram suhbati lidga aylantirildi (@{c.Username}, manba: {source})"
                 : $"Instagram suhbati mavjud lidga bog'landi (@{c.Username})");
         await db.SaveChangesAsync(ct);
+
+        // Guruhdagi lid kartasi JORIY holatga keltiriladi: mavjud lidga bog'langanda `RepeatCount`,
+        // izoh va hodisalar o'zgardi — kartani yangilamasak u eski ma'lumot bilan qolib ketardi.
+        // SaveChanges'dan KEYIN chaqiriladi (karta bazadagi yozilgan holatdan quriladi).
+        await LeadNotifier.SyncCardAsync(db, telegram, leadId, ct);
 
         // Yaratilgan/bog'langan LID qaytadi — suhbat sarlavhasidagi "Lidga bog'langan" bloki
         // shu javobdan chiziladi (suhbat detalidagi `lead` bilan bir xil shakl).

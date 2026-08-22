@@ -276,6 +276,20 @@ export function InstagramAdsStats() {
 
   const connected = overview ? overview.connected : (status?.connected ?? false)
 
+  /**
+   * OXIRGI SINXRONIZATSIYA XATOSI — sahifaning eng muhim ogohlantirishi.
+   *
+   * 🔴 U «Ma'lumot holati» tabiga BERKITILMAYDI: xato bo'lsa ekrandagi barcha
+   * raqamlar eskirgan yoki chala bo'lishi mumkin, marketolog esa "Umumiy" tabida turib
+   * byudjet qarorini qabul qiladi. Shuning uchun ogohlantirish tab tugmalaridan TEPADA,
+   * ya'ni qaysi tab ochiq bo'lishidan qat'i nazar ko'rinadi.
+   *
+   * ⚠️ Manba IKKITA: `status` (yengil so'rov) va `overview` (hisobot) — `StatusBlock`
+   * dagi bilan AYNAN bir xil qoida, aks holda bir ekranning ikki joyida ikki xil xato
+   * ko'rinardi.
+   */
+  const lastError = status?.lastError || overview?.lastError || ''
+
   return (
     <MarketingPage
       title="Reklama statistikasi"
@@ -308,20 +322,35 @@ export function InstagramAdsStats() {
           </div>
         )}
 
-        {/* Oxirgi sinxronizatsiya xatosi — eng tepada: byudjet qarori eskirgan raqamga
-            asoslanib qolmasin. */}
-        {status && status.lastError !== '' && (
+        {/* Oxirgi sinxronizatsiya xatosi — eng tepada, TABLARDAN TASHQARIDA: byudjet
+            qarori eskirgan raqamga asoslanib qolmasin. */}
+        {lastError !== '' && (
           <div className="mk-alert mk-alert-danger">
             <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div className="mk-alert-title">Oxirgi sinxronizatsiya xato bilan tugadi</div>
-              <div>{status.lastError}</div>
+              <div>{lastError}</div>
+              <div style={{ marginTop: 4 }}>
+                Quyidagi raqamlar <b>eskirgan yoki chala</b> bo'lishi mumkin — qaror
+                chiqarishdan oldin sinxronizatsiyani tiklang.
+              </div>
             </div>
-            {canSync && (
-              <button className="btn btn-outline btn-sm" onClick={sync} disabled={syncing}>
-                <Icon name="refresh" /> {syncing ? 'Urinilmoqda…' : 'Qayta urinish'}
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {/* Xatoning batafsili (oxirgi sinxronizatsiya vaqti, statistika kuni,
+                  qatorlar soni) «Ma'lumot holati» tabida — havola o'sha yerga olib boradi. */}
+              {/* ⚠️ Akkaunt ulanmagan bo'lsa tab qatori umuman chizilmaydi — havola ham
+                  ko'rsatilmaydi, aks holda u hech qayerga olib bormasdi. */}
+              {connected && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setTab('holat')}>
+                  <Icon name="info" /> Ma'lumot holati
+                </button>
+              )}
+              {canSync && (
+                <button className="btn btn-outline btn-sm" onClick={sync} disabled={syncing}>
+                  <Icon name="refresh" /> {syncing ? 'Urinilmoqda…' : 'Qayta urinish'}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -375,6 +404,63 @@ export function InstagramAdsStats() {
           />
         )}
 
+        {/* ───────────── Backend ogohlantirishlari — JIM YUTILMAYDI ─────────────
+            Tablardan TASHQARIDA: ular raqamlarni qanday o'qish kerakligini aytadi,
+            ya'ni "Kampaniyalar" tabida turgan odam ham ko'rishi shart.
+            ⚠️ `loading` blokidan ham TASHQARIDA: davr almashtirilganda izohlar bir zumga
+            yo'qolib qayta paydo bo'lsa, ostidagi butun sahifa sakrab ketardi. */}
+        {!error && connected && overview && overview.notes.length > 0 && (
+          <MkCard
+            title="Hisobotni to'g'ri o'qish uchun"
+            sub="Raqamlarning chegaralari va ularning sabablari"
+          >
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>
+              {overview.notes.map((n) => (
+                <li key={n} style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.5 }}>{n}</li>
+              ))}
+            </ul>
+          </MkCard>
+        )}
+
+        {/* ───────────── Sahifa ichidagi bo'limlar ─────────────
+            ⚠️ Tab qatori ATAYIN `loading` shartidan TASHQARIDA (filtrlar bilan bir xil
+            mantiq): davr yoki platforma o'zgartirilganda butun qator yo'qolib qayta
+            chizilsa, foydalanuvchi endigina bosgan tugma ko'z oldida sakrab ketardi. */}
+        {!error && connected && (
+          <div className="mk-scroll-x" style={{ marginBottom: 18 }}>
+            <div className="seg" role="tablist" aria-label="Reklama statistikasi bo'limlari">
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t.key}
+                  className={tab === t.key ? 'active' : ''}
+                  onClick={() => setTab(t.key)}
+                >
+                  <Icon
+                    name={t.icon}
+                    style={{ width: 14, height: 14, marginRight: 6, verticalAlign: -2 }}
+                  />
+                  {t.label}
+                  {/* Xato belgisi — tabda "ko'rilishi kerak narsa bor" ekani bilinsin.
+                      ⚠️ Rang YAGONA kanal emas: xatoning O'ZI tepadagi qizil blokda
+                      matn bilan turibdi, bu faqat qo'shimcha ishora. */}
+                  {t.key === 'holat' && lastError !== '' && (
+                    <span
+                      title="Oxirgi sinxronizatsiya xato bilan tugagan"
+                      style={{
+                        display: 'inline-block', width: 7, height: 7, borderRadius: 99,
+                        background: 'var(--danger)', marginLeft: 6, verticalAlign: 'middle',
+                      }}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {loading && <MkLoading />}
         {!loading && error && <MkError text={error} onRetry={load} />}
 
@@ -395,41 +481,6 @@ export function InstagramAdsStats() {
 
         {!loading && !error && connected && overview && totals && (
           <>
-            {/* ───────────── Backend ogohlantirishlari — JIM YUTILMAYDI ─────────────
-                Tablardan TASHQARIDA: ular raqamlarni qanday o'qish kerakligini aytadi,
-                ya'ni "Kampaniyalar" tabida turgan odam ham ko'rishi shart. */}
-            {overview.notes.length > 0 && (
-              <MkCard
-                title="Hisobotni to'g'ri o'qish uchun"
-                sub="Raqamlarning chegaralari va ularning sabablari"
-              >
-                <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>
-                  {overview.notes.map((n) => (
-                    <li key={n} style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.5 }}>{n}</li>
-                  ))}
-                </ul>
-              </MkCard>
-            )}
-
-            {/* ───────────── Sahifa ichidagi bo'limlar ───────────── */}
-            <div className="mk-scroll-x" style={{ marginBottom: 18 }}>
-              <div className="seg">
-                {TABS.map((t) => (
-                  <button
-                    key={t.key}
-                    className={tab === t.key ? 'active' : ''}
-                    onClick={() => setTab(t.key)}
-                  >
-                    <Icon
-                      name={t.icon}
-                      style={{ width: 14, height: 14, marginRight: 6, verticalAlign: -2 }}
-                    />
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* ═════════ TAB: UMUMIY — KPI va kunlik grafiklar ═════════ */}
             {tab === 'umumiy' && (
               <>

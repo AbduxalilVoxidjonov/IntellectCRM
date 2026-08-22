@@ -317,6 +317,14 @@ builder.Services.AddHostedService<IntellectCRM.Application.Services.CenterAiSche
 // Telegram bot (e'lon yuborish + ota-onalarni kontakt orqali ro'yxatga olish).
 // Token appsettings "Telegram:BotToken" da; bo'sh bo'lsa bot ishga tushmaydi.
 builder.Services.AddHttpClient();
+// ⚠️ "telegram" NOMLI mijoz — `TelegramService` aynan shu nom bilan so'raydi. Ilgari bu nom
+// ro'yxatdan O'TMAGAN edi: nomlanmagan konfiguratsiya = default `HttpClient.Timeout` = 100 SEKUND.
+// Oqibati: lid kartasi bir necha chatda ketma-ket yangilanadi va Telegram javob bermay qolsa
+// `PATCH /leads/{id}` javobi N × 100 sekundgacha osilib qolardi (3 chat ≈ 5 daqiqa).
+// 10 sekund — Telegram odatda 1 sekunddan tez javob beradi; undan uzoq kutish CRM endpointini
+// bloklashdan boshqa hech narsa bermaydi (karta keyingi o'zgarishda baribir yangilanadi).
+// Long polling (`getUpdates`, 30 s kutadi) bu timeout'ga TUSHMAYDI — u o'z mijozini sozlaydi.
+builder.Services.AddHttpClient("telegram", c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<TelegramService>();
 // Onlayn test (bot orqali ishlanadigan) oqimi — TelegramBotService shu servisga yo'naltiradi.
 builder.Services.AddSingleton<OnlineTestBotService>();

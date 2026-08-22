@@ -54,6 +54,13 @@ export function ContentPublished() {
 
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
+  /**
+   * ⚠️ AMAL xatosi («Qayta urinish») YUKLASH xatosidan ATAYIN ajratilgan: ilgari ikkalasi
+   * bitta `error` da edi va bitta muvaffaqiyatsiz urinish BUTUN galereyani ekrandan olib
+   * tashlardi (`{!loading && !error && …}`) — go'yo hamma post yo'qolgandek ko'rinardi.
+   * (Navbat sahifasida ham aynan shu ajratish qilingan — bitta modulda xulq bir xil bo'lsin.)
+   */
+  const [actionError, setActionError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -93,7 +100,7 @@ export function ContentPublished() {
 
   const retry = async (post: IgPost) => {
     setBusy(post.id)
-    setError('')
+    setActionError('')
     setNotice('')
     try {
       const res = await publishIgPost(post.id)
@@ -105,7 +112,7 @@ export function ContentPublished() {
       await load()
       refreshCounts()
     } catch (e) {
-      setError(apiErrorMessage(e, "Postni joylab bo'lmadi"))
+      setActionError(apiErrorMessage(e, "Postni joylab bo'lmadi"))
     } finally {
       setBusy('')
     }
@@ -152,6 +159,22 @@ export function ContentPublished() {
           hint="Katakdagi son — o‘sha kundagi postlar (tanlangan kesim bo‘yicha). Kun bosilsa faqat o‘sha kun ko‘rsatiladi."
         />
 
+        {/* 🔴 Chegaraga yetilgan oyda kalendar YOLG'ON gapiradi: backend eng YANGISIDAN
+            beradi, ya'ni sig'magani — oyning BOSHIDAGI kunlar va ular katagida jimgina "0"
+            turardi ("1–15 avgustda post bo'lmagan" degan noto'g'ri xulosa). `status: 'all'`
+            bo'lgani uchun chegara barcha kesimlarga BIRGA taalluqli. */}
+        {truncated > 0 && (
+          <div className="mk-alert" style={{ marginTop: 12, marginBottom: 0 }}>
+            <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+              <div className="mk-alert-title">Kalendar sonlari to‘liq emas</div>
+              Bu oyda postlar ko‘p ({truncated} tasi yuklanmadi) — galereyaga eng <b>yangilari</b> tushdi,
+              ya'ni <b>oyning boshidagi kunlar</b> to‘liq bo‘lmasligi mumkin va ularning katagidagi son
+              haqiqiydan kam ko‘rinadi.
+            </div>
+          </div>
+        )}
+
         {day && (
           <button className="btn btn-outline btn-sm" style={{ marginTop: 12 }} onClick={() => setDay('')}>
             <Icon name="close" /> Kun filtri
@@ -160,7 +183,12 @@ export function ContentPublished() {
       </MkCard>
 
       {loading && <MkLoading />}
+      {/* ⚠️ FAQAT yuklash xatosi galereyani almashtiradi — ko'rsatadigan ma'lumotning o'zi yo'q. */}
       {!loading && error && <MkError text={error} onRetry={() => void load()} />}
+
+      {!loading && !error && actionError && (
+        <MkNotice text={actionError} tone="danger" onClose={() => setActionError('')} />
+      )}
 
       {!loading && !error && (
         <MkCard
@@ -169,10 +197,12 @@ export function ContentPublished() {
           actions={<span className="mk-num">{shown.length} ta</span>}
           pad={false}
         >
+          {/* ⚠️ Kesim ham, kun ham KLIENTDA filtrlanadi — ular yuklanmagan postlarni QAYTARIB
+              KELMAYDI, shuning uchun bu yerda "filtrlang" deb maslahat berilmaydi. */}
           {truncated > 0 && (
             <div className="field-hint" style={{ padding: '10px 14px 0' }}>
-              Bu oyda postlar ko‘p: yana {truncated} tasi ro‘yxatga sig‘madi. Kerakli kunni kalendardan
-              tanlang.
+              Bu oyda postlar ko‘p: yana {truncated} tasi ro‘yxatga sig‘madi — bu yerda oyning eng
+              <b> yangi</b> postlari ko‘rsatilgan, oy boshidagilari tushib qolgan bo‘lishi mumkin.
             </div>
           )}
 

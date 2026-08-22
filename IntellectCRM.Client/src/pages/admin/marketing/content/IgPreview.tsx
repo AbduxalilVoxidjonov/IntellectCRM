@@ -16,6 +16,9 @@ import { isVertical } from './helpers'
  *
  * ⚠️ KARUSELDA endi elementlar ORASIDA yurish mumkin (strelka + nuqtalar). Ilgari faqat
  * birinchi element ko'rinardi va foydalanuvchi 2–10-elementni umuman tekshira olmasdi.
+ *
+ * ⚠️ MANZIL KECHIKTIRIB (debounce) chiziladi va yuklanmasa SABABI yoziladi — pastdagi
+ * `PREVIEW_DEBOUNCE_MS` izohiga qarang.
  */
 export function IgPreview({ type, media, caption }: { type: IgPostType; media: IgMediaItem[]; caption: string }) {
   const vertical = isVertical(type)
@@ -28,9 +31,29 @@ export function IgPreview({ type, media, caption }: { type: IgPostType; media: I
   }, [media.length, index])
 
   const current = media[Math.min(index, Math.max(0, media.length - 1))]
-  // "Ko'rsatsa bo'ladimi" — faqat HTTPS manzil chiziladi: boshqa sxema baribir ishlamaydi.
-  const show = !!current?.url && isHttpsUrl(current.url)
   const many = media.length > 1
+
+  /**
+   * Chiziladigan manzil — KECHIKTIRILGAN.
+   *
+   * ⚠️ `isHttpsUrl` `https://a` ni ham "to'g'ri" deb biladi, ya'ni manzil QO'LDA yozilayotganda
+   * har bosilgan harfda yangi `<img>`/`<video>` so'rovi ketardi: konsol xatolarga to'lar,
+   * ekranda esa sinuq rasm miltillardi. Endi yozish to'xtagach bir marta so'raladi.
+   */
+  const rawUrl = current?.url ?? ''
+  const [shownUrl, setShownUrl] = useState(rawUrl)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setShownUrl(rawUrl), PREVIEW_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [rawUrl])
+
+  // Manzil (yoki media turi) o'zgardi — eski xato bayrog'i qolib ketmasin.
+  useEffect(() => { setFailed(false) }, [shownUrl, current?.kind])
+
+  // "Ko'rsatsa bo'ladimi" — faqat HTTPS manzil chiziladi: boshqa sxema baribir ishlamaydi.
+  const show = !!shownUrl && isHttpsUrl(shownUrl) && !failed
 
   return (
     <div className="mk-phone">
@@ -61,18 +84,37 @@ export function IgPreview({ type, media, caption }: { type: IgPostType; media: I
         }}
       >
         {show && current && current.kind === 'image' && (
-          <img src={current.url} alt={current.altText || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img
+            src={shownUrl}
+            alt={current.altText || ''}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={() => setFailed(true)}
+          />
         )}
         {show && current && current.kind === 'video' && (
           <video
-            src={current.url}
+            src={shownUrl}
             poster={current.coverUrl || undefined}
             controls
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={() => setFailed(true)}
           />
         )}
 
-        {!show && (
+        {/* ⚠️ Brauzerning sinuq rasm ikonkasi SABABINI aytmaydi — shuning uchun ochiq matn.
+            Bu tekshiruv Meta'ning `2207052` («Media yuklab bo'lmadi») xatosini joylashdan
+            OLDIN topib beradi: Instagram ham faylni AYNAN shunday, tashqaridan oladi. */}
+        {!show && failed && (
+          <div style={{ textAlign: 'center', color: 'var(--danger)', fontSize: 12, padding: 16 }}>
+            <Icon name="warn" style={{ width: 26, height: 26 }} />
+            <div style={{ marginTop: 8, fontWeight: 700 }}>Rasmni yuklab bo‘lmadi</div>
+            <div style={{ marginTop: 3, fontSize: 11.5 }}>
+              Manzil ochiq HTTPS’mi? Brauzer ocha olmasa Instagram ham ocha olmaydi.
+            </div>
+          </div>
+        )}
+
+        {!show && !failed && (
           <div style={{ textAlign: 'center', color: 'var(--text-3)', fontSize: 12, padding: 16 }}>
             <Icon name="image" style={{ width: 26, height: 26 }} />
             <div style={{ marginTop: 8, fontWeight: 700 }}>Media manzili kiritilmagan</div>
@@ -181,6 +223,9 @@ function arrowStyle(side: 'left' | 'right'): CSSProperties {
     borderRadius: 999,
   }
 }
+
+/** Manzil yozilayotganda ko'rinish shuncha ms jim turadi (har harfda so'rov ketmasin). */
+const PREVIEW_DEBOUNCE_MS = 500
 
 /** Instagram matnida "yana" bilan qirqiladigan chegara (taxminiy). */
 const CAPTION_CUT = 180

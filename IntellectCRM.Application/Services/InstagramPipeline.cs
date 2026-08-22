@@ -423,6 +423,9 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         }
 
         // ── 9) LID (faqat qiziqish belgisi bo'lsa — salom-alik CRM'ni ifloslantirmaydi) ──
+        // Karta sinxronizatsiyasi uchun lid id SaveChanges'dan KEYIN ham kerak — shu sababdan
+        // o'zgaruvchi try blokidan tashqarida e'lon qilinadi.
+        var cardLeadId = "";
         if (output is not null)
         {
             conv.Language = output.Language;
@@ -435,6 +438,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
                 {
                     var source = string.IsNullOrWhiteSpace(meta.InstagramLeadSource) ? "Instagram" : meta.InstagramLeadSource;
                     var (leadId, isNew) = await InstagramLeadBridge.UpsertAsync(db, conv, output, source, ct);
+                    cardLeadId = leadId;
                     logger.LogInformation("Instagram lid {State} ({LeadId})", isNew ? "yaratildi" : "yangilandi", leadId);
                 }
                 catch (Exception ex)
@@ -451,6 +455,14 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         }
 
         await db.SaveChangesAsync(ct);
+
+        // ── 9.1) LID KARTASI — guruhdagi xabar JOYIDA yangilanadi ──
+        // NEGA: takroriy murojaatda `RepeatCount`, izoh va `LeadEvent` o'zgaradi, lekin karta
+        // eski holatida qolib ketardi — ya'ni Telegramdagi karta JIMGINA eskirardi. Chaqiruv
+        // SaveChanges'dan KEYIN: karta bazadagi YOZILGAN holatdan quriladi.
+        // (Kartasi yo'q lidga yangi xabar YUBORILMAYDI — `LeadNotifier.SyncCardAsync` qoidasi.)
+        if (cardLeadId.Length > 0)
+            await LeadNotifier.SyncCardAsync(db, telegram, cardLeadId, ct);
 
         // ── 10) TELEGRAM SIGNALI (xatosi JIM yutiladi) ──
         if (alert.Length == 0 && output is not null && (output.EscalateToHuman || InstagramContract.IsHot(output)))

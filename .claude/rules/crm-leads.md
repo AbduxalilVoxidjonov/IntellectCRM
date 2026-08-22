@@ -23,8 +23,13 @@ paths:
 - **Lid o'zgarishi TELEGRAM KARTASIDA aks etadi:** guruhdagi lid xabari — karta, u yangi xabar
   bilan emas, `editMessageText` bilan JOYIDA yangilanadi (`LeadNotifier.SyncCardAsync`, har
   `SaveChanges` dan KEYIN). ⚠️ Kartasi YO'Q eski lidga karta YARATILMAYDI. Yangi lid endpointi
-  qo'shsangiz — sinxronizatsiya chaqiruvini ham qo'shing. Batafsil: `.claude/rules/messaging.md`
-  → «LID KARTASI».
+  qo'shsangiz — sinxronizatsiya chaqiruvini ham qo'shing.
+  ⚠️ **GURUHGA IZOH MATNI CHIQMAYDI** — u yerda faqat sanoq («💬 3 ta izoh»), to'liq matn esa
+  superadminning shaxsiy chatidagi kartada (menejer izohi ichki ma'lumot).
+  ⚠️ Karta faqat **FAOL** chatga boradi: yozuvlar `TelegramGroups.IsActive` va
+  `TelegramRegistrations` bilan kesishtiriladi; o'chirilgan guruh kartani olmaydi, lekin qator
+  `IsDead` deb belgilanmaydi (guruh qayta yoqilishi mumkin).
+  Batafsil: `.claude/rules/messaging.md` → «LID KARTASI».
 
 - **`Lead.RepeatCount` / `LastRepeatAt`** — TAKRORIY murojaat (odam formani/daraja testini yana
   to'ldirdi). Bosqich ATAYIN o'zgarmaydi, belgisi kanban kartasida «Takroriy ×N» chipi va lid

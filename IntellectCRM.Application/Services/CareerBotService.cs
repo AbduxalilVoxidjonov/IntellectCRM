@@ -85,7 +85,17 @@ public class CareerBotService(
                     await HandleUpdateAsync(upd, stoppingToken);
                 }
             }
-            catch (OperationCanceledException) { break; }
+            // ⚠️ Bekor qilish IKKI xil bo'ladi va ularni ajratish SHART:
+            //  1) ilova to'xtatilyapti (stoppingToken) — siklni chindan ham tugatamiz;
+            //  2) HttpClient timeout'i — u ham TaskCanceledException (ya'ni OperationCanceledException)
+            //     chiqaradi. Ilgari bu yerda shartsiz `break` turardi: bitta timeout butun karyera
+            //     botini o'ldirar va u ilova qayta ishga tushmaguncha tirilmasdi.
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+            catch (OperationCanceledException ex)
+            {
+                logger.LogWarning(ex, "Karyera boti: getUpdates uzildi (timeout) — qayta urinamiz");
+                if (!await DelayAsync(3000, stoppingToken)) break;
+            }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Karyera boti: getUpdates xatosi");

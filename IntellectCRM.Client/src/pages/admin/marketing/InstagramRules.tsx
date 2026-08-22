@@ -241,7 +241,13 @@ function RuleSheet({
   onClose: () => void
   onSaved: () => void
 }) {
-  const [form, setForm] = useState<IgRulePayload>(
+  /**
+   * BOSHLANG'ICH qiymat AYRI saqlanadi — `dirty` ("forma o'zgardimi") aynan shunga
+   * solishtirib aniqlanadi. Bir marta hisoblanadi (`useState` initsializatori): oyna
+   * ochilgandan keyin "asl nusxa" o'zgarmasligi kerak, aks holda har chizilishida
+   * yangilanib, hech qachon "o'zgardi" bo'lmasdi.
+   */
+  const [initial] = useState<IgRulePayload>(() => (
     rule
       ? {
         title: rule.title,
@@ -252,12 +258,23 @@ function RuleSheet({
         isActive: rule.isActive,
         order: rule.order,
       }
-      : { ...EMPTY, order: nextOrder },
-  )
+      : { ...EMPTY, order: nextOrder }
+  ))
+  const [form, setForm] = useState<IgRulePayload>(initial)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const patch = (p: Partial<IgRulePayload>) => setForm((f) => ({ ...f, ...p }))
+
+  /**
+   * Forma o'zgardimi. `MkSheet` shu bayroqqa qarab Esc va ✕ bosilganda TASDIQ so'raydi:
+   * ilgari yarim to'ldirilgan qoida bitta tasodifiy Esc bilan izsiz yo'qolardi.
+   *
+   * ⚠️ Maydonma-maydon solishtiriladi (`JSON.stringify` emas): kalitlar tartibi
+   * `{ ...f, ...p }` dan keyin o'zgarib qolsa satrlar teng bo'lmay, forma tegilmagan
+   * holda ham "o'zgargan" ko'rinardi.
+   */
+  const dirty = (Object.keys(initial) as (keyof IgRulePayload)[]).some((k) => form[k] !== initial[k])
 
   /** Kalit so'zlar chiplari — vergul bilan ajratilgani ANIQ ko'rinsin. */
   const keywordChips = form.keywords.split(',').map((k) => k.trim()).filter(Boolean)
@@ -286,8 +303,28 @@ function RuleSheet({
       sub="Mijoz kalit so'zlardan birini yozsa — shu javob darhol yuboriladi."
       icon="rules"
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <>
+          {/* 🔴 XATO AYNAN SHU YERDA — tugmalar yonida.
+              `mk-sheet-body` skrollanadi, `mk-sheet-foot` esa qotib turadi. Xato tananing
+              TEPASIDA chizilganda (ilgari shunday edi) pastga tushib "Saqlash" bosgan odam
+              uni UMUMAN ko'rmasdi: u faqat oyna yopilmayotganini sezardi va sababini
+              bilmasdi. Oyoqdagi xat esa bosilgan tugmadan bir qarichda turadi.
+              `marginRight: auto` — oyoq `justify-content: flex-end`, ya'ni matn chapga
+              itariladi va tugmalarni surib yubormaydi. */}
+          {error && (
+            <div
+              role="alert"
+              style={{
+                marginRight: 'auto', display: 'flex', alignItems: 'center', gap: 8,
+                color: 'var(--danger)', fontSize: 13, fontWeight: 700, minWidth: 0,
+              }}
+            >
+              <Icon name="warn" style={{ width: 16, height: 16, flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
           <button className="btn btn-ghost" onClick={onClose}>Bekor qilish</button>
           <button className="btn btn-primary" onClick={save} disabled={saving}>
             <Icon name="check" /> {saving ? 'Saqlanmoqda…' : 'Saqlash'}
@@ -295,7 +332,6 @@ function RuleSheet({
         </>
       )}
     >
-      {error && <div style={{ marginBottom: 16 }}><MkError text={error} /></div>}
 
       <div className="mk-cols2">
         {/* ── CHAP: QACHON ishlaydi ── */}

@@ -1,10 +1,15 @@
 /**
  * MARKETING → KONTENT → «HOLAT VA LIMIT».
  *
- * Sahifa savoli: <b>post joylashga tayyormizmi va nega chiqmayapti</b>. Ilgari bu ma'lumot
- * navbat sahifasining tepasida — banner va kartochka ko'rinishida — turardi va har kuni
- * ishlaydigan operatorning ekranidan joy olardi. Endi u ALOHIDA sahifa: sabab qidirilganda
- * ochiladi, qolgan vaqtda navbatni to'smaydi.
+ * Sahifa savoli: <b>post joylashga tayyormizmi va nega chiqmayapti</b>. BATAFSIL ma'lumot
+ * (kunlik limit, media talablari, savol-javob) ilgari navbat sahifasining tepasida turar va
+ * har kuni ishlaydigan operatorning ekranidan joy olardi — endi u shu ALOHIDA sahifada:
+ * sabab qidirilganda ochiladi, qolgan vaqtda navbatni to'smaydi.
+ *
+ * ⚠️ BIROQ ikkita JIDDIY nosozlik («akkaunt ulanmagan», «modul o'chiq») bu sahifada QOLMAYDI:
+ * ular `ContentLayout` da, ya'ni BARCHA sub-sahifalar tepasida qizil banner bo'lib turadi.
+ * Sabab: modul o'chiq bo'lsa operator Navbatda post yaratib, yashil xabar olib, postlar hech
+ * qachon chiqmaganini bilmasdi — bu sahifaga esa kirishi shart emas edi.
  *
  * ⚠️ KUNLIK LIMIT ENDPOINTI HAR CHAQIRILGANDA META'GA SO'ROV YUBORADI. Shuning uchun u
  * avto-yangilanishga QO'SHILMAGAN: faqat sahifa ochilganda, sahifadagi «Yangilash» tugmasida
@@ -19,9 +24,9 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage } from '@/lib/utils'
 import {
-  getIgContentLimit, getIgContentStatus,
+  getIgContentLimit,
   IG_LIMITS,
-  type IgContentStatus, type IgPostLimit,
+  type IgPostLimit,
 } from '@/api/services/instagramContent'
 import { Icon, MkCard, MkError, MkStat, MkStatusCard } from '../mk'
 import type { ContentOutlet } from './ContentLayout'
@@ -29,14 +34,17 @@ import type { ContentOutlet } from './ContentLayout'
 export function ContentStatus() {
   const { can } = usePerm()
   const canEdit = can('marketing.content', 'edit')
-  const { reloadKey } = useOutletContext<ContentOutlet>()
+  /**
+   * ⚠️ Diagnostika LAYOUTDAN olinadi, bu sahifa uni O'ZI so'ramaydi.
+   * Sabab: layout `GET /content/status` ni sub-nav sanoqlari va tepadagi ogohlantirishlar
+   * uchun baribir o'qiydi — ilgari sahifa ochilganda AYNAN bir xil so'rov ikki marta ketardi.
+   * «Yangilash» bosilganda ham layout uni o'zi qayta o'qiydi.
+   */
+  const { reloadKey, diag, diagError, refreshCounts } = useOutletContext<ContentOutlet>()
 
   const [limit, setLimit] = useState<IgPostLimit | null>(null)
   const [limitLoading, setLimitLoading] = useState(true)
   const [limitError, setLimitError] = useState('')
-
-  const [diag, setDiag] = useState<IgContentStatus | null>(null)
-  const [diagError, setDiagError] = useState('')
 
   /** ⚠️ Bu chaqiruv Meta'ga chiqadi — faqat QO'LDA (yuqoridagi izohga qarang). */
   const loadLimit = useCallback(async () => {
@@ -51,28 +59,16 @@ export function ContentStatus() {
     }
   }, [])
 
-  /**
-   * Diagnostika FAQAT bazadan o'qiydi (Meta'ga chiqmaydi) — arzon.
-   * ⚠️ Xato bu yerda KO'RSATILADI (layoutdagidan farqli): bu sahifaning butun mazmuni shu,
-   * jim yutilsa foydalanuvchi bo'sh ekran ko'rib "nega hech narsa yo'q" deb qolardi.
-   */
-  const loadDiag = useCallback(async () => {
-    setDiagError('')
-    try {
-      setDiag(await getIgContentStatus())
-    } catch (e) {
-      setDiag(null)
-      setDiagError(apiErrorMessage(e, "Holatni o'qib bo'lmadi"))
-    }
-  }, [])
-
-  useEffect(() => { void loadLimit(); void loadDiag() }, [loadLimit, loadDiag, reloadKey])
+  useEffect(() => { void loadLimit() }, [loadLimit, reloadKey])
 
   return (
     <div className="fade-up">
       <LimitCard limit={limit} loading={limitLoading} error={limitError} onRefresh={() => void loadLimit()} />
 
-      {diagError && <MkError text={diagError} onRetry={() => void loadDiag()} />}
+      {/* ⚠️ Diagnostika xatosi AYNAN shu sahifada ko'rsatiladi (layout uni jim o'tkazadi):
+          bu sahifaning butun mazmuni shu, jim yutilsa foydalanuvchi bo'sh ekran ko'rib
+          "nega hech narsa yo'q" deb qolardi. */}
+      {diagError && <MkError text={diagError} onRetry={refreshCounts} />}
 
       {diag && (
         <>

@@ -20,6 +20,15 @@ public enum TgEditResult
     Failed,
 }
 
+/// <summary>Tahrir natijasi + Telegram bergan qo'shimcha ma'lumot.
+/// <para>Yalang <see cref="TgEditResult"/> chaqiruvchiga "429 dan keyin QANCHA kutay?" va
+/// "chat supergruppaga aylandi — YANGI id qaysi?" savollariga javob bermasdi: bu ikki qiymat
+/// Telegram javobining <c>parameters</c> bo'limida keladi va parse qilinmasa yo'qolib ketardi.</para></summary>
+/// <param name="Result">Tasniflangan natija.</param>
+/// <param name="RetryAfterSeconds">429 dagi <c>parameters.retry_after</c>; yo'q bo'lsa 0.</param>
+/// <param name="MigrateToChatId">Chat supergruppaga o'tganda YANGI chat id (<c>parameters.migrate_to_chat_id</c>); yo'q bo'lsa null.</param>
+public readonly record struct TgEditOutcome(TgEditResult Result, int RetryAfterSeconds, long? MigrateToChatId);
+
 /// <summary>
 /// Telegram Bot API bilan ishlash: e'lon yuborish (sendMessage) va bot yangilanishlarini olish
 /// (getUpdates, long polling).
@@ -58,7 +67,24 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
         Set(meta?.TelegramBotUsername, meta?.TelegramBotName);
     }
 
+    /// <summary>"telegram" nomli mijoz — `Program.cs` da QISQA timeout bilan ro'yxatdan o'tgan
+    /// (Telegram odatda 1 sekunddan tez javob beradi; uzoq kutish CRM endpointini bloklaydi).</summary>
     private HttpClient Client() => httpFactory.CreateClient("telegram");
+
+    /// <summary>Long polling uchun ALOHIDA sozlangan mijoz: <c>getUpdates</c> ATAYIN
+    /// <paramref name="timeoutSec"/> sekundgacha javobsiz turadi, "telegram" mijozining qisqa
+    /// timeout'i esa uni har safar uzib qo'yardi (bot yangilanish ololmay qolardi).
+    /// <para><c>CreateClient</c> HAR chaqiruvda YANGI <see cref="HttpClient"/> qaytaradi (handler
+    /// pulda umumiy), shuning uchun Timeout'ni shu nusxada o'zgartirish xavfsiz — boshqa
+    /// chaqiruvlarga ta'sir qilmaydi.</para></summary>
+    private HttpClient PollingClient(int timeoutSec)
+    {
+        var client = Client();
+        // Telegram javobi + tarmoq zaxirasi: uzilish faqat HAQIQATAN osilib qolganda bo'lsin.
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(timeoutSec, 0) + 15);
+        return client;
+    }
+
     private string ApiBase => $"https://api.telegram.org/bot{BotToken}";
 
     /// <summary>Berilgan chatga matn yuboradi (ixtiyoriy reply_markup va parseMode bilan). Muvaffaqiyat — true.
@@ -78,15 +104,30 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
             var payload = new Dictionary<string, object?> { ["chat_id"] = chatId, ["text"] = text };
             if (replyMarkup is not null) payload["reply_markup"] = replyMarkup;
             if (parseMode is not null) payload["parse_mode"] = parseMode;
-            if (replyToMessageId is not null) payload["reply_to_message_id"] = replyToMessageId;
+            // ⚠️ Xom `reply_to_message_id` EMAS: javob berilayotgan xabar o'chirilgan bo'lsa Telegram
+            // BUTUN so'rovni rad etardi («message to be replied not found») va signal umuman
+            // yetmasdi — menejer takroriy murojaatni bilmay qolardi. `reply_parameters` +
+            // `allow_sending_without_reply` bilan xabar eng yomoni JAVOBSIZ bo'lib, baribir boradi.
+            if (replyToMessageId is not null)
+                payload["reply_parameters"] = new Dictionary<string, object?>
+                {
+                    ["message_id"] = replyToMessageId,
+                    ["allow_sending_without_reply"] = true,
+                };
             using var content = new StringContent(
                 JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             var resp = await Client().PostAsync($"{ApiBase}/sendMessage", content, ct);
-            return resp.IsSuccessStatusCode;
+            if (resp.IsSuccessStatusCode) return true;
+            // ⚠️ Logda chat id BOR (markazning o'z chati) — "qaysi guruhga xabar ketmadi" savoliga
+            // javob beradi. Xabar MATNI va token esa hech qachon yozilmaydi.
+            var reason = ParseBody(await resp.Content.ReadAsStringAsync(ct)).Description;
+            logger.LogWarning("Telegram sendMessage rad etdi: chat={ChatId} status={Status} ({Description})",
+                chatId, (int)resp.StatusCode, reason);
+            return false;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Telegram sendMessage xatosi");
+            logger.LogWarning(ex, "Telegram sendMessage xatosi: chat={ChatId}", chatId);
             return false;
         }
     }
@@ -105,21 +146,35 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
             var payload = new Dictionary<string, object?> { ["chat_id"] = chatId, ["text"] = text };
             if (replyMarkup is not null) payload["reply_markup"] = replyMarkup;
             if (parseMode is not null) payload["parse_mode"] = parseMode;
-            if (replyToMessageId is not null) payload["reply_to_message_id"] = replyToMessageId;
+            // ⚠️ Xom `reply_to_message_id` EMAS: javob berilayotgan xabar o'chirilgan bo'lsa Telegram
+            // BUTUN so'rovni rad etardi («message to be replied not found») va signal umuman
+            // yetmasdi — menejer takroriy murojaatni bilmay qolardi. `reply_parameters` +
+            // `allow_sending_without_reply` bilan xabar eng yomoni JAVOBSIZ bo'lib, baribir boradi.
+            if (replyToMessageId is not null)
+                payload["reply_parameters"] = new Dictionary<string, object?>
+                {
+                    ["message_id"] = replyToMessageId,
+                    ["allow_sending_without_reply"] = true,
+                };
             using var content = new StringContent(
                 JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             var resp = await Client().PostAsync($"{ApiBase}/sendMessage", content, ct);
-            if (!resp.IsSuccessStatusCode) return null;
             var body = await resp.Content.ReadAsStringAsync(ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Telegram sendMessage (id bilan) rad etdi: chat={ChatId} status={Status} ({Description})",
+                    chatId, (int)resp.StatusCode, ParseBody(body).Description);
+                return null;
+            }
             using var doc = JsonDocument.Parse(body);
             if (doc.RootElement.TryGetProperty("result", out var r) &&
-                r.TryGetProperty("message_id", out var mid))
+                r.TryGetProperty("message_id", out var mid) && mid.ValueKind == JsonValueKind.Number)
                 return mid.GetInt64();
             return null;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Telegram sendMessage (id bilan) xatosi");
+            logger.LogWarning(ex, "Telegram sendMessage (id bilan) xatosi: chat={ChatId}", chatId);
             return null;
         }
     }
@@ -149,8 +204,23 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
         long chatId, long messageId, string text, object? replyMarkup = null,
         CancellationToken ct = default, string? parseMode = null)
     {
+        var outcome = await EditMessageTextOutcomeAsync(chatId, messageId, text, replyMarkup, ct, parseMode);
+        return outcome.Result;
+    }
+
+    /// <summary>
+    /// <see cref="EditMessageTextDetailedAsync"/> ning TO'LIQ varianti: tasnifdan tashqari Telegram
+    /// bergan qo'shimcha ma'lumotni ham qaytaradi — 429 dagi <c>retry_after</c> (qancha kutish kerak)
+    /// va chat supergruppaga o'tganda YANGI chat id (<c>migrate_to_chat_id</c>).
+    /// <para>Javob tanasi BIR MARTA parse qilinadi (<see cref="ParseBody"/>) — ilgari bir xil JSON
+    /// ikki marta (ok + description uchun) o'qilardi va <c>parameters</c> umuman qaralmasdi.</para>
+    /// </summary>
+    public async Task<TgEditOutcome> EditMessageTextOutcomeAsync(
+        long chatId, long messageId, string text, object? replyMarkup = null,
+        CancellationToken ct = default, string? parseMode = null)
+    {
         // Token yo'q — xizmat sozlanmagan; bu tarmoq xatosi emas, lekin tahrir ham bo'lmadi.
-        if (!IsConfigured) return TgEditResult.Failed;
+        if (!IsConfigured) return new TgEditOutcome(TgEditResult.Failed, 0, null);
         try
         {
             var payload = new Dictionary<string, object?>
@@ -164,21 +234,32 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
             var resp = await Client().PostAsync($"{ApiBase}/editMessageText", content, ct);
 
             var body = await resp.Content.ReadAsStringAsync(ct);
-            var ok = resp.IsSuccessStatusCode && OkFlag(body) is not false;
-            if (ok) return TgEditResult.Ok;
+            var parsed = ParseBody(body);
+
+            // ⚠️ Muvaffaqiyat uchun HTTP 200 YETARLI EMAS — `ok: true` ANIQ tasdiqlanishi shart.
+            // Oraliqdagi proxy/CDN 200 bilan HTML xato sahifasi qaytarsa (JSON emas) eski tekshiruv
+            // buni "Ok" deb hisoblardi: chaqiruvchi TextHash'ni saqlab qo'yar, keyingi safar so'rov
+            // umuman yuborilmas va karta guruhda ABADIY eski holatda qolardi — logda ham hech narsa yo'q.
+            // Endi bunday javob `Failed` bo'ladi: jimgina "muvaffaqiyat" dan ko'ra qayta urinish xavfsizroq.
+            if (resp.IsSuccessStatusCode && parsed.Ok is true)
+                return new TgEditOutcome(TgEditResult.Ok, parsed.RetryAfterSeconds, parsed.MigrateToChatId);
 
             // Telegram xatoni {"ok":false,"description":"..."} ko'rinishida qaytaradi — sabab SHU YERDA.
-            var description = DescriptionOf(body);
-            var result = ClassifyEditError((int)resp.StatusCode, description);
-            // ⚠️ Logga chat id yoki token TUSHMAYDI (maxfiylik) — faqat tasnif va Telegram izohi.
+            var result = ClassifyEditError((int)resp.StatusCode, parsed.Description);
+            // ⚠️ Logda `chatId`/`messageId` BOR — "qaysi guruhda karta o'lgan" savoliga javob
+            // beradi (bular markazning O'Z chatlari, foydalanuvchi matni emas). Token va xabar
+            // MATNI esa hech qachon logga tushmaydi.
             if (result is not TgEditResult.NotModified)
-                logger.LogWarning("Telegram editMessageText rad etdi: {Result} ({Description})", result, description);
-            return result;
+                logger.LogWarning(
+                    "Telegram editMessageText rad etdi: {Result} chat={ChatId} msg={MessageId} status={Status} retryAfter={RetryAfter} migrateTo={MigrateTo} ({Description})",
+                    result, chatId, messageId, (int)resp.StatusCode,
+                    parsed.RetryAfterSeconds, parsed.MigrateToChatId, parsed.Description);
+            return new TgEditOutcome(result, parsed.RetryAfterSeconds, parsed.MigrateToChatId);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Telegram editMessageText xatosi");
-            return TgEditResult.Failed;
+            logger.LogWarning(ex, "Telegram editMessageText xatosi: chat={ChatId} msg={MessageId}", chatId, messageId);
+            return new TgEditOutcome(TgEditResult.Failed, 0, null);
         }
     }
 
@@ -201,7 +282,17 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
             || Has(d, "message can't be edited")
             || Has(d, "bot was kicked")
             || Has(d, "bot is not a member")
-            || Has(d, "chat_id is empty"))
+            || Has(d, "chat_id is empty")
+            // ⚠️ Guruh SUPERGRUPPAGA aylangan — eski chat id ABADIY o'zgargan, shu id bilan
+            // qayta urinish hech qachon ishlamaydi. Yangi id javobning
+            // `parameters.migrate_to_chat_id` maydonida keladi (qarang: TgEditOutcome).
+            || Has(d, "group chat was upgraded to a supergroup chat")
+            // ⚠️ SHAXSIY chat holatlari: karta guruhga ham, adminning shaxsiy chatiga ham
+            // yuboriladi — ilgari ro'yxatda faqat GURUH holatlari bor edi va bu ikkisi
+            // `Failed` ga tushib, `IsDead` qo'yilmasdi: lidning HAR o'zgarishida bekorga
+            // so'rov ketaverardi (tezlik chegarasi bekorga yeyilardi).
+            || Has(d, "bot was blocked by the user")   // odam botni bloklagan
+            || Has(d, "user is deactivated"))          // akkaunt o'chirilgan
             return TgEditResult.Gone;
 
         // Tezlik chegarasi — keyingi o'zgarishda yana urinsa bo'ladi.
@@ -213,31 +304,50 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
             haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Javob tanasidan <c>"ok"</c> bayrog'ini oladi (JSON buzuq bo'lsa — null, ya'ni
-    /// "bilib bo'lmadi": u holda HTTP kodiga tayanamiz).</summary>
-    private static bool? OkFlag(string? body)
-    {
-        if (string.IsNullOrWhiteSpace(body)) return null;
-        try
-        {
-            using var doc = JsonDocument.Parse(body);
-            return doc.RootElement.TryGetProperty("ok", out var ok) && ok.ValueKind is JsonValueKind.True or JsonValueKind.False
-                ? ok.GetBoolean()
-                : null;
-        }
-        catch (JsonException) { return null; }
-    }
+    /// <summary>Telegram javob tanasidan kerakli HAMMASI — bitta parse bilan.
+    /// <para><c>Ok</c> null bo'lsa "bilib bo'lmadi" (tana bo'sh yoki JSON emas) — bu holat
+    /// muvaffaqiyat deb QARALMAYDI.</para></summary>
+    private readonly record struct TgBody(bool? Ok, string? Description, int RetryAfterSeconds, long? MigrateToChatId);
 
-    /// <summary>Javob tanasidan <c>"description"</c> matnini oladi (bo'lmasa/buzuq bo'lsa — null).</summary>
-    private static string? DescriptionOf(string? body)
+    /// <summary>Javob tanasini BIR MARTA parse qiladi: <c>ok</c>, <c>description</c> va
+    /// <c>parameters</c> (<c>retry_after</c>, <c>migrate_to_chat_id</c>).
+    /// <para>⚠️ Har maydonning <see cref="JsonValueKind"/> i tekshiriladi: kutilmagan tur
+    /// (masalan <c>description</c> obyekt bo'lib kelishi) <c>InvalidOperationException</c> chiqarib,
+    /// tasnifni butunlay yiqitardi — endi shunchaki "yo'q" deb qaraladi.</para></summary>
+    private static TgBody ParseBody(string? body)
     {
-        if (string.IsNullOrWhiteSpace(body)) return null;
+        var empty = new TgBody(null, null, 0, null);
+        if (string.IsNullOrWhiteSpace(body)) return empty;
         try
         {
             using var doc = JsonDocument.Parse(body);
-            return doc.RootElement.TryGetProperty("description", out var d) ? d.GetString() : null;
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return empty;
+
+            bool? ok = root.TryGetProperty("ok", out var okEl)
+                       && okEl.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? okEl.GetBoolean()
+                : null;
+
+            var description = root.TryGetProperty("description", out var d)
+                              && d.ValueKind == JsonValueKind.String
+                ? d.GetString()
+                : null;
+
+            var retryAfter = 0;
+            long? migrateTo = null;
+            if (root.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.Object)
+            {
+                if (p.TryGetProperty("retry_after", out var ra) && ra.ValueKind == JsonValueKind.Number
+                    && ra.TryGetInt32(out var raValue) && raValue > 0)
+                    retryAfter = raValue;
+                if (p.TryGetProperty("migrate_to_chat_id", out var mt) && mt.ValueKind == JsonValueKind.Number
+                    && mt.TryGetInt64(out var mtValue))
+                    migrateTo = mtValue;
+            }
+            return new TgBody(ok, description, retryAfter, migrateTo);
         }
-        catch (JsonException) { return null; }
+        catch (JsonException) { return empty; }
     }
 
     /// <summary>Mavjud xabarning inline-klaviaturasini (reply_markup) yangilaydi (editMessageReplyMarkup).
@@ -257,7 +367,8 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Telegram editMessageReplyMarkup xatosi");
+            logger.LogWarning(ex, "Telegram editMessageReplyMarkup xatosi: chat={ChatId} msg={MessageId}",
+                chatId, messageId);
             return false;
         }
     }
@@ -559,7 +670,8 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
     {
         if (!IsConfigured) return null;
         var url = $"{ApiBase}/getUpdates?offset={offset}&timeout={timeoutSec}&allowed_updates=%5B%22message%22%2C%22callback_query%22%2C%22my_chat_member%22%5D";
-        var resp = await Client().GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+        // ⚠️ Odatdagi (qisqa timeout'li) mijoz EMAS — long polling ataylab `timeoutSec` gacha kutadi.
+        var resp = await PollingClient(timeoutSec).GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!resp.IsSuccessStatusCode) return null;
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
         using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);

@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage } from '@/lib/utils'
 import {
   countHashtags, countMentions, createIgPost, defaultKind, emptyMedia, emptyOptions,
-  getIgPost, isEditable, isHttpsUrl, isJpegUrl, isVideoUrl, publishIgPost, updateIgPost,
+  generateIgCaption, getIgCaptionMeta, getIgPost, isEditable, isHttpsUrl, isJpegUrl, isVideoUrl,
+  publishIgPost, updateIgPost, uploadIgMedia,
   IG_LIMITS, IG_POST_TYPES,
-  type IgMediaItem, type IgPost, type IgPostOptions, type IgPostType,
+  type IgCaptionMeta, type IgMediaItem, type IgPost, type IgPostOptions, type IgPostType,
 } from '@/api/services/instagramContent'
 import { Icon, MarketingPage, MkCard, MkDialog, MkError, MkLoading, MkNotice, MkSteps } from '../mk'
-import { fmtBytes, fmtWhen, isVertical, postTypeIcon, trim } from './helpers'
-import { MediaEditor, MediaRequirements } from './MediaEditor'
-import { CaptionAi } from './CaptionAi'
+import { firstPositive, fmtBytes, fmtWhen, isVertical, measureLocalFile, postTypeIcon, trim } from './helpers'
+import { MediaEditor, MediaRequirements, type MediaFileState } from './MediaEditor'
+import { CaptionAi, type CaptionAiResult } from './CaptionAi'
 import { IgPreview } from './IgPreview'
 
 /**
@@ -26,6 +27,12 @@ import { IgPreview } from './IgPreview'
  * QULFLANMAYDI: foydalanuvchi istagan bosqichga bosa oladi. Sabab: tahrirlashda odam ko'pincha
  * BITTA narsani (masalan vaqtni) o'zgartirgani keladi — uni to'rtta qadamdan o'tkazish bekorga
  * ish bo'lardi.
+ *
+ * 🔴 SHUNING UCHUN "UZOQ" HOLAT BOSQICH KOMPONENTLARIDA SAQLANMAYDI. Faol bosqichdan boshqasi
+ * umuman chizilmaydi, ya'ni bosqich almashishi bilan uning komponenti UNMOUNT bo'ladi. Fayl
+ * yuklash jarayoni (`fileState`) ham, AI so'rovi (`ai*`) ham SHU YERDA — aks holda 40 MB video
+ * yuklanayotganda yoki Gemini javobi kutilayotganda bosqichni almashtirish natijani jimgina
+ * yo'q qilardi.
  *
  * ⚠️ Faol bosqich URL'da (`?bosqich=matn`) saqlanadi — sahifa yangilansa yoki havola ulashilsa
  * o'sha joy ochiladi.
@@ -52,8 +59,26 @@ const STEPS = [
 
 const STEP_IDS = STEPS.map((s) => s.id)
 
-/** Navbat sahifasining manzili — «Bekor qilish», `back` va saqlashdan keyingi qaytish. */
+/** Navbat sahifasining manzili — «← Navbat», «Bekor qilish» va saqlashdan keyingi qaytish. */
 const QUEUE = '/admin/marketing/kontent'
+
+/**
+ * Media qatori: BARQAROR `uid` + backendga ketadigan elementning O'ZI.
+ *
+ * 🔴 `uid` PAYLOAD'GA HECH QACHON TUSHMAYDI. U ATAYIN `IgMediaItem` ning ICHIGA emas, undan
+ * TASHQARIDA (o'rovchi obyektda) saqlanadi — ya'ni `payload()` `row.item` ni beradi va backend
+ * `IgMediaJson` da mavjud bo'lmagan maydonni umuman ko'rmaydi. Snapshot (`dirty`) ham faqat
+ * `item` lardan quriladi: aks holda yangi forma har ochilganda `uid` boshqa bo'lib, "saqlanmagan
+ * o'zgarish bor" degan yolg'on ogohlantirish chiqardi.
+ *
+ * Nega kerak: ilgari `MediaEditor` `key={i}` bilan chizilardi. 5 elementli karuselda 2-elementni
+ * o'chirsangiz eski 3-element `key=1` bo'lib qolar va oldingi nusxaning holatini (xato matni,
+ * sudrash ramkasi) MEROS qilib olardi — xato butunlay boshqa element ostida turib qolardi.
+ */
+interface MediaRow {
+  uid: string
+  item: IgMediaItem
+}
 
 export function ContentComposer() {
   const { id } = useParams<{ id: string }>()
@@ -65,9 +90,34 @@ export function ContentComposer() {
   /* ── Forma holati ── */
   const [type, setType] = useState<IgPostType>('image')
   const [caption, setCaption] = useState('')
-  const [media, setMedia] = useState<IgMediaItem[]>([emptyMedia('image')])
+  const [rows, setRows] = useState<MediaRow[]>(() => [newRow('image')])
   const [options, setOptions] = useState<IgPostOptions>(emptyOptions())
   const [at, setAt] = useState('')
+
+  /**
+   * Hammualliflar maydonining XOM matni.
+   *
+   * ⚠️ Ilgari maydon to'g'ridan-to'g'ri `collaborators.join(', ')` ni ko'rsatib, har bosilgan
+   * harfda `split(',')` qilardi. Natijada VERGUL yozib bo'lmasdi: `"ali,"` → `['ali','']` →
+   * `filter(Boolean)` → `['ali']` → `join` → `"ali"` va React nazorat qilinadigan qiymatni
+   * tiklab, vergulni EKRANDAN O'CHIRARDI. Keyingi harf `b` esa `"alib"` bo'lib ketardi, ya'ni
+   * IKKINCHI hammuallifni qo'lda yozishning iloji yo'q edi va post mavjud bo'lmagan
+   * username'ga taklif bilan joylanardi.
+   */
+  const [collabText, setCollabText] = useState('')
+
+  /* ── Media fayllarining holati (uid bo'yicha) ── */
+  const [fileState, setFileState] = useState<Record<string, MediaFileState>>({})
+
+  /**
+   * Har media uchun "so'nggi boshlangan ish" belgisi — POYGA himoyasi.
+   *
+   * ⚠️ Faqat OXIRGI boshlangan yuklash/o'lchash natijasi yoziladi. Aks holda: A faylini
+   * tashlab, kutmasdan B ni tashlagan odam A tugagach POSTDA O'ZI TANLAMAGAN faylni topardi.
+   * Element o'chirilganda kalit ham o'chiriladi — kechikib kelgan natija endi hech qayerga
+   * yozilmaydi.
+   */
+  const jobsRef = useRef<Record<string, number>>({})
 
   /* ── Yuklash / saqlash ── */
   const [post, setPost] = useState<IgPost | null>(null)
@@ -75,8 +125,27 @@ export function ContentComposer() {
   const [loadError, setLoadError] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [aiOpen, setAiOpen] = useState(false)
   const [askLeave, setAskLeave] = useState(false)
+  /** Tasdiq kutayotgan YANGI post turi (media elementlari yo'qoladigan holat). */
+  const [askType, setAskType] = useState<IgPostType | null>(null)
+
+  /* ── AI paneli (holati SHU YERDA — `CaptionAi.tsx` izohiga qarang) ── */
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiMeta, setAiMeta] = useState<IgCaptionMeta | null>(null)
+  const [aiMetaError, setAiMetaError] = useState('')
+  const [aiTopic, setAiTopic] = useState('')
+  const [aiTone, setAiTone] = useState('')
+  const [aiLanguage, setAiLanguage] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiResult, setAiResult] = useState<CaptionAiResult | null>(null)
+  /** Uslub/til ro'yxati BIR MARTA olinadi (panel har ochilganda qayta so'ralmasin). */
+  const aiMetaLoading = useRef(false)
+  /** AI so'rovining "so'nggi ish" belgisi — eskirgan javob yangi formaga tushmasin. */
+  const aiJob = useRef(0)
+
+  /** Backendga ketadigan sof media massivi (uid'siz) — payload, snapshot va tekshiruvlar uchun. */
+  const media = useMemo(() => rows.map((r) => r.item), [rows])
 
   /**
    * "O'zgardimi" ni bilish uchun BOSHLANG'ICH holat satri.
@@ -98,9 +167,54 @@ export function ContentComposer() {
     setParams(p, { replace: true })
   }, [params, setParams])
 
-  /* ── Mavjud rejani yuklash ── */
+  /**
+   * ── Mavjud rejani yuklash · YOKI formani BO'SH holatga tiklash ──
+   *
+   * 🔴 `else` TARMOG'I MAJBURIY. `/kontent/post/:id` va `/kontent/yangi` — ikkita SIBLING
+   * marshrut va ikkalasi ham AYNAN shu elementni chizadi, ya'ni React Router komponentni
+   * QAYTA MOUNT QILMAYDI (bir xil turdagi element qayta ishlatiladi). Effekt faqat
+   * `if (!id) return` bilan boshlanganda A postini tahrirlab, brauzerning «Orqaga» tugmasi
+   * bilan `/yangi` ga o'tgan odam A ning to'ldirilgan formasini ko'rardi va `post` hamon A
+   * bo'lgani uchun «Saqlash» YANGI post yaratmay, `updateIgPost(A.id, …)` bilan
+   * **A NI USTIGA YOZARDI**.
+   *
+   * ⚠️ `?kun=` shu yerda qo'llanadi (ilgari alohida "faqat mount" effekti bor edi). Sabab:
+   * tiklash AYNAN "yangi forma ochildi" hodisasi, ya'ni kalendardan kelingan kun ham o'shanda
+   * qo'yilishi kerak. Ikki joyda ayri turganda ular BIR-BIRI BILAN TO'QNASHARDI (tiklash
+   * `at` ni bo'shatar, mount effekti esa qayta yozardi) va `/post/A` dan `/yangi?kun=…` ga
+   * o'tishda kun umuman qo'llanmasdi. Effekt `[id]` ga bog'langani uchun foydalanuvchi vaqtni
+   * o'zgartirgach URL o'sha kunda qolsa ham tanlov QAYTA YOZILMAYDI.
+   */
   useEffect(() => {
-    if (!id) return
+    if (!id) {
+      const fresh = [newRow('image')]
+      const opts = emptyOptions()
+      const when = dayParamAt(params)
+      setPost(null)
+      setType('image')
+      setCaption('')
+      setRows(fresh)
+      setOptions(opts)
+      setCollabText('')
+      setAt(when)
+      // Boshlang'ich vaqt "o'zgarish" hisoblanmaydi: foydalanuvchi hali hech narsa yozmagan,
+      // shuning uchun darhol chiqib ketsa tasdiq so'ralmasligi kerak.
+      setBaseline(snapshot('image', '', fresh.map((r) => r.item), opts, when))
+      setLoading(false)
+      setLoadError('')
+      setError('')
+      // Fayl va AI jarayonlari ham yangi formaga o'tmasin: eski so'rov qaytsa tashlanadi.
+      setFileState({})
+      jobsRef.current = {}
+      aiJob.current += 1
+      setAiOpen(false)
+      setAiTopic('')
+      setAiResult(null)
+      setAiError('')
+      setAiBusy(false)
+      return
+    }
+
     let alive = true
     setLoading(true)
     setLoadError('')
@@ -110,38 +224,39 @@ export function ContentComposer() {
         setPost(p)
         setType(p.postType)
         setCaption(p.caption)
-        const rows = p.media.length > 0 ? p.media.map((m) => ({ ...m })) : [emptyMedia(defaultKind(p.postType))]
-        setMedia(rows)
+        const loaded = (p.media.length > 0 ? p.media.map((m) => ({ ...m })) : [emptyMedia(defaultKind(p.postType))])
+          .map((m) => ({ uid: newUid(), item: m }))
+        setRows(loaded)
         const opts = { ...p.options, collaborators: [...p.options.collaborators] }
         setOptions(opts)
+        setCollabText(opts.collaborators.join(', '))
         const when = (p.scheduledAt ?? '').slice(0, 16)
         setAt(when)
-        setBaseline(snapshot(p.postType, p.caption, rows, opts, when))
+        setBaseline(snapshot(p.postType, p.caption, loaded.map((r) => r.item), opts, when))
+        setFileState({})
+        jobsRef.current = {}
       })
       .catch((e) => { if (alive) setLoadError(apiErrorMessage(e, "Rejani yuklab bo'lmadi")) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
+    // `params` ATAYIN bog'liqlikda emas: `?kun=` faqat forma tiklanganda (id o'zgarganda)
+    // qo'llanadi, keyingi URL o'zgarishlari foydalanuvchi tanlagan vaqtni bosib ketmasin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   /**
-   * YANGI post uchun boshlang'ich vaqt: Navbat sahifasidagi kalendardan kelingan bo'lsa
-   * (`?kun=YYYY-MM-DD`) o'sha kunning 10:00 i.
-   *
-   * ⚠️ Faqat BIR MARTA, sahifa ochilganda: keyin foydalanuvchi vaqtni o'zgartirsa, URL
-   * o'sha kunda qolgani uchun tanlov qayta yozib yuborilardi.
+   * Zonadan TASHQARIGA tushgan fayl — brauzer uni O'ZI ochib, SPA'dan olib chiqib ketardi
+   * (saqlanmagan forma bilan birga). Modul foydalanuvchini fayl sudrashga ATAYIN chaqiradi,
+   * ya'ni chetga tushirish ehtimoli yuqori — shuning uchun himoya HUJJAT darajasida.
    */
   useEffect(() => {
-    if (id) return
-    const day = params.get('kun') ?? ''
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return
-    const when = `${day}T10:00`
-    setAt(when)
-    // Boshlang'ich vaqt "o'zgarish" hisoblanmaydi: foydalanuvchi hali hech narsa yozmagan,
-    // shuning uchun darhol chiqib ketsa tasdiq so'ralmasligi kerak.
-    setBaseline(snapshot('image', '', [emptyMedia('image')], emptyOptions(), when))
-    // Faqat MOUNT'da: keyin foydalanuvchi vaqtni o'zgartirsa, URL o'sha kunda qolgani uchun
-    // tanlov qayta yozib yuborilardi.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const swallow = (e: DragEvent) => e.preventDefault()
+    document.addEventListener('dragover', swallow)
+    document.addEventListener('drop', swallow)
+    return () => {
+      document.removeEventListener('dragover', swallow)
+      document.removeEventListener('drop', swallow)
+    }
   }, [])
 
   /* ── Sanagichlar (backenddagi qoida bilan bir xil) ── */
@@ -149,25 +264,168 @@ export function ContentComposer() {
   const tags = countHashtags(caption)
   const mentions = countMentions(caption)
 
+  /** ⚠️ AI javobi kelganda matn AYNAN O'SHA PAYTDA bo'sh ekanini bilish uchun (§ `runCaptionAi`). */
+  const captionRef = useRef(caption)
+  useEffect(() => { captionRef.current = caption }, [caption])
+
+  /**
+   * Hammualliflarning YAKUNIY ro'yxati — xom matndan.
+   *
+   * ⚠️ Payload ham, "o'zgardimi" solishtiruvi ham SHUNDAN oladi: foydalanuvchi maydondan
+   * chiqmasdan (blur qilmasdan) «Saqlash» ni bossa ham yozgani yo'qolmasin.
+   */
+  const effectiveOptions = useMemo(
+    () => ({ ...options, collaborators: parseCollaborators(collabText) }),
+    [options, collabText],
+  )
+
+  /* ═══════════ MEDIA: qatorlar, fayl holati, yuklash ═══════════ */
+
+  const patchFile = (uid: string, patch: Partial<MediaFileState>) => {
+    setFileState((prev) => ({ ...prev, [uid]: { ...emptyFileState(), ...prev[uid], ...patch } }))
+  }
+
+  const patchMedia = (uid: string, patch: Partial<IgMediaItem>) => {
+    setRows((prev) => prev.map((r) => (r.uid === uid ? { ...r, item: { ...r.item, ...patch } } : r)))
+  }
+
+  const addRow = () => setRows((prev) => [...prev, newRow('image')])
+
+  const removeRow = (uid: string) => {
+    setRows((prev) => prev.filter((r) => r.uid !== uid))
+    setFileState((prev) => {
+      const next = { ...prev }
+      delete next[uid]
+      return next
+    })
+    // Ish belgisi o'chirilgani uchun kechikib kelgan yuklash natijasi endi yozilmaydi.
+    delete jobsRef.current[uid]
+  }
+
+  /**
+   * Faylni serverga yuklaydi va manzil bilan birga O'LCHAMLARNI ham maydonlarga qo'yadi.
+   *
+   * ⚠️ SERVER O'LCHOVI USTUN — u faylning o'zidan (JPEG sarlavhasi, MP4 `mvhd`) o'qiladi,
+   * ya'ni brauzer bergan qiymatdan ishonchliroq. Lekin server hamma narsani o'qiy olmaydi:
+   * VIDEO kengligi/balandligi unda 0 («noma'lum») bo'lib qaytadi. Shuning uchun 0 qiymat
+   * brauzer o'lchovi bilan to'ldiriladi — aks holda to'g'ri o'lcham yo'qolib, backend 9:16
+   * tekshiruvini umuman o'tkazib yuborardi.
+   *
+   * ⚠️ Eski qiymatlar SAQLANMAYDI: bu boshqa fayl, undagi o'lcham yangisiga aloqasiz.
+   * ⚠️ Brauzer o'lchovi yiqilsa yuklash BEKOR QILINMAYDI: fayl allaqachon serverda.
+   */
+  const runUpload = async (uid: string, file: File) => {
+    const job = (jobsRef.current[uid] ?? 0) + 1
+    jobsRef.current[uid] = job
+    patchFile(uid, { uploading: true, uploadError: '', measureError: '' })
+    try {
+      const info = await uploadIgMedia(file)
+
+      let local: Partial<IgMediaItem> = {}
+      try { local = await measureLocalFile(file) } catch { /* ixtiyoriy */ }
+
+      // Eskirgan natija (orada boshqa fayl tanlangan yoki element o'chirilgan) — tashlanadi.
+      if (jobsRef.current[uid] !== job) return
+      patchMedia(uid, {
+        url: info.url,
+        kind: info.kind,
+        sizeBytes: firstPositive(info.sizeBytes, local.sizeBytes),
+        width: firstPositive(info.width, local.width),
+        height: firstPositive(info.height, local.height),
+        durationSeconds: firstPositive(info.durationSeconds, local.durationSeconds),
+      })
+    } catch (e) {
+      if (jobsRef.current[uid] !== job) return
+      patchFile(uid, { uploadError: apiErrorMessage(e, "Faylni yuklab bo'lmadi") })
+    } finally {
+      if (jobsRef.current[uid] === job) patchFile(uid, { uploading: false })
+    }
+  }
+
+  /** «Fayldan o'lchash» — fayl YUKLANMAYDI, faqat brauzerda o'lchanadi. */
+  const runMeasure = async (uid: string, file: File) => {
+    const job = (jobsRef.current[uid] ?? 0) + 1
+    jobsRef.current[uid] = job
+    patchFile(uid, { measuring: true, measureError: '' })
+    try {
+      const info = await measureLocalFile(file)
+      if (jobsRef.current[uid] !== job) return
+      patchMedia(uid, info)
+    } catch (e) {
+      if (jobsRef.current[uid] !== job) return
+      patchFile(uid, { measureError: e instanceof Error ? e.message : "Faylni o'qib bo'lmadi" })
+    } finally {
+      if (jobsRef.current[uid] === job) patchFile(uid, { measuring: false })
+    }
+  }
+
+  /**
+   * Tanlangan/sudrab tashlangan FAYLLAR.
+   *
+   * ⚠️ Karusel yasayotgan odam 5 ta rasmni birdan tashlashi tabiiy — ilgari qolgani JIMGINA
+   * tashlanardi. Endi karuselda qolganlariga yangi elementlar yaratiladi (chegara
+   * `carouselItems.max`), boshqa turlarda esa "faqat bittasi olindi" deb OCHIQ aytiladi.
+   *
+   * ⚠️ Yuklash KETMA-KET: beshta katta faylni bir vaqtda yuborish brauzerning ulanish
+   * chegarasiga urilib, hammasini sekinlashtirardi.
+   */
+  const uploadFiles = async (uid: string, files: File[]) => {
+    if (files.length === 0) return
+    patchFile(uid, { notice: '' })
+
+    if (type !== 'carousel') {
+      if (files.length > 1) {
+        patchFile(uid, {
+          notice: `Bu post turida bir vaqtda faqat BITTA fayl bo‘ladi — «${files[0].name}» olindi, qolgan ${files.length - 1} tasi olinmadi.`,
+        })
+      }
+      await runUpload(uid, files[0])
+      return
+    }
+
+    const free = Math.max(0, IG_LIMITS.carouselItems.max - rows.length)
+    const extra = files.slice(1, 1 + free)
+    const skipped = files.length - 1 - extra.length
+    const created = extra.map(() => newRow('image'))
+    if (created.length > 0) setRows((prev) => [...prev, ...created])
+    if (skipped > 0) {
+      patchFile(uid, {
+        notice: `Karuselda ko‘pi bilan ${IG_LIMITS.carouselItems.max} ta element bo‘ladi — ${skipped} ta fayl olinmadi.`,
+      })
+    }
+
+    await runUpload(uid, files[0])
+    for (let i = 0; i < created.length; i++) await runUpload(created[i].uid, extra[i])
+  }
+
   /** Tur o'zgarganda media ro'yxati va turi moslashtiriladi (karuselda kamida 2 ta element). */
   const changeType = (next: IgPostType) => {
     setType(next)
-    setMedia((prev) => {
+    setRows((prev) => {
       const kind = defaultKind(next)
       // ⚠️ Story va karusel IKKALA turni ham qabul qiladi — u yerda foydalanuvchi tanlovi
       // saqlanadi. Qolgan turlarda tur bir xil (reels/video — video, rasm — rasm).
       const keepKind = next === 'story' || next === 'carousel'
-      const rows = prev.map((m) => (keepKind ? m : { ...m, kind }))
+      const list = prev.map((r) => (keepKind ? r : { ...r, item: { ...r.item, kind } }))
       if (next === 'carousel') {
-        while (rows.length < IG_LIMITS.carouselItems.min) rows.push(emptyMedia('image'))
-        return rows.slice(0, IG_LIMITS.carouselItems.max)
+        while (list.length < IG_LIMITS.carouselItems.min) list.push(newRow('image'))
+        return list.slice(0, IG_LIMITS.carouselItems.max)
       }
-      return rows.slice(0, 1)
+      return list.slice(0, 1)
     })
   }
 
-  const patchMedia = (index: number, patch: Partial<IgMediaItem>) => {
-    setMedia((prev) => prev.map((m, i) => (i === index ? { ...m, ...patch } : m)))
+  /**
+   * Turni almashtirish so'rovi — TO'LDIRILGAN element yo'qoladigan bo'lsa avval tasdiq.
+   *
+   * ⚠️ Tur almashganda ortiqcha elementlar HAQIQATAN olib tashlanadi (`slice`), ya'ni
+   * yuklangan besh rasmli karuseldan «Rasm» ga o'tish to'rttasini yo'q qiladi. Buni tasdiqsiz
+   * qilish bir necha daqiqalik ishni bitta bosishda o'chirardi.
+   */
+  const requestType = (next: IgPostType) => {
+    if (next === type) return
+    if (droppedBy(rows, next).some((r) => rowFilled(r.item))) { setAskType(next); return }
+    changeType(next)
   }
 
   /**
@@ -185,7 +443,9 @@ export function ContentComposer() {
       }
       const withCaption = media.findIndex((m) => m.caption.trim().length > 0)
       if (withCaption >= 0) {
-        return `${withCaption + 1}-elementga matn yozilgan: karusel elementlarida matn ishlamaydi, uni umumiy matn maydoniga yozing.`
+        // ⚠️ Yo'l ham AYTILADI: matn maydoni «Tur va media» bosqichida, elementning ostida
+        // faqat matn BOR bo'lsa chiqadi (aks holda foydalanuvchi xatoni tozalay olmasdi).
+        return `${withCaption + 1}-elementga matn yozilgan: karusel elementlarida matn ishlamaydi, uni umumiy matn maydoniga yozing. «Tur va media» bosqichida shu elementdagi matnni tozalang (yoki elementni olib tashlab qayta qo‘shing).`
       }
     }
 
@@ -218,13 +478,14 @@ export function ContentComposer() {
   }
 
   /* ── Saqlanmagan o'zgarish ── */
-  const dirty = snapshot(type, caption, media, options, at) !== baseline
+  const dirty = snapshot(type, caption, media, effectiveOptions, at) !== baseline
 
   /**
    * Brauzer darajasidagi himoya (tabni yopish / yangilash).
    *
    * ⚠️ Router navigatsiyasi ATAYIN bloklanmaydi — `useBlocker` bilan har bir havolani
-   * ushlash murakkab va sinuvchan. «Bekor qilish» tugmasida esa tasdiq so'raladi (pastda).
+   * ushlash murakkab va sinuvchan. Sahifadan chiqishning IKKALA yo'li ham («← Navbat» va
+   * «Bekor qilish») `cancel()` orqali o'tadi va tasdiq so'raydi (pastda).
    */
   useEffect(() => {
     if (!dirty) return
@@ -233,36 +494,124 @@ export function ContentComposer() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [dirty])
 
-  /** Saqlash uchun yuboriladigan tana — yaratish ham, tahrirlash ham AYNAN shundan. */
+  /* ═══════════ AI CAPTION ═══════════ */
+
+  /** Uslub/til ro'yxati — panel BIRINCHI ochilganda bir marta (keshlanadi). */
+  useEffect(() => {
+    if (!aiOpen || aiMeta || aiMetaLoading.current) return
+    aiMetaLoading.current = true
+    let alive = true
+    getIgCaptionMeta()
+      .then((m) => {
+        if (!alive) return
+        setAiMeta(m)
+        // Foydalanuvchi ro'yxat kelguncha tanlagan bo'lsa — tanlovi qoladi.
+        setAiTone((prev) => prev || m.defaultTone)
+        setAiLanguage((prev) => prev || m.defaultLanguage)
+      })
+      .catch((e) => {
+        if (!alive) return
+        setAiMetaError(apiErrorMessage(e, "Sozlamalarni olib bo'lmadi"))
+        // Qayta ochilganda yana urinib ko'rilsin (tarmoq tiklangan bo'lishi mumkin).
+        aiMetaLoading.current = false
+      })
+    return () => { alive = false }
+  }, [aiOpen, aiMeta])
+
+  /** AI matnini maydonga qo'yish — «Almashtirish» yoki «Oxiriga qo'shish». */
+  const applyAiCaption = (text: string, mode: 'replace' | 'append') => {
+    setCaption((prev) => (
+      mode === 'append' && prev.trim().length > 0
+        ? `${prev.trimEnd()}\n\n${text}`
+        : text
+    ))
+    setAiResult(null)
+    setAiOpen(false)
+  }
+
+  const runCaptionAi = async () => {
+    if (aiBusy) return
+    const job = aiJob.current + 1
+    aiJob.current = job
+    setAiBusy(true)
+    setAiError('')
+    setAiResult(null)
+    try {
+      const res = await generateIgCaption({ postType: type, topic: aiTopic.trim(), tone: aiTone, language: aiLanguage })
+      // Forma orada tiklangan bo'lsa (yangi post) — eskirgan javob yozilmaydi.
+      if (aiJob.current !== job) return
+      // ⚠️ Javob 200 bo'lgani MUVAFFAQIYAT DEGANI EMAS: sabab `ok`/`error` da (kalit
+      // sozlanmagan, Gemini timeout, format buzuq). `ok` ni tekshirmaslik foydalanuvchiga
+      // BO'SH matn qo'yib qo'yardi.
+      if (!res.ok) { setAiError(res.error || 'AI matn yoza olmadi.'); return }
+      // Maydon bo'sh — yo'qotadigan narsa yo'q, tasdiq ham so'ralmaydi.
+      // ⚠️ Qaror JAVOB KELGAN PAYTDAGI matn bo'yicha (`captionRef`): so'rov 10–20 soniya
+      // ketadi va shu orada odam matn yozgan bo'lishi mumkin — eski (bo'sh) qiymatga qarab
+      // "almashtirish" uning yozganini jimgina o'chirardi.
+      if (captionRef.current.trim().length === 0) { applyAiCaption(res.caption, 'replace'); return }
+      setAiResult({ caption: res.caption, hashtags: res.hashtags })
+    } catch (e) {
+      if (aiJob.current !== job) return
+      setAiError(apiErrorMessage(e, "AI'ga so'rov yuborib bo'lmadi"))
+    } finally {
+      if (aiJob.current === job) setAiBusy(false)
+    }
+  }
+
+  /* ═══════════ SAQLASH ═══════════ */
+
+  /**
+   * Saqlash uchun yuboriladigan tana — yaratish ham, tahrirlash ham AYNAN shundan.
+   *
+   * ⚠️ `uid` bu yerga TUSHMAYDI: `rows` dan faqat `item` olinadi (`media`), ya'ni backendga
+   * `IgMediaJson` da mavjud maydonlargina ketadi.
+   */
   const payload = () => ({
     postType: type,
     caption,
-    // Karuseldan boshqasida faqat BIRINCHI element yuboriladi: tur almashganda ortiqcha
-    // elementlar ekranda yo'q, lekin holatda qolib ketishi mumkin.
+    // Karuseldan boshqasida faqat BIRINCHI element yuboriladi. `changeType` allaqachon
+    // `slice` qiladi, ya'ni bu ikkinchi qavat himoya (tur qo'lda o'zgartirilgan holat uchun).
     media: type === 'carousel' ? media : media.slice(0, 1),
-    options,
+    options: effectiveOptions,
     // Bo'sh bo'lsa backend "hozir" deb oladi — post keyingi worker tsiklida joylanadi.
     scheduledAt: at ? `${at}:00` : '',
   })
 
-  /** Navbatga qaytish + yashil xabar. ⚠️ `mkNotice` — Navbat sahifasi bilan KONTRAKT. */
-  const backToQueue = (mkNotice: string) => navigate(QUEUE, { state: { mkNotice } })
+  /**
+   * Navbatga qaytish + yashil xabar.
+   *
+   * ⚠️ `state` — Navbat sahifasi bilan KONTRAKT: `mkNotice` (yashil xabar) va `month`
+   * ("yyyy-MM", ixtiyoriy).
+   *
+   * ⚠️ `month` NEGA kerak: Navbat har ochilganda JORIY oyni ko'rsatadi. Sentabrga
+   * rejalashtirilgan postni tahrirlab saqlagan odam avgust navbatiga tushar, tepada yashil
+   * «Reja yangilandi» turar, post esa ro'yxatda YO'Q edi — ya'ni saqlash "ishlamagandek"
+   * ko'rinardi. Endi navbat AYNAN saqlangan post oyini ochadi.
+   *
+   * ⚠️ Buzuq yoki bo'sh `month` UMUMAN yuborilmaydi (navbat uni baribir jim tashlaydi).
+   */
+  const backToQueue = (mkNotice: string, month?: string) => (
+    navigate(QUEUE, { state: month ? { mkNotice, month } : { mkNotice } })
+  )
 
   const save = async () => {
+    // ⚠️ Qayta kirish qulfi: ikki marta bosilgan «Saqlash» IKKITA post yaratardi.
+    if (saving) return
     if (localError) { setError(localError); return }
     setSaving(true)
     setError('')
     try {
       if (post) {
-        await updateIgPost(post.id, payload())
-        backToQueue('Reja yangilandi.')
+        const saved = await updateIgPost(post.id, payload())
+        backToQueue('Reja yangilandi.', monthOf(saved.scheduledAt, at))
       } else {
-        await createIgPost(payload())
-        backToQueue('Post navbatga qo‘shildi.')
+        const saved = await createIgPost(payload())
+        backToQueue('Post navbatga qo‘shildi.', monthOf(saved.scheduledAt, at))
       }
+      // ⚠️ Muvaffaqiyatda `setSaving(false)` ATAYIN chaqirilmaydi: `navigate` dan keyin bu
+      // komponent olib tashlanadi va o'chgan komponentga `setState` bo'lardi.
     } catch (e) {
       setError(apiErrorMessage(e, "Saqlab bo'lmadi"))
-    } finally {
       setSaving(false)
     }
   }
@@ -278,6 +627,7 @@ export function ContentComposer() {
    * «Joylanmoqda» bo'lib qoladi va uni worker oxiriga yetkazadi.
    */
   const saveAndPublish = async () => {
+    if (saving) return
     if (localError) { setError(localError); return }
     setSaving(true)
     setError('')
@@ -289,20 +639,28 @@ export function ContentComposer() {
       // shuning uchun foydalanuvchi navbatga o'tkaziladi va sabab ochiq aytiladi.
       try {
         const res = await publishIgPost(created.id)
-        backToQueue(res.status === 'published'
-          ? 'Post Instagram’ga joylandi.'
-          : 'Post joylashga yuborildi — holati «Joylanmoqda». Video bir necha daqiqa olishi mumkin.')
+        backToQueue(
+          res.status === 'published'
+            ? 'Post Instagram’ga joylandi.'
+            : 'Post joylashga yuborildi — holati «Joylanmoqda». Video bir necha daqiqa olishi mumkin.',
+          // Joylashdan keyin server vaqtni aniqlashtirishi mumkin — u USTUN.
+          monthOf(res.scheduledAt, created.scheduledAt, at),
+        )
       } catch (e) {
-        backToQueue(`Reja saqlandi, lekin joylab bo‘lmadi: ${apiErrorMessage(e, "noma'lum sabab")}`)
+        // ⚠️ Post SAQLANDI (faqat joylash yiqildi) — demak u navbatda turibdi va oyni
+        // ko'rsatish shu yerda ham kerak.
+        backToQueue(
+          `Reja saqlandi, lekin joylab bo‘lmadi: ${apiErrorMessage(e, "noma'lum sabab")}`,
+          monthOf(created.scheduledAt, at),
+        )
       }
     } catch (e) {
       setError(apiErrorMessage(e, "Saqlab bo'lmadi"))
-    } finally {
       setSaving(false)
     }
   }
 
-  /** «Bekor qilish» — o'zgarish bo'lsa avval tasdiq so'raladi. */
+  /** Sahifadan chiqish — o'zgarish bo'lsa avval tasdiq so'raladi. */
   const cancel = () => {
     if (dirty) { setAskLeave(true); return }
     navigate(QUEUE)
@@ -377,15 +735,19 @@ export function ContentComposer() {
     : 'hali saqlanmagan'
   const stepIndex = STEP_IDS.indexOf(step)
   const nextStep = STEPS[stepIndex + 1]
+  const typeDrop = askType ? droppedBy(rows, askType) : []
 
   return (
     <MarketingPage
       title={post ? 'Rejani tahrirlash' : 'Yangi post'}
       sub={`${typeLabel} · ${whenLabel} · ${stateLabel}`}
-      back={{ to: QUEUE, label: 'Navbat' }}
+      /* ⚠️ `back` propi ATAYIN BERILMAYDI: u oddiy `<Link>` chizadi va sticky sarlavhada
+         turgani uchun eng tabiiy chiqish yo'li bo'lardi — saqlanmagan 20 daqiqalik ish bitta
+         bosishda TASDIQSIZ yo'qolardi. O'rniga AYNI shu ko'rinishdagi tugma, lekin `cancel()`
+         orqali: sahifadan chiqishning ikkala yo'li ham bir xil himoyalangan. */
       actions={
         <button className="btn btn-ghost btn-sm" onClick={cancel} disabled={saving}>
-          <Icon name="close" /> Bekor qilish
+          <Icon name="arrowLeft" /> Navbat
         </button>
       }
     >
@@ -399,11 +761,14 @@ export function ContentComposer() {
             {step === 'tur' && (
               <StepMedia
                 type={type}
-                media={media}
-                onChangeType={changeType}
+                rows={rows}
+                fileState={fileState}
+                onChangeType={requestType}
                 onPatch={patchMedia}
-                onAdd={() => setMedia((prev) => [...prev, emptyMedia('image')])}
-                onRemove={(i) => setMedia((prev) => prev.filter((_, k) => k !== i))}
+                onAdd={addRow}
+                onRemove={removeRow}
+                onUploadFiles={(uid, files) => { void uploadFiles(uid, files) }}
+                onMeasure={(uid, file) => { void runMeasure(uid, file) }}
               />
             )}
 
@@ -417,13 +782,21 @@ export function ContentComposer() {
                 aiOpen={aiOpen}
                 onToggleAi={() => setAiOpen((v) => !v)}
                 onCaption={setCaption}
-                onAiApply={(text, mode) => {
-                  setCaption((prev) => (
-                    mode === 'append' && prev.trim().length > 0
-                      ? `${prev.trimEnd()}\n\n${text}`
-                      : text
-                  ))
-                  setAiOpen(false)
+                ai={{
+                  meta: aiMeta,
+                  metaError: aiMetaError,
+                  topic: aiTopic,
+                  tone: aiTone,
+                  language: aiLanguage,
+                  busy: aiBusy,
+                  error: aiError,
+                  result: aiResult,
+                  onTopic: setAiTopic,
+                  onTone: setAiTone,
+                  onLanguage: setAiLanguage,
+                  onRun: () => { void runCaptionAi() },
+                  onApply: applyAiCaption,
+                  onAgain: () => setAiResult(null),
                 }}
               />
             )}
@@ -433,8 +806,11 @@ export function ContentComposer() {
                 type={type}
                 at={at}
                 options={options}
+                collabText={collabText}
                 onAt={setAt}
                 onOptions={setOptions}
+                onCollabText={setCollabText}
+                onCollabCommit={() => setOptions((prev) => ({ ...prev, collaborators: parseCollaborators(collabText) }))}
               />
             )}
 
@@ -533,6 +909,33 @@ export function ContentComposer() {
           </div>
         </MkDialog>
       )}
+
+      {/* Tur almashuvi — to'ldirilgan elementlar yo'qoladigan bo'lsa tasdiq. */}
+      {askType && (
+        <MkDialog
+          title="Media elementlari olib tashlanadi"
+          tone="danger"
+          onClose={() => setAskType(null)}
+          footer={
+            <>
+              <button className="btn btn-ghost" onClick={() => setAskType(null)}>Bekor qilish</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => { changeType(askType); setAskType(null) }}
+              >
+                <Icon name="check" /> Ha, turi almashtirilsin
+              </button>
+            </>
+          }
+        >
+          <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+            «{IG_POST_TYPES.find((t) => t.id === askType)?.label ?? askType}» turida{' '}
+            {askType === 'carousel' ? `${IG_LIMITS.carouselItems.max} ta` : 'bitta'} element bo‘ladi,
+            shuning uchun <b>{typeDrop.length} ta to‘ldirilgan element olib tashlanadi</b> (manzil va
+            o‘lchamlari bilan). Yuklangan fayllar serverda qoladi, lekin ular postga kirmaydi.
+          </div>
+        </MkDialog>
+      )}
     </MarketingPage>
   )
 }
@@ -540,14 +943,17 @@ export function ContentComposer() {
 /* ═══════════════════════════════════════ 1) TUR VA MEDIA ═══════════════════════════════════════ */
 
 function StepMedia({
-  type, media, onChangeType, onPatch, onAdd, onRemove,
+  type, rows, fileState, onChangeType, onPatch, onAdd, onRemove, onUploadFiles, onMeasure,
 }: {
   type: IgPostType
-  media: IgMediaItem[]
+  rows: MediaRow[]
+  fileState: Record<string, MediaFileState>
   onChangeType: (t: IgPostType) => void
-  onPatch: (index: number, patch: Partial<IgMediaItem>) => void
+  onPatch: (uid: string, patch: Partial<IgMediaItem>) => void
   onAdd: () => void
-  onRemove: (index: number) => void
+  onRemove: (uid: string) => void
+  onUploadFiles: (uid: string, files: File[]) => void
+  onMeasure: (uid: string, file: File) => void
 }) {
   return (
     <>
@@ -566,9 +972,12 @@ function StepMedia({
             </button>
           ))}
         </div>
+        {/* ⚠️ Matn AYNAN nima bo'lishini aytadi: ilgari "faqat birinchisi YUBORILADI" deb
+            yozilardi, aslida esa qolganlari ro'yxatdan OLIB TASHLANADI. */}
         <div className="field-hint" style={{ marginTop: 10 }}>
           Tur o‘zgarsa media ro‘yxati ham moslashadi: karuselda kamida {IG_LIMITS.carouselItems.min} ta
-          element bo‘ladi, qolgan turlarda esa faqat birinchisi yuboriladi.
+          element bo‘ladi, qolgan turlarda esa birinchisidan boshqa elementlar <b>olib tashlanadi</b>
+          {' '}(to‘ldirilgan element bo‘lsa avval tasdiq so‘raladi).
         </div>
       </MkCard>
 
@@ -577,24 +986,29 @@ function StepMedia({
       <MkCard
         title="Media"
         sub={type === 'carousel'
-          ? `Karusel: ${media.length} / ${IG_LIMITS.carouselItems.max} ta element`
+          ? `Karusel: ${rows.length} / ${IG_LIMITS.carouselItems.max} ta element`
           : 'Bitta fayl — sudrab tashlang, yuklang yoki ochiq HTTPS manzilni yozing'}
       >
-        {media.map((m, i) => (
+        {rows.map((r, i) => (
           <MediaEditor
-            key={i}
-            item={m}
+            /* ⚠️ `key` — BARQAROR `uid`, indeks EMAS: o'rtadagi element o'chirilganda keyingisi
+               oldingisining holatini (xato matni, sudrash ramkasi) meros qilib olmasin. */
+            key={r.uid}
+            item={r.item}
             index={i}
             showIndex={type === 'carousel'}
             type={type}
-            onChange={(patch) => onPatch(i, patch)}
-            onRemove={media.length > 1 ? () => onRemove(i) : undefined}
+            state={fileState[r.uid] ?? emptyFileState()}
+            onChange={(patch) => onPatch(r.uid, patch)}
+            onRemove={rows.length > 1 ? () => onRemove(r.uid) : undefined}
+            onUploadFiles={(files) => onUploadFiles(r.uid, files)}
+            onMeasure={(file) => onMeasure(r.uid, file)}
           />
         ))}
 
-        {type === 'carousel' && media.length < IG_LIMITS.carouselItems.max && (
+        {type === 'carousel' && rows.length < IG_LIMITS.carouselItems.max && (
           <button className="btn btn-outline btn-sm" onClick={onAdd} style={{ marginTop: 12 }}>
-            <Icon name="plus" /> Element qo‘shish ({media.length} / {IG_LIMITS.carouselItems.max})
+            <Icon name="plus" /> Element qo‘shish ({rows.length} / {IG_LIMITS.carouselItems.max})
           </button>
         )}
       </MkCard>
@@ -604,8 +1018,26 @@ function StepMedia({
 
 /* ═══════════════════════════════════════ 2) MATN ═══════════════════════════════════════ */
 
+/** AI panelining boshqaruvi — hammasi `ContentComposer` holatidan (bosqich almashsa yo'qolmasin). */
+interface CaptionAiProps {
+  meta: IgCaptionMeta | null
+  metaError: string
+  topic: string
+  tone: string
+  language: string
+  busy: boolean
+  error: string
+  result: CaptionAiResult | null
+  onTopic: (v: string) => void
+  onTone: (v: string) => void
+  onLanguage: (v: string) => void
+  onRun: () => void
+  onApply: (text: string, mode: 'replace' | 'append') => void
+  onAgain: () => void
+}
+
 function StepCaption({
-  type, caption, chars, tags, mentions, aiOpen, onToggleAi, onCaption, onAiApply,
+  type, caption, chars, tags, mentions, aiOpen, onToggleAi, onCaption, ai,
 }: {
   type: IgPostType
   caption: string
@@ -615,7 +1047,7 @@ function StepCaption({
   aiOpen: boolean
   onToggleAi: () => void
   onCaption: (v: string) => void
-  onAiApply: (text: string, mode: 'replace' | 'append') => void
+  ai: CaptionAiProps
 }) {
   return (
     <MkCard
@@ -629,9 +1061,20 @@ function StepCaption({
     >
       {aiOpen && (
         <CaptionAi
-          postType={type}
-          hasText={caption.trim().length > 0}
-          onApply={onAiApply}
+          meta={ai.meta}
+          metaError={ai.metaError}
+          topic={ai.topic}
+          tone={ai.tone}
+          language={ai.language}
+          busy={ai.busy}
+          error={ai.error}
+          result={ai.result}
+          onTopic={ai.onTopic}
+          onTone={ai.onTone}
+          onLanguage={ai.onLanguage}
+          onRun={ai.onRun}
+          onApply={ai.onApply}
+          onAgain={ai.onAgain}
           onClose={onToggleAi}
         />
       )}
@@ -673,17 +1116,21 @@ function Counter({ label, value, max }: { label: string; value: number; max: num
 /* ═══════════════════════════════════════ 3) VAQT VA SOZLAMALAR ═══════════════════════════════════════ */
 
 function StepSchedule({
-  type, at, options, onAt, onOptions,
+  type, at, options, collabText, onAt, onOptions, onCollabText, onCollabCommit,
 }: {
   type: IgPostType
   at: string
   options: IgPostOptions
+  collabText: string
   onAt: (v: string) => void
   onOptions: (o: IgPostOptions) => void
+  onCollabText: (v: string) => void
+  onCollabCommit: () => void
 }) {
   // ⚠️ O'tib ketgan vaqt XATO EMAS: post navbatning keyingi aylanishida joylanadi. Lekin
   // odam buni ADASHIB tanlagan bo'lishi mumkin — shuning uchun sariq MASLAHAT chiqadi.
   const past = !!at && at < localNow()
+  const collaborators = parseCollaborators(collabText)
 
   return (
     <>
@@ -746,16 +1193,19 @@ function StepSchedule({
       <MkCard title="Qo‘shimcha sozlamalar" sub="Ixtiyoriy — bo‘sh qoldirilsa Instagram’ga yuborilmaydi">
         <div className="field">
           <label className="field-label">Hammualliflar (collaborators)</label>
+          {/* ⚠️ Maydon XOM matnni ko'rsatadi, ro'yxatga aylantirish esa faqat maydondan
+              chiqqanda (`onBlur`). Har harfda `split`/`join` qilinsa VERGUL yozib bo'lmasdi
+              (izohi `ContentComposer` dagi `collabText` da). */}
           <input
             className="input"
-            value={options.collaborators.join(', ')}
+            value={collabText}
             placeholder="username1, username2"
-            onChange={(e) => onOptions({
-              ...options,
-              collaborators: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-            })}
+            onChange={(e) => onCollabText(e.target.value)}
+            onBlur={onCollabCommit}
           />
           <div className="field-hint">
+            Vergul bilan ajrating. Hozir tanilgani: <b>{collaborators.length}</b> ta
+            {collaborators.length > 0 && ` (${collaborators.join(', ')})`}.
             Ko‘pi bilan {IG_LIMITS.collaborators} ta. ⚠️ Ular taklifni Instagram’da <b>qabul qilishi</b> kerak —
             aks holda post faqat sizning profilingizda qoladi.
           </div>
@@ -949,6 +1399,74 @@ function Quick({ label, value, danger }: { label: string; value: string; danger?
       </span>
     </div>
   )
+}
+
+/** Yangi media qatorining hisoblagichi — `crypto` bo'lmagan holat uchun zaxira. */
+let uidSeq = 0
+
+/**
+ * Barqaror `uid`.
+ *
+ * ⚠️ `crypto.randomUUID` faqat XAVFSIZ kontekstda (https yoki localhost) mavjud — dev serverni
+ * tarmoq IP'si orqali ochganda u `undefined` bo'lardi va sahifa yiqilardi. Shuning uchun zaxira
+ * hisoblagich (qiymat faqat SHU sahifada, faqat `key` uchun ishlatiladi).
+ */
+function newUid(): string {
+  uidSeq += 1
+  return globalThis.crypto?.randomUUID?.() ?? `m${Date.now().toString(36)}-${uidSeq}`
+}
+
+/** Bo'sh media qatori (uid bilan). */
+function newRow(kind: 'image' | 'video'): MediaRow {
+  return { uid: newUid(), item: emptyMedia(kind) }
+}
+
+/** Yangi element uchun fayl holati — hammasi bo'sh. */
+function emptyFileState(): MediaFileState {
+  return { uploading: false, measuring: false, uploadError: '', measureError: '', notice: '' }
+}
+
+/** Elementga biror narsa kiritilganmi (tur almashuvida tasdiq so'rash uchun). */
+function rowFilled(m: IgMediaItem): boolean {
+  return m.url.trim().length > 0
+    || m.coverUrl.trim().length > 0
+    || m.altText.trim().length > 0
+    || m.caption.trim().length > 0
+    || m.width > 0 || m.height > 0 || m.sizeBytes > 0 || m.durationSeconds > 0
+}
+
+/** Tur `next` ga o'zgarsa RO'YXATDAN CHIQIB ketadigan qatorlar (`changeType` bilan bir xil qoida). */
+function droppedBy(rows: MediaRow[], next: IgPostType): MediaRow[] {
+  return next === 'carousel' ? rows.slice(IG_LIMITS.carouselItems.max) : rows.slice(1)
+}
+
+/**
+ * Navbat ochadigan OY ("yyyy-MM") — birinchi TO'G'RI manbadan.
+ *
+ * ⚠️ Tartib muhim: chaqiruvchi SERVER qaytargan `scheduledAt` ni birinchi beradi (u haqiqat
+ * manbai — server vaqtni aniqlashtirgan bo'lishi mumkin), formadagi qiymat esa zaxira.
+ * Ikkalasi ham bo'sh/buzuq bo'lsa `undefined` qaytadi va `month` umuman yuborilmaydi.
+ */
+function monthOf(...sources: (string | null | undefined)[]): string | undefined {
+  for (const src of sources) {
+    const m = (src ?? '').slice(0, 7)
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(m)) return m
+  }
+  return undefined
+}
+
+/** "ali, vali" → ['ali','vali']. Bo'sh bo'laklar tashlanadi. */
+function parseCollaborators(raw: string): string[] {
+  return raw.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+/**
+ * Navbat kalendaridan kelingan kun (`?kun=YYYY-MM-DD`) → o'sha kunning 10:00 i.
+ * Parametr yo'q yoki buzuq bo'lsa — bo'sh satr ("vaqt belgilanmagan").
+ */
+function dayParamAt(search: URLSearchParams): string {
+  const day = search.get('kun') ?? ''
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? `${day}T10:00` : ''
 }
 
 /**

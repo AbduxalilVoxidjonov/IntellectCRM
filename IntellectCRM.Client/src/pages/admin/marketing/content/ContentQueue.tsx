@@ -7,9 +7,14 @@
  * 1. <b>Joylangan postni CRM'dan tahrirlab ham, o'chirib ham bo'lmaydi</b> — Instagram API'si
  *    buni qo'llab-quvvatlamaydi. Shuning uchun «Tahrirlash» faqat `scheduled` holatda ochiq,
  *    o'chirish esa joylangan postda FAQAT CRM yozuvini o'chiradi (Instagram'dagi post qoladi).
- * 2. <b>Ro'yxat OY bo'yicha to'liq yuklanadi</b> va kun bo'yicha KLIENTDA filtrlanadi
- *    (`loadAllPosts`): kalendar katagidagi son va ostidagi ro'yxat AYNAN bitta manbadan
+ * 2. <b>Ro'yxat OY bo'yicha to'liq yuklanadi</b> (`status: 'all'`), kun ham, HOLAT ham
+ *    KLIENTDA filtrlanadi: kalendar katagidagi son va ostidagi ro'yxat AYNAN bitta manbadan
  *    chiqsin — aks holda "raqamlar to'g'ri kelmayapti" holati kelib chiqardi.
+ *    🔴 Holat filtrini SERVERGA yuborib bo'lmaydi: backend jamlanmani (`IgPostTotals`) filtr
+ *    QO'LLANGANDAN KEYIN hisoblaydi, ya'ni «Xato» chipi bosilganda javobda
+ *    `scheduled=0, processing=0, published=0` qaytardi va tepadagi to'rtta ko'rsatkich AYNAN
+ *    shu yolg'on nolni chizardi (`ContentPublished` da bu tuzoq allaqachon chetlab o'tilgan —
+ *    bitta modulda ikki xil xulq qolmasin).
  * 3. <b>Tartib O'SISH bo'yicha</b> — pastga qarab kelajakka. Boshqa ro'yxatlardagi
  *    "eng yangisi tepada" qoidasi bu yerda ATAYIN teskari (izoh `groupByDay` da ham bor).
  *
@@ -33,6 +38,24 @@ import {
 } from './helpers'
 import type { ContentOutlet } from './ContentLayout'
 
+/**
+ * Muharrirdan qaytishda uzatiladigan marshrut holati (`navigate(QUEUE, { state })`).
+ *
+ * ⚠️ `month` IXTIYORIY: muharrir uni yubormasa ham sahifa joriy oy bilan ochilaveradi.
+ * Sabab — kontrakt ikki fayl orasida, ya'ni bir tomon yangilanmagan bo'lsa ham sindirmasin.
+ */
+interface QueueRouteState {
+  /** Yashil xabar matni («Reja yangilandi» va h.k.). */
+  mkNotice?: string
+  /** Saqlangan post QAYSI oyga tegishli ("yyyy-MM") — navbat o'sha oyda ochiladi. */
+  month?: string
+}
+
+/** "yyyy-MM" shaklini tekshiradi — buzuq qiymat kalendarni bo'sh oyga olib ketardi. */
+function validMonth(value: string | undefined): value is string {
+  return !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
+}
+
 export function ContentQueue() {
   const { can } = usePerm()
   const canEdit = can('marketing.content', 'edit')
@@ -41,7 +64,18 @@ export function ContentQueue() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const [month, setMonth] = useState(currentMonth())
+  /**
+   * ⚠️ Boshlang'ich oy marshrut holatidan olinadi (`state.month`).
+   * Sabab: muharrir doim shu sahifaga qaytaradi, oy esa har mount'da JORIY oy bo'lardi —
+   * sentabrga rejalashtirilgan postni tahrirlab saqlaganda operator avgust navbatiga tushar,
+   * yashil «Reja yangilandi» xabarini ko'rar, lekin postni ro'yxatda TOPA OLMASDI
+   * ("saqlanmadi" degan yolg'on xulosa).
+   */
+  const [month, setMonth] = useState(() => {
+    // ⚠️ Lazy initializer — u BIRINCHI renderda, holatni tozalaydigan effektdan OLDIN ishlaydi.
+    const wanted = (location.state as QueueRouteState | null)?.month
+    return validMonth(wanted) ? wanted : currentMonth()
+  })
   const [day, setDay] = useState('')
   const [status, setStatus] = useState<IgPostStatus | 'all'>('all')
 
@@ -54,6 +88,14 @@ export function ContentQueue() {
   const [removing, setRemoving] = useState<IgPost | null>(null)
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
+  /**
+   * ⚠️ AMAL xatosi (joylash) YUKLASH xatosidan ATAYIN ajratilgan: ilgari ikkalasi bitta
+   * `error` da edi va bitta «Hoziroq joylash» xatosi BUTUN ro'yxatni ekrandan olib tashlardi
+   * (`{!loading && !error && …}`) — foydalanuvchi "hamma reja o'chib ketdimi?" deb qo'rqardi.
+   */
+  const [actionError, setActionError] = useState('')
+  /** O'chirish xatosi — u FAQAT tasdiq oynasining ichida ko'rsatiladi (sabab `DeleteConfirm` da). */
+  const [removeError, setRemoveError] = useState('')
 
   /**
    * Muharrir («Yangi post» / «Tahrirlash») saqlagandan keyin shu sahifaga `state.mkNotice`
@@ -63,19 +105,26 @@ export function ContentQueue() {
    * yangilaganda (F5) allaqachon eskirgan xabar qayta chiqib turardi.
    */
   useEffect(() => {
-    const text = (location.state as { mkNotice?: string } | null)?.mkNotice
+    const text = (location.state as QueueRouteState | null)?.mkNotice
     if (!text) return
     setNotice(text)
-    navigate(location.pathname, { replace: true, state: null })
-  }, [location.state, location.pathname, navigate])
+    // ⚠️ `search` SAQLANADI: tozalanadigan narsa faqat marshrut HOLATI. Hozir bu sahifada
+    // query yo'q, lekin kelajakda paydo bo'lsa u jimgina yo'qolib ketmasin.
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null })
+  }, [location.state, location.pathname, location.search, navigate])
 
-  /** Oylik ro'yxat. `reloadKey` — layoutdagi «Yangilash» tugmasining signali. */
+  /**
+   * Oylik ro'yxat. `reloadKey` — layoutdagi «Yangilash» tugmasining signali.
+   *
+   * ⚠️ Serverga DOIM `status: 'all'` ketadi (sabab — fayl boshidagi 2-tuzoq), shuning uchun
+   * holat filtri almashganda qayta so'rov ham ketmaydi.
+   */
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     const { from, to } = monthRange(month)
     try {
-      const res = await loadAllPosts({ from, to, status })
+      const res = await loadAllPosts({ from, to, status: 'all' })
       setItems(res.items)
       setTotals(res.totals)
       setTruncated(res.truncated)
@@ -87,25 +136,44 @@ export function ContentQueue() {
     // `reloadKey` qiymati ishlatilmaydi — u faqat funksiya kimligini o'zgartirib,
     // quyidagi effektni qayta ishga tushirish uchun bog'liqlikda turadi.
     void reloadKey
-  }, [month, status, reloadKey])
+  }, [month, reloadKey])
 
   useEffect(() => { void load() }, [load])
 
-  /** Kalendar kataklaridagi sonlar — AYNAN ro'yxatdagi postlardan. */
-  const counts = useMemo(() => countsByDay(items), [items])
+  /** Tanlangan holat bo'yicha kesim — KLIENTDA (server jamlanmasi buzilmasin). */
+  const inStatus = useMemo(
+    () => (status === 'all' ? items : items.filter((p) => p.status === status)),
+    [items, status],
+  )
 
   /**
-   * Ko'rinadigan postlar — kun filtri KLIENTDA (yuqoridagi 2-tuzoq).
+   * Kalendar kataklaridagi sonlar — AYNAN ostidagi ro'yxatdagi postlardan, ya'ni TANLANGAN
+   * HOLAT bo'yicha (kun filtriga esa bog'liq emas).
+   *
+   * ⚠️ Holat filtrini sanoqqa ham qo'llash SHART: katakda "3" turib ro'yxatda 2 ta post
+   * ko'rinishi "raqamlar to'g'ri kelmayapti" holati bo'lardi (2-tuzoq). Buning evaziga
+   * chiziq ostidagi izohda «tanlangan holat bo'yicha» deb OCHIQ yozilgan.
+   */
+  const counts = useMemo(() => countsByDay(inStatus), [inStatus])
+
+  /**
+   * Ko'rinadigan postlar — holat ham, kun ham KLIENTDA filtrlanadi (yuqoridagi 2-tuzoq).
    * Guruhlash va tartib `groupByDay` da: kunlar ham, kun ichidagi vaqt ham O'SISH bo'yicha.
    */
   const days = useMemo(() => {
-    const rows = day ? items.filter((p) => p.scheduledAt.slice(0, 10) === day) : items
+    const rows = day ? inStatus.filter((p) => p.scheduledAt.slice(0, 10) === day) : inStatus
     return groupByDay(rows)
-  }, [items, day])
+  }, [inStatus, day])
 
   const shownCount = useMemo(() => days.reduce((sum, d) => sum + d.items.length, 0), [days])
 
-  /** Post holati o'zgargandan keyin: ro'yxat ham, sub-nav sanoqlari ham yangilanadi. */
+  /**
+   * Post holati o'zgargandan keyin: ro'yxat ham, sub-nav sanoqlari ham yangilanadi.
+   *
+   * ⚠️ Kunlik limit bu yerda QAYTA SO'RALMAYDI (eski kodda `loadLimit()` bor edi): u endi
+   * «Holat va limit» sahifasida va har mount'da yangilanadi, bu chaqiruv esa HAR safar
+   * Meta'ga so'rov yuborardi — navbatdan post joylagan operator uchun bekorga.
+   */
   const afterChange = async (message: string) => {
     setNotice(message)
     await load()
@@ -114,7 +182,7 @@ export function ContentQueue() {
 
   const publish = async (post: IgPost) => {
     setBusy(post.id)
-    setError('')
+    setActionError('')
     setNotice('')
     try {
       const res = await publishIgPost(post.id)
@@ -126,7 +194,7 @@ export function ContentQueue() {
           : 'Post joylashga yuborildi — holati «Joylanmoqda». Video bir necha daqiqa olishi mumkin.',
       )
     } catch (e) {
-      setError(apiErrorMessage(e, "Postni joylab bo'lmadi"))
+      setActionError(apiErrorMessage(e, "Postni joylab bo'lmadi"))
     } finally {
       setBusy('')
     }
@@ -134,7 +202,7 @@ export function ContentQueue() {
 
   const remove = async (post: IgPost) => {
     setBusy(post.id)
-    setError('')
+    setRemoveError('')
     setNotice('')
     try {
       // Javobdagi matn "bekor qilindi" va "yozuv o'chdi" ni ajratadi — o'zimiz yozmaymiz.
@@ -142,10 +210,19 @@ export function ContentQueue() {
       setRemoving(null)
       await afterChange(res.message)
     } catch (e) {
-      setError(apiErrorMessage(e, "O'chirib bo'lmadi"))
+      // ⚠️ Xato OYNANING ICHIGA beriladi: oyna ochiq qoladi (`setRemoving(null)` faqat
+      // muvaffaqiyat yo'lida), sahifa tanasidagi qizil chiziq esa uning ORTIDA ko'rinmasdi —
+      // foydalanuvchi «Ha, o'chirilsin» ni qayta-qayta bosaverardi.
+      setRemoveError(apiErrorMessage(e, "O'chirib bo'lmadi"))
     } finally {
       setBusy('')
     }
+  }
+
+  /** Oynani yopish — yopilayotgan oynaning xatosi ham u bilan birga ketadi. */
+  const closeRemove = () => {
+    setRemoving(null)
+    setRemoveError('')
   }
 
   const periodTitle = day ? fmtDayTitle(day) : 'Butun oy'
@@ -188,8 +265,24 @@ export function ContentQueue() {
           selected={day}
           onSelect={setDay}
           counts={counts}
-          hint="Katakdagi son — o‘sha kunga rejalashtirilgan postlar. Kun bosilsa faqat o‘sha kun ko‘rsatiladi, qayta bosilsa butun oy qaytadi."
+          hint="Katakdagi son — o‘sha kunga rejalashtirilgan postlar (tanlangan holat bo‘yicha). Kun bosilsa faqat o‘sha kun ko‘rsatiladi, qayta bosilsa butun oy qaytadi."
         />
+
+        {/* 🔴 Chegaraga yetilgan oyda kalendar YOLG'ON gapiradi: backend eng YANGISIDAN
+            beradi, ya'ni sig'magani — oyning BOSHIDAGI kunlar va ular katagida jimgina "0"
+            turardi ("1–15 avgustda post bo'lmagan" degan noto'g'ri xulosa). Shuning uchun
+            ogohlantirish AYNAN kalendar ostida ham turadi. */}
+        {truncated > 0 && (
+          <div className="mk-alert" style={{ marginTop: 12, marginBottom: 0 }}>
+            <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+              <div className="mk-alert-title">Kalendar sonlari to‘liq emas</div>
+              Bu oyda postlar ko‘p ({truncated} tasi yuklanmadi) — ro‘yxatga eng <b>yangilari</b> tushdi,
+              ya'ni <b>oyning boshidagi kunlar</b> to‘liq bo‘lmasligi mumkin va ularning katagidagi son
+              haqiqiydan kam ko‘rinadi. Aniq kunni ko‘rish uchun o‘sha kunni tanlang.
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginTop: 14 }}>
           <div className="seg">
@@ -218,7 +311,13 @@ export function ContentQueue() {
       </MkCard>
 
       {loading && <MkLoading />}
+      {/* ⚠️ FAQAT yuklash xatosi ro'yxatni almashtiradi — ro'yxat mavjud emas, ko'rsatadigan
+          narsaning o'zi yo'q. Amal xatosi esa pastda, ro'yxat USTIDA chiziladi. */}
       {!loading && error && <MkError text={error} onRetry={() => void load()} />}
+
+      {!loading && !error && actionError && (
+        <MkNotice text={actionError} tone="danger" onClose={() => setActionError('')} />
+      )}
 
       {!loading && !error && (
         <MkCard
@@ -227,10 +326,13 @@ export function ContentQueue() {
           actions={<span className="mk-num">{shownCount} ta</span>}
           pad={false}
         >
+          {/* ⚠️ Bu yerda "filtrdan foydalaning" deb MASLAHAT BERILMAYDI: kun ham, holat ham
+              KLIENTDA filtrlanadi, ya'ni ular yuklanmagan postlarni QAYTARIB KELMAYDI.
+              Yagona haqiqiy yo'l — boshqa oy (yoki chegarani oshirish). */}
           {truncated > 0 && (
             <div className="field-hint" style={{ padding: '10px 14px 0' }}>
-              Bu oyda postlar ko‘p: yana {truncated} tasi ro‘yxatga sig‘madi. Kerakli kunni kalendardan
-              tanlang yoki holat filtridan foydalaning.
+              Bu oyda postlar ko‘p: yana {truncated} tasi ro‘yxatga sig‘madi — bu yerda oyning eng
+              <b> yangi</b> postlari ko‘rsatilgan, oy boshidagilari tushib qolgan bo‘lishi mumkin.
             </div>
           )}
 
@@ -270,7 +372,8 @@ export function ContentQueue() {
         <DeleteConfirm
           post={removing}
           busy={busy === removing.id}
-          onCancel={() => setRemoving(null)}
+          error={removeError}
+          onCancel={closeRemove}
           onConfirm={() => void remove(removing)}
         />
       )}
@@ -405,10 +508,12 @@ function PostThumb({ post }: { post: IgPost }) {
  * deb o'ylab, post profilda turaverardi.
  */
 function DeleteConfirm({
-  post, busy, onCancel, onConfirm,
+  post, busy, error, onCancel, onConfirm,
 }: {
   post: IgPost
   busy: boolean
+  /** ⚠️ Xato SHU OYNADA ko'rsatiladi — sabab `remove()` dagi izohda. */
+  error: string
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -455,6 +560,14 @@ function DeleteConfirm({
       {!published && !cancelOnly && (
         <div className="field-hint" style={{ marginTop: 10 }}>
           Yozuv butunlay o‘chadi. Instagram’ga hech narsa joylanmagan.
+        </div>
+      )}
+
+      {/* Oyna OCHIQ qolgani uchun xato aynan shu yerda: aks holda foydalanuvchi nima
+          bo'lganini ko'rmay, tasdiq tugmasini qayta-qayta bosardi. */}
+      {error && (
+        <div style={{ marginTop: 14 }}>
+          <MkNotice text={error} tone="danger" />
         </div>
       )}
     </MkDialog>

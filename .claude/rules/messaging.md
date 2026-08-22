@@ -182,17 +182,34 @@ paths:
 
 ## LID KARTASI — guruhdagi lid xabari TAHRIRLANADI (2026-08-22)
 
-Migratsiya: `AddLeadTelegramMessages`. Entity — `LeadTelegramMessage`
-(LeadId · ChatId · MessageId · TextHash · IsDead), unikal indeks **(LeadId, ChatId)**.
-Kod: `LeadNotifier.SyncCardAsync` / `MarkDeletedAsync` / `NotifyNewLeadAsync`,
-`TelegramService.EditMessageTextDetailedAsync` + `ClassifyEditError`.
+Migratsiyalar: `AddLeadTelegramMessages` (jadval) + `AddLeadTelegramMessageFk` (FK, cascade).
+Entity — `LeadTelegramMessage` (LeadId · ChatId · MessageId · TextHash · IsDead), unikal indeks
+**(LeadId, ChatId)**. Kod: `LeadNotifier.SyncCardAsync` / `MarkDeletedAsync` / `NotifyNewLeadAsync`,
+`TelegramService.EditMessageTextOutcomeAsync` + `ClassifyEditError`.
 Testlar: `IntellectCRM.Tests/LeadsTests.cs` (§5).
 
-Guruhdagi lid xabari — **KARTA**: u lidning **JORIY holatini** ko'rsatadi (bosqich, sinov darsi,
-takroriy murojaat, oxirgi 2 izoh, «O'quvchi bo'ldi», oxirgi test natijasi) va lid har o'zgarganda
-o'sha xabar `editMessageText` bilan **joyida tahrirlanadi** — yangi xabar YUBORILMAYDI.
+Lid xabari — **KARTA**: u lidning **JORIY holatini** ko'rsatadi (bosqich, sinov darsi, takroriy
+murojaat, izohlar, «O'quvchi bo'ldi», oxirgi test natijasi) va lid har o'zgarganda o'sha xabar
+`editMessageText` bilan **joyida tahrirlanadi** — yangi xabar YUBORILMAYDI.
 Ilgari faqat lid TUG'ILGANDAGI xabar turardi va u bir kunda eskirardi; har o'zgarishga yangi xabar
 yuborish esa guruhni «o'zgardi / yana o'zgardi» oqimiga aylantirardi.
+
+**Oluvchilar:** faol GURUH(lar) + **FAQAT superadmin**(lar)ning shaxsiy chati
+(`LeadNotifier.ShouldNotify` — oddiy admin/xodimga shaxsiy xabar ketmaydi).
+
+### 🔴 GURUHGA IZOH MATNI CHIQMAYDI — IKKI XIL MATN, IKKI XIL XESH
+
+| Oluvchi | Kartada izohlar | Nega |
+|---|---|---|
+| **Guruh** | faqat SANOQ: «💬 3 ta izoh» | Menejer izohi — ichki, filtrsiz matn (mijoz haqidagi shaxsiy mulohaza, to'lov qobiliyati va h.k.). U bot qo'shilgan HAR bir guruhga tarqalmasligi kerak |
+| **Superadminning shaxsiy chati** | oxirgi **2** izoh to'liq (`MaxNoteLines`, har biri `MaxNoteLength` = 120 belgi) | Qaror qabul qiladigan odam mazmunni ko'rishi kerak |
+
+Matn bitta joyda ikki variantda quriladi: `Render(parts, includeNotes: true/false)`.
+⚠️ **Xesh HAR QATOR uchun O'ZINING matnidan olinadi** — aks holda guruh va shaxsiy chat
+bir-birining xeshini «eskirgan» deb ko'rib, kartani navbat bilan bekorga qayta yozib turardi.
+
+⚠️ Sanoq (`NoteCount`) alohida `COUNT` so'rovi bilan olinadi: yuklangan izohlar ko'pi bilan 2 ta,
+ular «3 ta izoh» deyishga yaramaydi.
 
 ### 🔴 Kartasi YO'Q lidga karta YARATILMAYDI
 
@@ -203,6 +220,20 @@ lidlar guruhga qaytib chiqmaydi.
 ⚠️ Busiz deploydan ertasiga menejer kanbanda 200 ta eski lidni surganda guruhga **200 ta yangi
 karta** yog'ilardi. Karta faqat HODISADAN tug'iladi: *yangi lid · takroriy murojaat · test natijasi*
 (`NotifyNewLeadAsync`).
+
+### ⚠️ FAOL CHAT DARVOZASI — «yozuv bor» ≠ «yuborish kerak»
+
+`SyncCardAsync` yozuvlarni oluvchilar bilan KESISHTIRADI: `TelegramGroups` dagi **`IsActive`**
+guruhlar + `TelegramRegistrations` dagi chatlar. Kesishmagan qator **o'tkazib yuboriladi**.
+
+Sabab: admin guruhni o'chirgan bo'lsa (bot chiqarilgan → `IsActive=false`) u yerga yangi lidlar
+bormaydi — eski kartalar ham bormasligi kerak.
+
+⚠️ **Bunday qatorga `IsDead` QO'YILMAYDI**: guruh qayta yoqilishi mumkin, o'shanda karta o'z
+joyida yangilanishda davom etadi. «O'lik» deb belgilansa — karta abadiy muzlab qolardi.
+
+⚠️ Guruh/shaxsiy chat farqi ham SHU so'rovdan chiqadi (`knownGroups`): chat `TelegramGroups` da
+bo'lsa — izohsiz variant, aks holda izohli.
 
 ### ⚠️ Tahrir — JIM. Shuning uchun ikki xil hodisa AJRATILGAN
 
@@ -217,52 +248,200 @@ jiringlamaydi.
 Signal ataylab qisqa (`LeadNotifier.SignalText`), batafsili kartaning o'zida. **Signalning
 `message_id`'si SAQLANMAYDI** — u bir martalik bildirishnoma, hech qachon tahrirlanmaydi.
 
+⚠️ Tahrir tarmoq xatosi bilan yiqilsa ham signal YUBORILADI (hodisa yashirin qolmasin), lekin
+**429 (`RateLimited`) da yuborilmaydi** — o'sha chatga navbatdagi so'rov chegarani yanada
+chuqurlashtirardi.
+
+⚠️ Signal `reply_parameters` bilan ketadi (pastda) — javob berilayotgan karta o'chirilgan bo'lsa
+ham xabar baribir boradi.
+
 ### `TextHash` — bir xil matnga so'rov umuman yuborilmaydi
 
 Yozuvdagi `TextHash` (matnning SHA256'si) joriy matn xeshiga teng bo'lsa `editMessageText`
-**chaqirilmaydi**. Sabab: Telegram bunday tahrirga `message is not modified` qaytaradi —
-foyda nol, tezlik chegarasi esa bekorga yeyiladi (har lidda bir necha chat bor).
+**chaqirilmaydi** va **yozuvga ham tegilmaydi** (bekorga `UPDATE` ketmasin). Sabab: Telegram
+bunday tahrirga `message is not modified` qaytaradi — foyda nol, tezlik chegarasi esa bekorga
+yeyiladi (har lidda bir necha chat bor).
 
 ⚠️ Karta matni **determinlashgan** bo'lishi SHART (bir xil holatdan bir xil matn) — aks holda xesh
 bekorga farq qilib, har safar ortiqcha so'rov ketardi. Shu sabab matn HAR DOIM bitta joydan
-yig'iladi: `ComposeCardAsync` → `BuildCardText`.
+yig'iladi: `LoadCardPartsAsync` → `Render` → `BuildText` + `BuildStateText`. Shu sababdan
+`TrialLessons` va `LevelTestSubmissions` so'rovlarida `ThenByDescending(Id)` bor: bir vaqtli ikki
+yozuvda PostgreSQL tartibi kafolatlanmagan bo'lar, matn (demak xesh) sababsiz o'zgarib turardi.
 
-### `TgEditResult` — xato tasnifi (`ClassifyEditError`, sof funksiya, registrga bog'liq EMAS)
+### ⚠️ XESH «🕒 Yangilandi» QATORISIZ hisoblanadi
+
+Karta oxirida `🕒 Yangilandi: HH:mm` turadi (odam kartaning TIRIK ekanini ko'rsin), lekin u
+**xeshga KIRMAYDI** — xesh faqat `body + tail` dan olinadi.
+
+🔴 NEGA: vaqt qatori xeshga kirsa xesh **HAR DAQIQA** o'zgarardi, ya'ni `TextHash` qisqa yo'li
+amalda umuman ishlamasdi — menejer kanbanda 20 lidni sursa 20 × (guruhlar + superadminlar) tahrir
+ketib, Telegram guruh chegarasi (~20 xabar/daqiqa) urilardi.
+
+### 🔴 QIRQISH — HOLAT BLOKIDAN EMAS, TEPADAN
+
+Matn **4000 belgiga** sig'diriladi (`MaxTextLength`; Telegram chegarasi 4096), lekin qirqish
+**tepa qismdan** boradi: holat bloki (bosqich, sinov darsi, izohlar, «O'quvchi bo'ldi», vaqt
+qatori) HAR DOIM saqlanadi, kam qimmatli tepa qism (uzun so'rovnoma, izoh) qisqartiriladi
+(`Render` da `budget` hisobi).
+
+🔴 NEGA: ilgari butun satr OXIRIDAN kesilardi. Uzun so'rovnomali lidda aynan holat bloki qirqilib
+ketar, matn holatga qarab O'ZGARMAY qolar, xesh esa barqarorlashib **karta ABADIY MUZLARDI** —
+nosozlik xato bermas, karta shunchaki hech qachon yangilanmasdi.
+
+⚠️ Qirqishda **emoji o'rtasidan kesilmaydi** (`Cut` — surrogat juftlik butun qoladi, aks holda
+buzuq belgi chiqardi).
+
+⚠️ Ilgari uzun test natijasi 4096 dan oshib Telegram 400 qaytarar, xato tashqi `catch` da jim
+yutilar va **XABAR UMUMAN YO'QOLARDI** — chegara shundan qolgan.
+
+### ⚠️ SARLAVHA — SAQLANGAN ma'lumotdan, `isNewLead` bayrog'idan EMAS
+
+`HeaderOf(lead, sub)`:
+
+| Shart | Sarlavha |
+|---|---|
+| test natijasi lidning O'ZIDAN KEYIN yaratilgan (`sub.CreatedAt > lead.CreatedAt`) | «🔁 Mavjud lid — yangi test natijasi» |
+| `RepeatCount > 0` | «🔁 Mavjud lid yangilandi» |
+| qolgan holatda | «🆕 Yangi lid!» |
+
+NEGA chaqiruvchining bir martalik `isNewLead` bayrog'i ISHLATILMAYDI: `SyncCardAsync` keyin
+boshqa sarlavha chizsa, matn (demak xesh) **har sinxronizatsiyada** o'zgarardi va karta bekorga
+qayta yozilaverardi.
+
+⚠️ `RepeatCount` ham YETARLI EMAS: taklif havolasi bilan yuborilgan testda (`LevelTestService`)
+u OSHIRILMAYDI — ya'ni mavjud lidning kartasi «🆕 Yangi lid!» bo'lib qayta yozilardi. Shuning
+uchun asosiy mezon — sanalarni solishtirish.
+
+⚠️ `isNewLead` bayrog'i YO'QOLMADI: u faqat YETKAZISHNI hal qiladi (tahrir + signal / yangi
+to'liq xabar), sarlavhaga ta'sir qilmaydi.
+
+⚠️ «Kiritdi» qatori ham DOIM `created` hodisasining `ActorName`idan olinadi (chaqiruvchi bergan
+boyroq matn faqat ZAXIRA) — aks holda karta BIRINCHI tahrirdanoq kambag'allashib, bekorga bitta
+tahrir so'rovi ketardi.
+
+### `TgEditOutcome` — xato tasnifi (`ClassifyEditError`, sof funksiya, registrga bog'liq EMAS)
+
+`EditMessageTextOutcomeAsync` → **`(Result, RetryAfterSeconds, MigrateToChatId)`**: yalang natija
+chaqiruvchiga «429 dan keyin qancha kutay?» va «chat supergruppaga aylandi — yangi id qaysi?»
+savollariga javob bermasdi (ikkisi ham javobning `parameters` bo'limida keladi).
 
 | Telegram `description` / HTTP | Natija | Qaror |
 |---|---|---|
 | `message is not modified` | `NotModified` | muvaffaqiyat: xesh SAQLANADI |
 | `message to edit not found` · `MESSAGE_ID_INVALID` · `chat not found` · `message can't be edited` · `bot was kicked` · `bot is not a member` · `chat_id is empty` | `Gone` | `IsDead = true` — **boshqa urinilmaydi** |
+| `group chat was upgraded to a supergroup chat` | `Gone` + `MigrateToChatId` | qator **TIRIK qoladi**: `ChatId` YANGISIGA almashadi, `IsDead` bekor qilinadi (pastga qarang) |
+| `bot was blocked by the user` · `user is deactivated` | `Gone` | SHAXSIY chat holatlari: karta guruhga ham, superadminning shaxsiy chatiga ham ketadi. Ilgari ro'yxatda faqat GURUH holatlari bor edi va bu ikkisi `Failed` ga tushib, lidning HAR o'zgarishida bekorga so'rov ketaverardi |
 | HTTP **429** yoki `Too Many Requests` | `RateLimited` | hech narsa saqlanmaydi — keyingi o'zgarishda yana urinamiz |
+| **HTTP 200, lekin `ok: true` EMAS** (buzuq JSON, proxy'ning HTML sahifasi) | `Failed` | ilgari yolg'on `Ok` bo'lardi: xesh saqlanar, keyingi safar so'rov umuman yuborilmas va **karta guruhda abadiy eski holatda qolardi** — logda ham hech narsa yo'q edi |
 | boshqa hammasi (tarmoq, noma'lum sabab) | `Failed` | keyingi o'zgarishda yana urinamiz |
 
 ⚠️ Tartib muhim: `message is not modified` **eng oldin** tekshiriladi (429 bilan birga kelsa ham
 muvaffaqiyat). `IsDead` yozuv `SyncCardAsync` so'roviga UMUMAN olinmaydi — yo'q xabarga har
 o'zgarishda so'rov yuborish tezlik chegarasini yeb, haqiqiy xabarlarni kechiktirardi.
 
+⚠️ **`migrate_to_chat_id` kelsa qatorning `ChatId` si YANGILANADI** va `IsDead` bekor qilinadi
+(`ApplyEditAsync` oxiri): eski chat id ABADIY o'zgargan, u bilan qayta urinish hech qachon
+ishlamasdi. Matn keyingi o'zgarishda yetkaziladi.
+
 ### Lid O'CHIRILGANDA — `MarkDeletedAsync`
 
 Xabar **o'chirilmaydi**: Telegram `deleteMessage` 48 soatdan eski xabarga ishlamaydi, ya'ni eski
 karta baribir guruhda qolib, mavjud bo'lmagan lidni ko'rsatib turardi. Shuning uchun **matni
-almashtiriladi** («🗑 Lid o'chirildi» + ism + vaqt) va `LeadTelegramMessages` yozuvlari
-**tozalanadi** (yetim qatorlar to'planib qolmasin).
-⚠️ Bot sozlanmagan bo'lsa ham yozuvlar TOZALANADI (faqat tahrir bo'lmaydi).
+almashtiriladi** («🗑 Lid o'chirildi» + ism + vaqt).
+
+🔴 **YOZUV FAQAT TAHRIR TASDIQLANGANDA o'chiriladi:**
+
+| Natija | Qator |
+|---|---|
+| `Ok` · `NotModified` · `Gone` (yoki allaqachon `IsDead`) | O'CHIRILADI |
+| `MigrateToChatId` bor | QOLADI — yangi `ChatId` bilan, keyingi urinish uchun |
+| `RateLimited` · `Failed` | **QOLADI** |
+| Bot sozlanmagan (`!IsConfigured`) | funksiya darhol qaytadi — **hech narsa o'chirilmaydi** |
+
+⚠️ NEGA: aks holda o'chirilgan lidning kartasi guruhda **ismi va TELEFONI bilan abadiy tirik
+qolardi**, uni yangilaydigan yagona ip (bazadagi yozuv) esa uzilib ketardi.
+
+⚠️ Qolib ketgan qator **yetim** bo'ladi (lidi yo'q). Alohida fon xizmati QURILMAGAN — tizim
+o'zini o'zi tozalaydi: **har `MarkDeletedAsync` chaqiruvi ko'pi bilan 20 ta** (`MaxOrphanRetry`)
+yetim qatorga qayta urinadi. Chegara bor, chunki ish foydalanuvchi so'rovi ICHIDA bajariladi —
+«O'chirish» tugmasi bir necha soniya osilib qolmasin.
+
+⚠️ Yetim qatorda lid ismi noma'lum (lid o'chgan) — matn ISMSIZ chiqadi. Bu maxfiylik uchun ham
+yaxshi: guruhga ortiqcha ma'lumot tushmaydi.
+
+### 🔴 HAR CHAT UCHUN DARHOL SAQLANADI (poyga himoyasi)
+
+`NotifyNewLeadAsync` xabar yuborilgach yozuvni **o'sha zahoti** saqlaydi (`SaveOrUpdateAsync`),
+bitta yakuniy `SaveChanges` EMAS. Ikkita nosozlik shundan chiqqan edi:
+
+1. **Guruhda YETIM KARTA.** Xabar ketgan, bog'lovchi yozuv esa saqlanmagan ⇒ bazada qator yo'q,
+   ya'ni u karta hech qachon tahrirlanmasdi.
+2. **Ochiq lid formasi 500 qaytarardi.** `(LeadId, ChatId)` unikal; bir lidga ikki hodisa deyarli
+   bir vaqtda kelsa (ommaviy forma + daraja testi) ikkinchi `Add` `DbUpdateException` bilan
+   yiqiladi va EF buzuq entity'ni `ChangeTracker` da **`Added` holatida QOLDIRADI** — tashqi
+   `catch` uni yutsa ham, chaqiruvchining O'Z `SaveChangesAsync`i o'sha buzuq INSERT'ni qayta
+   urinar va bu safar hech kim yutmasdi.
+
+Yechim: yiqilganda entity **DETACH** qilinadi va qator qayta o'qib **UPDATE** qilinadi (unikal
+buzilish «qator allaqachon bor» degani, ya'ni mavjud qatorga yangi `message_id`/xesh yozilishi
+kerak).
+
+⚠️ Umumiy `ChangeTracker.Clear()` **QILINMAYDI** — u chaqiruvchining saqlanmagan
+o'zgarishlarini ham o'chirib yuborardi. Faqat O'Z qatorlarimiz chiqariladi.
+
+### FK — `LeadId` → `Leads.Id`, `OnDelete: Cascade`
+
+Migratsiya **`AddLeadTelegramMessageFk`**. Lid o'chirilsa karta yozuvlari BAZA darajasida o'chadi.
+
+NEGA: tozalash ilgari butunlay `MarkDeletedAsync` ga tayanardi, u esa xatoni JIM yutadi — yetim
+qatorlar abadiy qolardi. Yetim qator zararsiz emas: `(LeadId, ChatId)` unikal bo'lgani uchun
+o'sha lid id qayta ishlatilganda (import/tiklash) yangi karta insert'i `23505` bilan yiqilardi.
+
+⚠️ Migratsiya FK'dan **OLDIN** yetim qatorlarni `DELETE` qiladi — jadval FK'siz yaratilgan edi,
+ya'ni oradagi vaqtda o'chirilgan lidning kartasi bazada qolgan bo'lishi mumkin va
+`ADD CONSTRAINT` prodda **`23503`** (foreign_key_violation) bilan butun deployni to'xtatardi.
+
+⚠️ Navigatsiya xossasi ATAYIN yo'q (`HasOne<Lead>()` navigatsiyasiz shakli) — u DTO seriyalash va
+`Include` xulqiga ta'sir qilishi mumkin edi.
 
 ### Qolgan qattiq qoidalar
 
-- **Matn 4000 belgiga qirqiladi** (`MaxTextLength`; Telegram chegarasi 4096). Ilgari uzun
-  so'rovnomali test natijasi 4096 dan oshib, Telegram 400 qaytarar, xato tashqi `catch` da jim
-  yutilar va **XABAR UMUMAN YO'QOLARDI**. Qirqishda **emoji o'rtasidan kesilmaydi** (surrogat
-  juftlik butun qoladi — aks holda buzuq belgi chiqardi).
 - `parse_mode` **ATAYIN ishlatilmaydi**: foydalanuvchi izohidagi `<` yoki `&` butun xabarni
   yiqitmasin (Telegram HTML'ni qat'iy tekshiradi).
+- **`reply_parameters` + `allow_sending_without_reply: true`** (xom `reply_to_message_id` EMAS):
+  javob berilayotgan xabar o'chirilgan bo'lsa eski usul BUTUN so'rovni rad etardi va takroriy
+  murojaat signali yo'qolardi. Endi xabar eng yomoni javobsiz bo'lib, baribir boradi.
 - Sinxronizatsiya **`SaveChangesAsync()` dan KEYIN** chaqiriladi — aks holda karta ESKI ma'lumotni
   chizardi. `NotifyNewLeadAsync`/`SyncCardAsync` o'z yozuvini O'ZI saqlaydi.
 - Hech biri **istisno chiqarmaydi** (ichida `try/catch`): karta CRM amalini — lid yaratish,
-  bosqich ko'chirish, o'chirish — hech qachon buza olmaydi.
+  bosqich ko'chirish, o'chirish — hech qachon buza olmaydi. **Yagona istisno —
+  `OperationCanceledException`: u QAYTA ULOQTIRILADI**, aks holda bekor qilingan so'rov
+  «muvaffaqiyat» kabi o'tib ketardi.
+- **Xatolar endi JIM emas:** hamma `catch` `ILogger?` ga yozadi (`logger` — ixtiyoriy parametr).
+  ⚠️ Logda `LeadId`/`ChatId`/`MessageId` bor (bular markazning O'Z identifikatorlari), **telefon,
+  izoh matni, xabar matni va token esa HECH QACHON** yozilmaydi.
 - Bot sozlanmagan (`TELEGRAM_BOT_TOKEN` yo'q) bo'lsa hammasi jim o'tadi.
+- **`"telegram"` HttpClient** `Program.cs` da **10 sekundlik timeout** bilan ro'yxatga olingan
+  (Telegram odatda 1 sekunddan tez javob beradi; uzoq kutish CRM endpointini bloklardi).
+  ⚠️ **Long polling qiladigan joylar** (`TelegramService.GetUpdatesAsync`,
+  `CareerTelegramService.GetUpdatesAsync`) `PollingClient(timeoutSec)` bilan **o'z nusxasining**
+  timeout'ini ko'taradi (`timeoutSec + 15`). `CreateClient` har chaqiruvda yangi `HttpClient`
+  qaytargani uchun bu boshqa chaqiruvlarga ta'sir qilmaydi. **Yangi long polling qo'shsangiz shu
+  naqshni ishlating** — aks holda so'rov 10 sekundda uzilib, bot yangilanish ololmay qoladi.
 
-### Chaqiruv nuqtalari — `LeadsController` (kartani yangilaydigan **8 ta** endpoint + tug'diradigan `Create`)
+### Chaqiruv nuqtalari
+
+**Karta TUG'ILADIGAN joylar** (`NotifyNewLeadAsync`):
+
+| Joy | Hodisa |
+|---|---|
+| `LeadsController.Create` | qo'lda kiritilgan lid |
+| `LeadFormService` | ommaviy lid formasi |
+| `PublicLandingController` | landing formasi |
+| `LevelTestService` (2 ta) | daraja testi topshirildi (yangi lid + mavjud lidga yangi natija) |
+| `MetaLeadgenService` | Meta Lead Ads (reklamadagi forma) |
+
+**`LeadsController`** — kartani yangilaydigan **7 ta** `SyncCardAsync` + `MarkDeletedAsync`:
 
 | Endpoint | Chaqiruv |
 |---|---|
@@ -275,6 +454,24 @@ almashtiriladi** («🗑 Lid o'chirildi» + ism + vaqt) va `LeadTelegramMessages
 | `PATCH /leads/trials/{trialId}` (`SetTrialResult`) | `SyncCardAsync` |
 | `POST /leads/{id}/convert` (`Convert`) | `SyncCardAsync` |
 | `DELETE /leads/{id}` (`Delete`) | **`MarkDeletedAsync`** (lid yo'q — `SyncCardAsync` uni topa olmaydi) |
+
+**Boshqa modullardan** (hammasi `SaveChanges` dan KEYIN):
+
+| Joy | Nega |
+|---|---|
+| `InstagramPipeline` | takroriy murojaatda `RepeatCount`, izoh va `LeadEvent` o'zgaradi |
+| `InstagramController` (suhbatni lidga aylantirish / mavjud lidga bog'lash) | o'sha sabab |
+| `SmsQueueService` | yuborilgan SMS lidga `note` hodisasi bo'lib tushadi. ⚠️ `TelegramService` konstruktorga EMAS, `services.GetService<TelegramService>()` orqali olinadi (singleton; sozlanmagan bo'lsa `null` qaytadi va SMS oqimi o'zgarishsiz davom etadi) |
+
+⚠️ **ATAYIN QO'SHILMAGAN:**
+
+| Joy | Nega |
+|---|---|
+| `LeadSourcesController.Update` (manba nomini almashtirish — barcha eski lidlarni ko'chiradi) | bitta amal yuzlab lidga tegadi; har biriga karta sinxronizatsiyasi Telegram chegarasini urardi |
+| `LeadStagesController.Update` (bosqich sarlavhasi — kartadagi «📍 Bosqich» qatori) | o'sha sabab |
+
+Kelishuv: bunday **OMMAVIY** amaldan keyin kartalar biroz eskirib turadi va **keyingi** lid
+o'zgarishida o'z-o'zidan tuzaladi (matn o'zgargani uchun xesh mos kelmaydi).
 
 ⚠️ **YANGI lid endpointi qo'shsangiz — `SyncCardAsync` chaqiruvini ham qo'shing** (`SaveChanges`
 dan KEYIN). Aks holda karta jimgina eskirib qoladi: nosozlik xato bermaydi, shunchaki guruhdagi

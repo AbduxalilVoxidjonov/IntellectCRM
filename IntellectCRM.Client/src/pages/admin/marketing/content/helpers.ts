@@ -56,6 +56,13 @@ export interface LoadedPosts {
  *
  * ⚠️ `totals` FAQAT birinchi sahifadan olinadi: u butun topilma bo'yicha hisoblanadi, ya'ni
  * keyingi sahifalarda ayni o'sha sonlar qaytadi.
+ *
+ * 🔴 QATORLAR `id` BO'YICHA DEDUP QILINADI. Backend `OrderByDescending(p => p.ScheduledAt)` +
+ * `Skip/Take` bilan sahifalaydi va IKKILAMCHI tartiblovchisi YO'Q — ya'ni bir xil `ScheduledAt`
+ * li postlarning tartibi so'rovdan so'rovga o'zgarishi mumkin. Sahifa chegarasida (50 ga karrali)
+ * bitta post IKKI MARTA kelishi yoki umuman TUSHIB QOLISHI mumkin edi; birinchisi React `key`
+ * dublikatini va kalendarda yolg'on sonni berardi. Dedup — arzon va ishonchli himoya.
+ * (Asl yechim backendda: `.ThenByDescending(p => p.Id)`.)
  */
 export async function loadAllPosts(params: {
   from: string
@@ -63,8 +70,13 @@ export async function loadAllPosts(params: {
   status: IgPostStatus | 'all'
 }): Promise<LoadedPosts> {
   const rows: IgPost[] = []
+  const seen = new Set<string>()
   let total = 0
   let sums: IgPostTotals | null = null
+  // Xom (dedupdan OLDINGI) qatorlar soni: sahifalashni TO'XTATISH qarori serverning sanog'i
+  // bilan solishtiriladi, dedup natijasi bilan emas — aks holda dublikat bo'lgan joyda
+  // sikl bekordan-bekor keyingi sahifani so'rab ketardi.
+  let fetched = 0
 
   for (let page = 1; page <= MAX_PAGES; page++) {
     const res = await getIgPosts({ from: params.from, to: params.to, status: params.status, page })
@@ -72,11 +84,19 @@ export async function loadAllPosts(params: {
       sums = res.totals
       total = res.total
     }
-    rows.push(...res.items)
+    fetched += res.items.length
+    for (const item of res.items) {
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      rows.push(item)
+    }
     // Bo'sh sahifa yoki hammasi yig'ildi — keyingi so'rov bekorga ketardi.
-    if (res.items.length === 0 || rows.length >= res.total) break
+    if (res.items.length === 0 || fetched >= res.total) break
   }
 
+  // ⚠️ `truncated` DEDUPDAN KEYINGI songa qarab hisoblanadi: agar sahifalash beqarorligi
+  // tufayli bir post tushib qolgan bo'lsa, ro'yxatda serverdagidan kam qator bo'ladi va buni
+  // JIM o'tkazib yuborish mumkin emas — foydalanuvchi "yana N tasi sig'madi" deb ogohlantiriladi.
   return { items: rows, totals: sums, truncated: Math.max(0, total - rows.length) }
 }
 

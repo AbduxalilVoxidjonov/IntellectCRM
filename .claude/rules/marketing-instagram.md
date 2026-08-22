@@ -295,9 +295,18 @@ o'chirilgan, `mk.tsx` qoladi (mock ma'lumotsiz, `ChannelId` faqat `'instagram'`)
 | Javob qoidalari | `/admin/marketing/rules` |
 | Bilim bazasi | `/admin/marketing/knowledge` |
 | Analitika | `/admin/marketing/analytics` |
+| Reklama lidlari | `/admin/marketing/reklama-lidlari` |
+| Reklama statistikasi | `/admin/marketing/reklama-statistikasi` |
+| **Kontent** (Navbat · Joylanganlar · Holat · Composer) | `/admin/marketing/kontent[/joylangan\|/holat\|/yangi\|/post/:id]` — tuzilishi **§18.11** |
+| Javob sifati | `/admin/marketing/javob-sifati` |
 | Sozlamalar | `/admin/marketing/settings` |
 
 Holat boshqaruvi — `useState`/`useEffect` + axios (loyiha uslubi, TanStack Query YO'Q).
+
+⚠️ **Sahifalar TO'LIQ KENGLIKDA:** `MarketingPage` dan `full` propi olib tashlangan,
+`content-narrow` o'chirilgan. Sub-sahifalar (Kontent) va tablar (Sozlamalar, Reklama
+statistikasi — `?bolim=…`) **sidebar nav'da EMAS, sahifa ICHIDA**: chap menyu bo'limlar uchun,
+sub-sahifa esa bo'lim ICHIDAGI qadam. Batafsil — §18.11.
 
 ⚠️ **Inbox HAR 15 SONIYADA o'zi yangilanadi** (`REFRESH_MS`): Instagram xabari webhook orqali
 fonda keladi va sahifada hech qanday "hodisa" bo'lmaydi — yangilanishsiz operator yangi
@@ -734,7 +743,8 @@ matnni har kuni yuborish signalni shovqinga aylantirardi).
 
 Migratsiya: `AddMarketingExpansion`. Sahifa: **Marketing → Kontent**
 (`/admin/marketing/kontent`), ruxsat `marketing.content`.
-Sozlash qo'llanmasi: `instagram/KONTENT.md`.
+Sozlash qo'llanmasi: `instagram/KONTENT.md`. **UI tuzilishi — §18.11** (modul bitta modaldan
+alohida sahifalarga ko'chgan).
 
 Entity — `IgScheduledPost`. `CenterMeta.InstagramPublishEnabled` (**default false**).
 Sof qoidalar — `InstagramPublishContract` + `IgPublishConst`, HTTP — `InstagramPublishApi`,
@@ -868,7 +878,7 @@ bu sezilmasdi (u yerda `/…` absolut URI emas). Shuning uchun `SafeStoredName` 
 
 | Verb + route | Ruxsat | Izoh |
 |---|---|---|
-| `GET content/posts`, `content/posts/{id}` | klass | Jamlanma **BUTUN topilma** bo'yicha; noma'lum `status` filtri **qo'llanmaydi** (ro'yxat bo'shab qolmasin) |
+| `GET content/posts`, `content/posts/{id}` | klass | Jamlanma **BUTUN topilma** bo'yicha (ko'rinadigan sahifadan emas); noma'lum `status` filtri **qo'llanmaydi** (ro'yxat bo'shab qolmasin). ⚠️ `totals` filtr QO'LLANGANDAN KEYIN hisoblanadi — shu sababdan klient `status` ni serverga umuman yubormaydi (§18.11). ⚠️ Ikkilamchi tartiblovchi YO'Q (`.ThenByDescending(p => p.Id)` — ochiq ish) |
 | `POST content/posts` | `marketing.content` | ⚠️ Validatsiya **SAQLASHDA** — aks holda xato 10 daqiqalik poll'dan keyin ko'rinardi |
 | `PUT content/posts/{id}` | `marketing.content` | **FAQAT `scheduled`** holatida |
 | `DELETE content/posts/{id}` | `marketing.content` | `scheduled` → **bekor**; `published` → faqat CRM yozuvi (⚠️ javobda OCHIQ yoziladi); `processing` → rad |
@@ -966,6 +976,147 @@ fayl allaqachon serverda va manzil ishlaydi, o'lcham esa "noma'lum" bo'lib qolad
 | `IgPublishPayloadTests` | Buzuq JSON istisno otmasligi, **yo'q maydonlar standart qiymatga tushishi**, **nol `thumbOffset` saqlanishi**, yozib-o'qish davri |
 | `InstagramCaptionTests` (24) | Gemini JSON'ini o'qish (fence, ortiqcha matn, buzuq javob), hashtag normalizatsiyasi va yaroqsizini tashlash, **matnda allaqachon bor teg qayta qo'shilmasligi**, `#ingliz` ≠ `#inglizcha`, **uzunlik oshsa AVVAL hashtaglar qirqilishi**, so'z chegarasida qisqartirish, mention chegarasida rad etish, **natija HAR DOIM `ValidateCaption` dan o'tishi**, bo'sh mavzuda **AI umuman chaqirilmasligi** |
 | `MarketingPublicMediaTests` (33) | **Darvozasiz statik blok AYNAN BITTA**, sertifikat/selfi papkalari yopiqligi, MIME xaritasi yopiqligi, `AllowAnonymous` yo'qligi, **yo'ldan chiqish himoyasi**, auditga manzil yozilmasligi, `.jpg` niqobidagi HTML rad etilishi, JPEG o'lchami va MP4 davomiyligi parseri |
+
+### 18.11. KONTENT UI — BITTA MODAL EMAS, ALOHIDA SAHIFALAR
+
+Modul ilgari **bitta sahifa + katta modal** edi (900px'lik oynada media maydonlari, AI paneli va
+Instagram ko'rinishi bir-birini itarardi). Endi u marshrutlarga bo'lingan:
+
+```
+/admin/marketing/kontent            Navbat (index)      ┐
+              .../joylangan         Joylanganlar        ├─ ContentLayout, sub-nav = sahifa
+              .../holat             Holat va limit      ┘   ICHIDAGI tugmalar (nav'da EMAS)
+              .../yangi             Composer (to'liq ekran, 4 bosqich tugmasi)
+              .../post/:id          O'sha composer, tahrirlash
+```
+
+Marshrutlar `App.tsx` da; hammasi `RequirePerm perm="marketing.content"` ostida.
+⚠️ Composer layoutdan **TASHQARIDA** (`kontent` ning bolasi emas, aka-uka marshrut) — uzun forma
+yonida sub-nav va sahifa sarlavhasi faqat joyni egallardi.
+
+**Fayl tuzilishi** — `pages/admin/marketing/content/`:
+
+| Fayl | Vazifasi |
+|---|---|
+| `ContentLayout` | o'rovchi: sub-nav, «Yangilash», «Yangi post», diagnostika bannerlari, `Outlet` konteksti |
+| `ContentQueue` | Navbat (index) — kelajak: kalendar + kun bo'yicha guruhlangan ro'yxat |
+| `ContentPublished` | Joylanganlar — o'tmish: **galereya** (Instagram profilining o'zi galereya) |
+| `ContentStatus` | Holat va limit — «nega chiqmayapti», kunlik limit, media talablari |
+| `ContentComposer` | Post muharriri (to'liq ekran, 4 bosqich) |
+| `MediaEditor` · `CaptionAi` · `IgPreview` | composer bo'laklari: media, AI matn, «telefon» ko'rinishi |
+| `helpers.ts` | UMUMIY SOF FUNKSIYALAR — holat ranglari, sana formati, `loadAllPosts`. ⚠️ JSX YO'Q (eslint `react-refresh/only-export-components`, `lib/month.ts` bilan bir xil konvensiya) |
+
+Sub-nav sanoqlari `GET content/status` dan (`scheduled + processing`, `failed`) — u FAQAT bazadan
+o'qiydi, ya'ni har sub-sahifada chaqirish xavfsiz. **Kunlik limit** endpointi esa har chaqirilganda
+Meta'ga so'rov yuboradi va ATAYIN faqat «Holat va limit» sahifasida.
+
+#### 🔴 `status` filtri SERVERGA YUBORILMAYDI — kesim KLIENTDA
+
+`ContentQueue` ham, `ContentPublished` ham `loadAllPosts({ …, status: 'all' })` bilan so'raydi va
+holat bo'yicha filtrni **xotirada** qo'llaydi.
+
+NEGA: backend jamlanmani (`IgPostTotals`) **status filtri QO'LLANGANDAN KEYIN** hisoblaydi
+(`InstagramController.Content.cs` → `ContentPosts`), ya'ni `status=published` bilan so'ralsa
+`failed` maydoni har doim **0** chiqadi — KPI raqamlari yolg'on nol ko'rsatardi. Loyihadagi qattiq
+qoida: ekrandagi ikki son bir-biriga mos kelishi SHART. Yon ta'siri ham foydali — kesim
+almashganda qayta so'rov ketmaydi.
+
+⚠️ Kun bo'yicha filtr ham KLIENTDA: kalendar katagidagi son va ro'yxat AYNAN bitta manbadan
+chiqsin (aks holda katakda «3» turib, ro'yxatda 2 ta post ko'rinardi).
+
+#### ⚠️ `loadAllPosts` qatorlarni `id` bo'yicha DEDUP qiladi
+
+Oylik ro'yxat `MAX_PAGES` (4 × 50 = 200 post) gacha ketma-ket sahifalanadi va `Set<id>` bilan
+dublikatlar tashlanadi.
+
+NEGA: backend `OrderByDescending(p => p.ScheduledAt)` + `Skip/Take` bilan sahifalaydi va
+**IKKILAMCHI tartiblovchisi YO'Q** — bir xil `ScheduledAt` li postlarning tartibi so'rovdan
+so'rovga o'zgarishi mumkin. Sahifa chegarasida (50 ga karrali) bitta post IKKI MARTA kelishi yoki
+umuman TUSHIB QOLISHI mumkin edi; birinchisi React `key` dublikatini va kalendarda yolg'on sonni
+berardi.
+
+🔧 **OCHIQ ISH — asl yechim BACKENDDA:** `ContentPosts` so'roviga `.ThenByDescending(p => p.Id)`
+qo'shilishi kerak (hali qo'shilmagan). Klientdagi dedup — arzon himoya, sabab emas.
+
+⚠️ `truncated` DEDUPDAN KEYINGI songa qarab hisoblanadi va ro'yxat ostida OCHIQ yoziladi —
+sahifalash beqarorligi tufayli tushib qolgan post jimgina yo'qolmasin.
+
+#### 🔴 DIAGNOSTIKA OGOHLANTIRISHLARI — `ContentLayout` da, HAMMA sub-sahifada
+
+«Instagram akkaunti ulanmagan» va «Chop etish moduli o'chiq» bannerlari `<Outlet />` USTIDA
+chiziladi (`ContentAlerts`).
+
+NEGA: ilgari ular faqat «Holat va limit» sahifasida, xotirjam kartochka ko'rinishida edi —
+natijada modul o'chiq bo'lganda operator **Navbatda post yaratar, yashil «Post navbatga qo'shildi»
+xabarini olar va postlar HECH QACHON chiqmasdi**. Sub-nav'dagi yagona sanoq `failed`, modul o'chiq
+bo'lganda esa u ham 0 (post umuman urinilmaydi) — ya'ni ekranda birorta belgi qolmasdi.
+
+⚠️ SCOPE ogohlantirishi (sariq) faqat akkaunt ULANGAN **va** modul YOQILGAN bo'lganda chiziladi:
+modul o'chiq bo'lsa «scope noma'lum» ikkinchi darajali gap bo'lib, haqiqiy sababni shovqin bilan
+ko'mib qo'yardi.
+
+⚠️ Diagnostikani o'qish XATOSI esa layoutda CHIZILMAYDI (har sahifa tepasida takrorlanadigan
+qizil chiziq bo'lardi) — matn kontekst orqali «Holat va limit» sahifasiga uzatiladi, u yerda bu
+ma'lumot sahifaning MAZMUNI. Jim yutilmaydi.
+
+#### ⚠️ Composer → Navbat KONTRAKTI: `location.state`
+
+Composer saqlagandan keyin `navigate(QUEUE, { state: { mkNotice, month? } })` bilan qaytadi:
+
+| Maydon | Nima |
+|---|---|
+| `mkNotice` | Navbat tepasida chiqadigan yashil xabar («Reja yangilandi», «Post navbatga qo'shildi») |
+| `month` | `"yyyy-MM"` — post rejalashtirilgan oy |
+
+⚠️ `month` NEGA kerak: Navbat har ochilganda JORIY oyni ko'rsatadi. Sentabrga rejalashtirilgan
+postni tahrirlab qaytgan odam **o'z postini ko'rmasdi** («saqlandi» deydi, ro'yxatda yo'q).
+Buzuq/bo'sh `month` umuman yuborilmaydi va Navbat uni baribir jim tashlaydi.
+
+#### 🔴 `/yangi` va `/post/:id` — SIBLING marshrutlar, komponent QAYTA MOUNT BO'LMAYDI
+
+Ikkala marshrut ham AYNAN bitta elementni chizadi, ya'ni React Router uni qayta ishlatadi
+(unmount/mount YO'Q). Shuning uchun yuklash effektida **`else` tarmog'i MAJBURIY**: `id` yo'q
+bo'lsa forma **majburan bo'sh holatga tiklanadi** (post, tur, matn, media, sozlamalar, vaqt,
+`baseline`, fayl va AI jarayonlari).
+
+Busiz: A postini tahrirlab, brauzerning «Orqaga» tugmasi bilan `/yangi` ga o'tgan odam A ning
+to'ldirilgan formasini ko'rardi va `post` hamon A bo'lgani uchun «Saqlash» YANGI post yaratmay,
+**A ni USTIGA YOZARDI**.
+
+⚠️ `?kun=` (kalendardan kelgan kun) AYNAN shu tiklashda qo'llanadi. Ilgari alohida «faqat mount»
+effekti bor edi va ikkisi TO'QNASHARDI (tiklash vaqtni bo'shatar, mount effekti qayta yozardi).
+
+⚠️ Faol bosqich URL'da (`?bosqich=matn`, `replace: true`) — sahifa yangilansa yoki havola
+ulashilsa o'sha joy ochiladi, brauzer tarixi esa bosqichlar bilan to'lmaydi.
+
+⚠️ Bosqichlar **SEHRGAR (wizard) EMAS** va qulflanmaydi: tahrirlashda odam ko'pincha BITTA
+narsani (masalan vaqtni) o'zgartirgani keladi. Shuning uchun "uzoq" holat (fayl yuklash, AI
+so'rovi) bosqich komponentlarida EMAS, `ContentComposer` ning O'ZIDA saqlanadi — bosqich almashuvi
+komponentni unmount qiladi va 40 MB video yuklanayotgan jarayon jimgina yo'qolardi.
+
+#### `--mk-head-h` — yopishqoq sarlavha balandligi YAGONA MANBADAN
+
+`styles/marketing.css` dagi CSS o'zgaruvchi. Undan hisoblanadi: `.inbox` balandligi
+(`100vh − 113px − var(--mk-head-h) − var(--mk-head-gap)`), `.mk-day-head` ning sticky `top` i va
+`[id]` elementlarining `scroll-margin-top` i.
+
+| Holat | Qiymat |
+|---|---|
+| sub-nav'siz sahifa | `79px` |
+| sub-nav bor sahifa (`.mk-shell:has(.mk-subnav)`) | `131px` |
+| mobil (`@media`) | `72px` / `124px` |
+
+⚠️ **Sarlavha tuzilishini o'zgartirsangiz shu o'zgaruvchini ham yangilang** — ilgari har joyda o'z
+konstantasi bor edi va ular DRIFT qilgan: natijada sahifada IKKINCHI skroll paydo bo'lar yoki kun
+sarlavhasi sahifa sarlavhasi ostiga kirib ketardi.
+
+#### Marketing sahifalari — TO'LIQ KENGLIKDA va TABLARGA bo'lingan
+
+- `MarketingPage` dan **`full` propi OLIB TASHLANDI**, `content-narrow` o'chirilgan: sahifa DOIM
+  to'liq kenglikda. Sabab — navbat, galereya, jadval va composer tor ustunga sig'masdi.
+- **Sozlamalar** (`InstagramSettings`) va **Reklama statistikasi** (`InstagramAdsStats`) sahifa
+  ichidagi tab tugmalariga bo'lingan; faol tab manzilda saqlanadi — **`?bolim=…`** (standart tabda
+  parametr umuman yozilmaydi). Havola nusxa qilinsa yoki sahifa yangilansa o'sha joy ochiladi.
 
 ---
 

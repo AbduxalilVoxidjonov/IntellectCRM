@@ -358,9 +358,13 @@ function IntentTable({
 /**
  * Bitta juftlik: chapda AI taklifi, o'ngda operator yuborgani.
  *
- * ⚠️ Ustunlar `mk-cols2` bilan tizilgan: bo'lak ikkita bo'lgani uchun keng ekranda ular
- * yonma-yon (taklif ↔ javob), 860px dan tor ekranda esa ustma-ust tushadi — media
- * so'rovini bu yerda qo'lda yozish shart emas.
+ * 🔴 `mk-cols2` bu yerda ATAYIN ISHLATILMAYDI. U `minmax(430px, 1fr)` bo'lgani uchun
+ * ikkita ustun sig'ishi uchun ~876px kerak — ya'ni noutbukdagi odatiy 1152px va undan tor
+ * ekranlarda taklif bilan javob USTMA-UST tushib qolardi. Sahifaning butun ma'nosi esa
+ * ikkovini YONMA-YON solishtirish; ustma-ust tushgan ikki matnni taqqoslab bo'lmaydi.
+ *
+ * Shuning uchun grid AYNAN shu yerda, inline yoziladi: `minmax(300px, 1fr)` bilan ustunlar
+ * ~616px dan keng joyda yonma-yon turadi, telefonda esa tabiiy ravishda bittaga tushadi.
  */
 function PairRow({ pair }: { pair: IgQualityPair }) {
   const [open, setOpen] = useState(false)
@@ -385,7 +389,8 @@ function PairRow({ pair }: { pair: IgQualityPair }) {
         </span>
       </div>
 
-      <div className="mk-cols2">
+      {/* ⚠️ Kenglik chegarasi 300px — `mk-cols2` (430px) bu yerda juda keng edi. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
         <TextBox label="AI taklif qilgan" text={cut(pair.aiText)} muted />
         <TextBox label="Operator yuborgan" text={cut(pair.sentText)} />
       </div>

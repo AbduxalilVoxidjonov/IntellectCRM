@@ -117,9 +117,13 @@ public class SmsQueueService(
         {
             if (ct.IsCancellationRequested) break;
             var ok = false;
+            // `SendOneAsync` oxirida lid tarixiga `note` hodisasi qo'shiladi — u YOZILGANINI
+            // faqat metod istisnosiz qaytganidan bilamiz (aks holda kartani bekorga yangilardik).
+            var noted = false;
             try
             {
                 ok = await SendOneAsync(db, job, t, ct);
+                noted = true;
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
@@ -131,6 +135,16 @@ public class SmsQueueService(
             // HAR SMS'dan keyin saqlaymiz — uzilib qolsa ham yuborilganlar tarixda qoladi.
             try { await db.SaveChangesAsync(ct); }
             catch (Exception ex) { logger.LogWarning(ex, "SMS jurnalini saqlashda xato (partiya {BatchId})", job.BatchId); }
+            // Lid kartasi JORIY holatga keltiriladi: yangi `note` hodisasi kartada ko'rinadi,
+            // sinxronizatsiyasiz esa karta JIMGINA eskirardi. SaveChanges'dan KEYIN — karta
+            // bazadagi yozilgan holatdan quriladi. Kartasi yo'q lidga yangi xabar YUBORILMAYDI.
+            // ⚠️ TelegramService konstruktorga EMAS, mavjud provayderdan olinadi: u singleton,
+            // ya'ni ildiz provayderdan xavfsiz chiqadi va navbat xizmatining imzosi o'zgarmaydi.
+            // Sozlanmagan/ro'yxatdan o'tmagan bo'lsa (masalan testda) `null` qaytadi va SMS
+            // yuborish oqimi hech qanday o'zgarishsiz davom etadi.
+            if (noted && t.LeadId is { Length: > 0 } cardLeadId && job.LeadNote is { Length: > 0 }
+                && services.GetService<TelegramService>() is { } telegram)
+                await LeadNotifier.SyncCardAsync(db, telegram, cardLeadId, ct);
             if (entry is not null)
             {
                 entry.Done++;

@@ -9,7 +9,7 @@
  * ⚠️ Bu fayl FAQAT komponent va TIP eksport qiladi (eslint
  * `react-refresh/only-export-components`) — sof funksiya qo'shilmaydi.
  */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
@@ -204,6 +204,37 @@ export function MkSubnav({ items }: { items: MkSubnavItem[] }) {
   )
 }
 
+/* ---------------- FON SKROLLI QULFI ---------------- */
+
+/**
+ * Fon skrollini bloklovchi YAGONA mexanizm — GLOBAL SANAGICH bilan.
+ *
+ * ⚠️ Nega sanagich: ilgari har oyna `document.body.style.overflow` ning o'z `prev`
+ * qiymatini ushlab turardi. Ikkita oyna ichma-ich ochilib (masalan `MkSheet` ichidan
+ * tasdiq `MkDialog`i) TASHQISI oldin unmount bo'lsa, ichkisi yopilganda `prev = 'hidden'`
+ * ni tiklab qo'yardi va sahifa ABADIY skrollanmay qolardi.
+ * Endi asl qiymat FAQAT birinchi qulfda saqlanadi va FAQAT oxirgisi bo'shatilganda
+ * tiklanadi. Qaytgan funksiya ikki marta chaqirilsa ikkinchisi e'tiborsiz qoladi
+ * (React 18 StrictMode'dagi qo'sh effekt sanagichni buzmasin).
+ */
+let scrollLockCount = 0
+let scrollLockPrev = ''
+
+function lockBodyScroll(): () => void {
+  if (scrollLockCount === 0) {
+    scrollLockPrev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  }
+  scrollLockCount += 1
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    scrollLockCount = Math.max(0, scrollLockCount - 1)
+    if (scrollLockCount === 0) document.body.style.overflow = scrollLockPrev
+  }
+}
+
 /* ---------------- TO'LIQ EKRANLI OYNA ---------------- */
 
 /**
@@ -215,7 +246,7 @@ export function MkSubnav({ items }: { items: MkSubnavItem[] }) {
  * yo'qotmaydi va amal tugmalari doim ko'rinadi.
  */
 export function MkSheet({
-  title, sub, icon, onClose, footer, children,
+  title, sub, icon, onClose, footer, children, dirty,
 }: {
   title: string
   sub?: string
@@ -223,50 +254,86 @@ export function MkSheet({
   onClose: () => void
   footer?: ReactNode
   children: ReactNode
+  /** true bo'lsa Esc va ✕ darhol yopmaydi — avval tasdiq so'raladi. */
+  dirty?: boolean
 }) {
+  /**
+   * ⚠️ Yopishning IKKI yo'li BIR XIL xavfsizlik darajasida bo'lishi shart.
+   * Overlay bosilganda yopilish ATAYIN yo'q (to'ldirilgan forma yo'qolmasin), Esc esa
+   * AYNAN o'sha ma'lumotni bir zumda o'chirib yuborardi — mantiqan ziddiyat edi.
+   * Endi `dirty` bo'lsa ikkalasi ham tasdiq so'raydi.
+   */
+  const [askClose, setAskClose] = useState(false)
+  const requestClose = () => { if (dirty) setAskClose(true); else onClose() }
+
   // Esc bilan yopish + fon skrollini bloklash: aks holda sahifa oyna ortida
   // siljib, yopilgandan keyin foydalanuvchi boshqa joyda turib qolardi.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      // Tasdiq oynasi ochiq bo'lsa Esc AYNAN o'shanga tegishli (uni MkDialog yopadi) —
+      // aks holda ikkala tinglovchi ham ishlab, tasdiqni yopib bo'lmasdi.
+      if (askClose) return
+      if (dirty) setAskClose(true)
+      else onClose()
+    }
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlock = lockBodyScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
+      unlock()
     }
-  }, [onClose])
+  }, [onClose, dirty, askClose])
 
+  // ⚠️ `.marketing-app` o'rovchisi ATAYIN takrorlangan: oyna `MarketingPage`
+  // daraxtidan TASHQARIDA (fragment ichida) chizilsa ham scope'langan stillar
+  // va CSS o'zgaruvchilari ishlashda davom etsin. U AYRI div — selektor
+  // `.marketing-app .mk-sheet-overlay` AVLODni kutadi, bitta elementdagi
+  // ikkala klass unga mos kelmasdi.
+  // Tasdiq oynasi (`MkDialog`) o'z `.marketing-app` o'rovchisi bilan keladi va
+  // varaqdan KEYIN chiziladi — shuning uchun butun natija fragmentga o'ralgan.
   return (
-    // ⚠️ `.marketing-app` o'rovchisi ATAYIN takrorlangan: oyna `MarketingPage`
-    // daraxtidan TASHQARIDA (fragment ichida) chizilsa ham scope'langan stillar
-    // va CSS o'zgaruvchilari ishlashda davom etsin. U AYRI div — selektor
-    // `.marketing-app .mk-sheet-overlay` AVLODni kutadi, bitta elementdagi
-    // ikkala klass unga mos kelmasdi.
-    <div className="marketing-app">
-      <div className="mk-sheet-overlay" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="mk-sheet">
-          <div className="mk-sheet-head">
-            {icon && <div className="mk-sheet-ic"><Icon name={icon} /></div>}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="mk-sheet-title">{title}</div>
-              {sub && <div className="mk-sheet-sub">{sub}</div>}
+    <>
+      <div className="marketing-app">
+        <div className="mk-sheet-overlay" role="dialog" aria-modal="true" aria-label={title}>
+          <div className="mk-sheet">
+            <div className="mk-sheet-head">
+              {icon && <div className="mk-sheet-ic"><Icon name={icon} /></div>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="mk-sheet-title">{title}</div>
+                {sub && <div className="mk-sheet-sub">{sub}</div>}
+              </div>
+              <button className="icon-btn" onClick={requestClose} title="Yopish (Esc)" aria-label="Yopish">
+                <Icon name="close" style={{ width: 18, height: 18 }} />
+              </button>
             </div>
-            <button className="icon-btn" onClick={onClose} title="Yopish (Esc)" aria-label="Yopish">
-              <Icon name="close" style={{ width: 18, height: 18 }} />
-            </button>
-          </div>
-          <div className="mk-sheet-body">
-            <div className="mk-sheet-inner">{children}</div>
-          </div>
-          {footer && (
-            <div className="mk-sheet-foot">
-              <div className="mk-sheet-inner mk-sheet-foot-inner">{footer}</div>
+            <div className="mk-sheet-body">
+              <div className="mk-sheet-inner">{children}</div>
             </div>
-          )}
+            {footer && (
+              <div className="mk-sheet-foot">
+                <div className="mk-sheet-inner mk-sheet-foot-inner">{footer}</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      {askClose && (
+        <MkDialog
+          title="O'zgarishlar saqlanmaydi. Yopilsinmi?"
+          tone="danger"
+          onClose={() => setAskClose(false)}
+          footer={(
+            <>
+              <button className="btn btn-ghost" onClick={() => setAskClose(false)}>Bekor qilish</button>
+              <button className="btn btn-primary" onClick={onClose}>Ha, yopilsin</button>
+            </>
+          )}
+        >
+          Kiritilgan ma'lumot saqlanmagan. Oynani yopsangiz u yo'qoladi.
+        </MkDialog>
+      )}
+    </>
   )
 }
 
@@ -285,10 +352,17 @@ export function MkDialog({
   footer?: ReactNode
   children: ReactNode
 }) {
+  // ⚠️ Fon skrolli bu yerda ham bloklanadi: o'chirish tasdig'i ochiq turganda
+  // g'ildirak orqadagi ro'yxatni siljitardi va tasdiqdan keyin foydalanuvchi
+  // butunlay boshqa joyda turib qolardi. Mexanizm `MkSheet` bilan BITTA (sanagichli).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const unlock = lockBodyScroll()
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      unlock()
+    }
   }, [onClose])
 
   return (

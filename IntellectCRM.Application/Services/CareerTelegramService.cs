@@ -23,6 +23,24 @@ public class CareerTelegramService(IHttpClientFactory httpFactory, ILogger<Caree
     public bool IsConfigured => !string.IsNullOrWhiteSpace(BotToken);
 
     private HttpClient Client() => httpFactory.CreateClient("telegram");
+
+    /// <summary>Long polling uchun mijoz — ALOHIDA (uzoqroq) timeout bilan.
+    /// <para>⚠️ NEGA kerak: "telegram" nomli mijoz <c>Program.cs</c> da QISQA timeout bilan
+    /// ro'yxatga olingan (odatdagi <c>sendMessage</c>/<c>getMe</c> so'rovlari CRM endpointlarini
+    /// osiltirib qo'ymasin). <c>getUpdates</c> esa ATAYIN <paramref name="timeoutSec"/> sekundgacha
+    /// javobsiz turadi — qisqa timeout uni har safar uzib, <see cref="TaskCanceledException"/>
+    /// (ya'ni <see cref="OperationCanceledException"/>) chiqarardi va bot sikli to'xtab qolardi.</para>
+    /// <para><c>CreateClient</c> HAR chaqiruvda YANGI <see cref="HttpClient"/> nusxasini qaytaradi
+    /// (handler pulda umumiy), shuning uchun Timeout'ni shu nusxada o'zgartirish xavfsiz —
+    /// boshqa chaqiruvlarga (qisqa so'rovlarga) ta'sir qilmaydi.</para></summary>
+    private HttpClient PollingClient(int timeoutSec)
+    {
+        var client = Client();
+        // Telegram javobi + tarmoq zaxirasi: uzilish faqat HAQIQATAN osilib qolganda bo'lsin.
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(timeoutSec, 0) + 15);
+        return client;
+    }
+
     private string ApiBase => $"https://api.telegram.org/bot{BotToken}";
 
     /// <summary>Matn yuboradi (ixtiyoriy reply_markup / parse_mode bilan). Muvaffaqiyat — true.</summary>
@@ -75,8 +93,9 @@ public class CareerTelegramService(IHttpClientFactory httpFactory, ILogger<Caree
             var url = $"{ApiBase}/getUpdates?offset={offset}&timeout={timeoutSec}"
                       + "&allowed_updates=[\"message\",\"callback_query\"]";
             using var req = new HttpRequestMessage(HttpMethod.Get, url);
-            // Long polling timeout'i HttpClient'nikidan kichik bo'lishi kerak.
-            var resp = await Client().SendAsync(req, HttpCompletionOption.ResponseContentRead, ct);
+            // ⚠️ Odatdagi (qisqa timeout'li) mijoz EMAS: long polling timeout'i HttpClient'nikidan
+            // KICHIK bo'lishi shart, aks holda so'rov javob kelishidan oldin uziladi.
+            var resp = await PollingClient(timeoutSec).SendAsync(req, HttpCompletionOption.ResponseContentRead, ct);
             if (!resp.IsSuccessStatusCode) return null;
             var body = await resp.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(body);

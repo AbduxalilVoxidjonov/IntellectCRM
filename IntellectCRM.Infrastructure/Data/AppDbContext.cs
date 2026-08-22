@@ -276,6 +276,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // indekslay olmaydi — yuqoridagi ro'yxat bilan bir xil qoida).
         b.Entity<LeadTelegramMessage>().Property(m => m.LeadId).HasMaxLength(200);
         b.Entity<LeadTelegramMessage>().HasIndex(m => new { m.LeadId, m.ChatId }).IsUnique();
+        // Lid o'chirilsa uning karta yozuvlari ham BAZA darajasida o'chadi (cascade).
+        // NEGA: tozalash ilgari butunlay `LeadNotifier.MarkDeletedAsync` ga tayanardi, u esa
+        // xatoni JIM yutadi — SaveChanges yiqilsa yetim qatorlar ABADIY qolardi. Yetim qator
+        // zararsiz emas: (LeadId, ChatId) unikal bo'lgani uchun o'sha lid id qayta ishlatilganda
+        // (import/tiklash) yangi karta insert'i 23505 bilan yiqilardi. Sxema o'zi kafolatlasin.
+        // ⚠️ Navigatsiya xossasi ATAYIN yo'q (`HasOne<Lead>()` navigatsiyasiz shakli) — u DTO
+        // seriyalash va `Include` xulqiga ta'sir qilishi mumkin edi.
+        b.Entity<LeadTelegramMessage>()
+            .HasOne<Lead>()
+            .WithMany()
+            .HasForeignKey(m => m.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
         // Lid TELEFON KALITI (oxirgi 9 raqam) — "shu odamning lidi bormi" savolini SQL tomonda
         // hal qiladi (`LeadIntake.FindByPhoneAsync`). Qiymatni SaveChanges o'zi yozadi.
         b.Entity<Lead>().Property(l => l.PhoneKey).HasMaxLength(16);

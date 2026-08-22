@@ -61,6 +61,15 @@ import {
  * ⚠️ «Saqlash» tugmasi ATAYIN tablardan TASHQARIDA (yopishqoq sarlavhada) va BUTUN
  * formani saqlaydi — bayroqlar bitta `IgSettings` obyektida. Har tabga alohida saqlash
  * qo'yilsa foydalanuvchi "qaysi tugma nimani saqlaydi" ni bilmasdi.
+ *
+ * ⚠️ SAQLASH NATIJASI («Sozlamalar saqlandi» yoki xato) ham AYNI SHU yopishqoq blokda,
+ * tab tugmalari ostida. Tugma doim ko'rinib turib, javobi sahifaning eng tepasida oddiy
+ * oqimda qolsa — uzun tabda pastga tushgan foydalanuvchi hech qanday natija ko'rmasdi va
+ * "hech narsa bo'lmadi" deb qayta-qayta bosardi.
+ *
+ * ⚠️ ISTISNO — «Reklama» tabidagi uchta karta (Lead Ads · Ads Insights · CAPI) O'Z
+ * endpointi va O'Z «Saqlash» tugmasiga ega. Har birida buni ochiq aytadigan ogohlantirish
+ * turadi: tepadagi umumiy tugma u maydonlarga TEGMAYDI.
  */
 
 /**
@@ -133,6 +142,42 @@ export function InstagramSettings() {
     // sahifadan CHIQSIN, tablar bo'ylab yurmasin).
     setParams(next, { replace: true })
   }
+
+  /**
+   * BOSHQA TABDAGI kartaga sakrash ("Akkaunt kartasiga" tugmasi).
+   *
+   * 🔴 `setTimeout(…, 50)` ISHLATILMAYDI. react-router v7 da navigatsiya
+   * `startTransition` ichida bajariladi, ya'ni 50 ms ichida tab almashishi
+   * KAFOLATLANMAGAN: sekin qurilmada nishon karta hali `display: none` panelda turadi va
+   * `scrollIntoView` JIMGINA hech narsa qilmaydi — aynan tuzatilmoqchi bo'lgan nosozlik
+   * qaytadi.
+   *
+   * Shuning uchun "sakrash kerak" HOLATDA saqlanadi va effekt AYNAN tab chizilgandan
+   * keyin ishlaydi (`jump.tab !== tab` bo'lsa kutiladi — vaqtga umuman tayanilmaydi).
+   * `requestAnimationFrame` — brauzer yangi joylashuvni hisoblab bo'lgan kadrda surish
+   * uchun.
+   *
+   * ⚠️ `setJump(null)` AYNAN `raf` ICHIDA: tashqarida chaqirilsa qayta chizilish effekt
+   * tozalagichini ishga tushirib, `cancelAnimationFrame` hali bajarilmagan sakrashni
+   * bekor qilardi.
+   */
+  const [jump, setJump] = useState<{ tab: TabKey; id: string } | null>(null)
+
+  const goToCard = (key: TabKey, id: string) => {
+    goTab(key)
+    setJump({ tab: key, id })
+  }
+
+  useEffect(() => {
+    if (!jump || jump.tab !== tab) return
+    const raf = requestAnimationFrame(() => {
+      // Karta yopishqoq sarlavha ortida qolmasligi CSS'dagi `scroll-margin-top`
+      // yordamchisi bilan ta'minlanadi (`[id]` selektori, `--mk-head-h` dan).
+      document.getElementById(jump.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setJump(null)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [jump, tab])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -231,24 +276,56 @@ export function InstagramSettings() {
         </button>
       )}
       subnav={(
-        /* Tugmalar MARSHRUTGA emas, HOLATGA bog'langan — shuning uchun `MkSubnav` emas,
-           lekin ko'rinish bir xil bo'lsin deb AYNI o'sha klasslar ishlatiladi.
-           Sarlavha bloki yopishqoq, ya'ni uzun tabda ham qaysi bo'limdaligi ko'rinib turadi
-           va «Saqlash» tugmasi doim qo'l ostida bo'ladi. */
-        <nav className="mk-subnav" aria-label="Sozlamalar bo'limlari">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              className={'mk-subnav-item' + (tab === t.key ? ' active' : '')}
-              aria-current={tab === t.key ? 'page' : undefined}
-              onClick={() => goTab(t.key)}
-            >
-              <Icon name={t.icon} />
-              <span>{t.label}</span>
-            </button>
-          ))}
-        </nav>
+        <>
+          {/* Tugmalar MARSHRUTGA emas, HOLATGA bog'langan — shuning uchun `MkSubnav` emas,
+              lekin ko'rinish bir xil bo'lsin deb AYNI o'sha klasslar ishlatiladi.
+              Sarlavha bloki yopishqoq, ya'ni uzun tabda ham qaysi bo'limdaligi ko'rinib
+              turadi va «Saqlash» tugmasi doim qo'l ostida bo'ladi.
+
+              ⚠️ `aria-current="page"` ATAYIN OLIB TASHLANDI: `page` qiymati HAVOLA uchun
+              ("ochiq sahifa"), bu yerda esa marshrut o'zgarmaydi — bitta sahifa ichida
+              qolamiz. To'g'ri semantika — `tablist`/`tab` + `aria-selected`. */}
+          <nav className="mk-subnav" role="tablist" aria-label="Sozlamalar bo'limlari">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                className={'mk-subnav-item' + (tab === t.key ? ' active' : '')}
+                onClick={() => goTab(t.key)}
+              >
+                <Icon name={t.icon} />
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* 🔴 SAQLASH NATIJASI — AYNAN SHU YERDA, tab qatori ostida.
+              «Saqlash» tugmasi yopishqoq sarlavhada, ya'ni doim ko'rinadi. Xabar esa
+              ilgari kontentning eng tepasida, oddiy oqimda turardi: uzun tabda («Akkaunt
+              va ulanish», «Reklama») pastga tushib tugmani bosgan odam na «Sozlamalar
+              saqlandi» ni, na XATO matnini ko'rardi — "hech narsa bo'lmadi" deb qayta-qayta
+              bosardi. Endi xabar tugma bilan BIR blokda va u ham yopishqoq. */}
+          {error && (
+            <div className="mk-notice tone-danger" style={{ marginBottom: 0 }} role="alert">
+              <Icon name="warn" style={{ width: 17, height: 17, flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0 }}>{error}</span>
+              <button className="mk-notice-x" onClick={() => setError('')} title="Yopish" aria-label="Yopish">
+                <Icon name="close" style={{ width: 15, height: 15 }} />
+              </button>
+            </div>
+          )}
+          {saved && !error && (
+            <div className="mk-notice tone-success" style={{ marginBottom: 0 }} role="status">
+              <Icon name="check" style={{ width: 17, height: 17, flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0 }}>{saved}</span>
+              <button className="mk-notice-x" onClick={() => setSaved('')} title="Yopish" aria-label="Yopish">
+                <Icon name="close" style={{ width: 15, height: 15 }} />
+              </button>
+            </div>
+          )}
+        </>
       )}
     >
       <div className="fade-up">
@@ -262,14 +339,6 @@ export function InstagramSettings() {
             <button className="btn btn-ghost btn-sm" onClick={() => { params.delete('connected'); setParams(params, { replace: true }) }}>
               <Icon name="close" /> Yopish
             </button>
-          </div>
-        )}
-
-        {error && <div style={{ marginBottom: 16 }}><MkError text={error} /></div>}
-        {saved && !error && (
-          <div className="mk-alert" style={{ borderColor: 'var(--success)', background: 'var(--success-soft)', color: '#0d6b4b' }}>
-            <Icon name="check" style={{ width: 18, height: 18, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>{saved}</div>
           </div>
         )}
 
@@ -545,7 +614,7 @@ export function InstagramSettings() {
             canEdit={canEdit}
             enabled={form.instagramPublishEnabled}
             onPatch={patch}
-            onGoToAccount={() => goTab('akkaunt')}
+            onGoToAccount={() => goToCard('akkaunt', 'ig-account-card')}
           />
         </TabPanel>
 
@@ -721,6 +790,24 @@ function LeadAdsBlock({
           <MkError text={'Oxirgi xato: ' + status.lastError} />
         </div>
       )}
+
+      {/* 🔴 QAYSI TUGMA NIMANI SAQLAYDI — F29.
+          Sahifa tepasida DOIM ko'rinib turgan yirik ko'k «Saqlash» bor, bu maydonlar esa
+          `IgSettings` da EMAS: ular O'Z endpointida (`ads/page`) va saqlashdan OLDIN
+          Meta'da tekshiriladi. Izohsiz qoldirilsa admin Page ID'ni kiritib TEPADAGI
+          tugmani bosardi va qiymat jimgina yo'qolardi. */}
+      <div className="mk-alert" style={{ marginTop: 18, marginBottom: 0 }}>
+        <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <div className="mk-alert-title">Bu ikki maydon O'Z «Saqlash» tugmasi bilan saqlanadi</div>
+          <div>
+            <b>Facebook Page ID</b> va <b>Page Access Token</b> quyidagi <b>«Sahifani ulash va
+            tekshirish»</b> tugmasi bilan saqlanadi — sahifa tepasidagi umumiy «Saqlash»
+            tugmasi bu maydonlarga <b>TEGMAYDI</b>. Yuqoridagi bayroq va pastdagi «Lid
+            manbasi» esa aksincha: ular tepadagi umumiy «Saqlash» bilan saqlanadi.
+          </div>
+        </div>
+      </div>
 
       <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div className="field">
@@ -982,6 +1069,22 @@ function AdsStatsBlock({
         </div>
       )}
 
+      {/* 🔴 QAYSI TUGMA NIMANI SAQLAYDI — F29 (yuqoridagi karta bilan bir xil sabab).
+          Bayroq `IgSettings` da (umumiy «Saqlash»), akkaunt va token esa O'Z endpointida
+          (`adsstats/account`) — chunki ular saqlashdan OLDIN Meta'da tekshiriladi. */}
+      <div className="mk-alert" style={{ marginTop: 18, marginBottom: 0 }}>
+        <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <div className="mk-alert-title">Bu ikki maydon O'Z «Saqlash» tugmasi bilan saqlanadi</div>
+          <div>
+            <b>Reklama akkaunti ID</b> va <b>Access Token</b> quyidagi <b>«Ulash va
+            tekshirish»</b> tugmasi bilan saqlanadi — sahifa tepasidagi umumiy «Saqlash»
+            tugmasi bu maydonlarga <b>TEGMAYDI</b>. Yuqoridagi bayroq esa aksincha: u
+            tepadagi umumiy «Saqlash» bilan saqlanadi.
+          </div>
+        </div>
+      </div>
+
       <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div className="field">
           <label className="field-label">Reklama akkaunti ID (Ad Account ID)</label>
@@ -1129,6 +1232,23 @@ function CapiBlock({ canEdit }: { canEdit: boolean }) {
             <Icon name="send" /> {busy === 'send' ? 'Yuborilmoqda…' : 'Hoziroq yuborish'}
           </button>
         )}
+      </div>
+
+      {/* 🔴 QAYSI TUGMA NIMANI SAQLAYDI — F29.
+          Bu kartaning HECH BIR maydoni `IgSettings` da emas: bayroq ham, Dataset ID ham,
+          token ham, hodisa nomlari ham — hammasi `capi/settings` endpointida va
+          kartaning O'Z tugmasi bilan saqlanadi. */}
+      <div className="mk-alert" style={{ marginBottom: 16 }}>
+        <Icon name="warn" style={{ width: 18, height: 18, flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <div className="mk-alert-title">Bu karta butunlay O'Z «Saqlash» tugmasi bilan saqlanadi</div>
+          <div>
+            Quyidagi bayroq, <b>Dataset ID</b>, <b>Access Token</b> va ikkala <b>hodisa
+            nomi</b> kartaning eng ostidagi <b>«CAPI sozlamalarini saqlash»</b> tugmasi bilan
+            saqlanadi. Sahifa tepasidagi umumiy «Saqlash» tugmasi bu maydonlarga
+            <b> TEGMAYDI</b> — kiritilgan qiymat u bilan saqlanmaydi.
+          </div>
+        </div>
       </div>
 
       <Toggle
@@ -1309,7 +1429,11 @@ function ContentBlock({
   canEdit: boolean
   enabled: boolean
   onPatch: (p: Partial<IgSettings>) => void
-  /** Akkaunt kartasi BOSHQA tabda — tugma avval o'sha tabni ochishi kerak. */
+  /**
+   * Akkaunt kartasi BOSHQA tabda. Tab almashtirish HAM, kartaga surish HAM sahifaning
+   * o'zida (`goToCard`) — bu yerda vaqt bilan o'ynash (`setTimeout`) kerak emas va
+   * MUMKIN ham emas: tab qachon chizilishini faqat sahifa biladi.
+   */
   onGoToAccount?: () => void
 }) {
   const [status, setStatus] = useState<IgContentStatus | null>(null)
@@ -1320,20 +1444,6 @@ function ContentBlock({
       .then(setStatus)
       .catch((e) => setError(apiErrorMessage(e, "Kontent moduli holatini yuklab bo'lmadi")))
   }, [])
-
-  /**
-   * Akkaunt kartasiga o'tish.
-   *
-   * ⚠️ Sahifa tablarga bo'lingandan keyin karta BOSHQA tabda qoldi: faqat `scrollIntoView`
-   * qilinsa tugma JIMGINA hech narsa qilmasdi (element `display: none` ichida). Shuning
-   * uchun avval tab almashtiriladi, keyin — React chizib bo'lgach — kartaga suriladi.
-   */
-  const goToAccount = () => {
-    onGoToAccount?.()
-    setTimeout(() => {
-      document.getElementById('ig-account-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 50)
-  }
 
   return (
     <div className="card card-pad">
@@ -1403,7 +1513,7 @@ function ContentBlock({
                   ulash paytida so'raladi.
                 </div>
               </div>
-              <button className="btn btn-outline btn-sm" onClick={goToAccount}>
+              <button className="btn btn-outline btn-sm" onClick={() => onGoToAccount?.()}>
                 <Icon name="link" /> Akkaunt kartasiga
               </button>
             </div>
