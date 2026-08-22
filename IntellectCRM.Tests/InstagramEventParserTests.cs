@@ -747,4 +747,38 @@ public class IgAdAttributionTests
         Assert.Equal("", none.AdId);
         Assert.Equal("", none.CampaignId);
     }
+
+    /* ═══════════ QO'LLAB-QUVVATLANMAYDIGAN MAYDONLAR ═══════════ */
+
+    /// <summary>Meta'da keraksiz maydonga obuna bo'lib qolish oson. Undan kelgan hodisa
+    /// tashlanadi, lekin SABABI navbat yozuvida ko'rinishi kerak — aks holda admin
+    /// "hodisa kelyapti, hech narsa bo'lmayapti" holatining sababini topa olmasdi.</summary>
+    [Fact]
+    public void Qollab_quvvatlanmaydigan_maydon_nomi_qaytariladi()
+    {
+        const string raw = """
+            { "entry": [{ "id": "1", "changes": [
+                { "field": "mentions", "value": {} },
+                { "field": "live_comments", "value": {} },
+                { "field": "mentions", "value": {} } ]}]}
+            """;
+
+        var fields = InstagramEventParser.UnsupportedFields(raw);
+
+        Assert.Equal("mentions, live_comments", fields);   // takrorsiz va tartibi saqlanadi
+    }
+
+    /// <summary>Ishlanadigan maydonlar ro'yxatga TUSHMAYDI — aks holda normal izoh hodisasi
+    /// ham "qo'llab-quvvatlanmaydi" deb belgilanardi.</summary>
+    [Theory]
+    [InlineData("""{ "entry": [{ "id": "1", "changes": [{ "field": "comments", "value": {} }]}]}""")]
+    [InlineData("""{ "entry": [{ "id": "1", "changes": [{ "field": "messaging_policy_enforcement", "value": {} }]}]}""")]
+    [InlineData("""{ "entry": [{ "id": "1", "messaging": [] }]}""")]
+    [InlineData("")]
+    [InlineData("{ buzuq json")]
+    public void Ishlanadigan_va_buzuq_payloadda_bosh_satr(string raw)
+    {
+        Assert.Equal("", InstagramEventParser.UnsupportedFields(raw));
+    }
+
 }

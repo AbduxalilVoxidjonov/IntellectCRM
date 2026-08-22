@@ -482,4 +482,62 @@ public class InstagramHardeningTests
         Assert.Contains(Uri.EscapeDataString(IgConst.ContentPublishScope), with);
         Assert.DoesNotContain(IgConst.ContentPublishScope, Uri.UnescapeDataString(without));
     }
+
+    /* ═══════════ TASHQI MANZIL (webhook · OAuth redirect_uri) ═══════════ */
+
+    /// <summary>Kanonik host sozlangan bo'lsa — AYNAN o'sha ishlatiladi, so'rov hosti emas.
+    /// <para>⚠️ Bu OAuth'ning eng qiyin topiladigan xatosini yopadi: Meta'da ro'yxatdan o'tgan
+    /// <c>redirect_uri</c> harfma-harf bir xil bo'lishi shart, admin esa CRM'ni boshqa nom
+    /// (IP, <c>www.</c>, vaqtinchalik domen) bilan ochgan bo'lishi mumkin.</para></summary>
+    [Theory]
+    [InlineData("crm.intellect.uz", "https://crm.intellect.uz")]
+    [InlineData("https://crm.intellect.uz", "https://crm.intellect.uz")]
+    [InlineData("  crm.intellect.uz/  ", "https://crm.intellect.uz")]
+    [InlineData("https://crm.intellect.uz/admin/marketing", "https://crm.intellect.uz")]
+    public void Tashqi_manzil_kanonik_hostdan_quriladi(string configured, string expected)
+    {
+        Assert.Equal(expected, InstagramContract.PublicBase(configured, "http", "192.168.0.10:8080"));
+    }
+
+    /// <summary>Sozlanmagan bo'lsa — eski xatti-harakat (so'rov hostidan). Sxema
+    /// <c>X-Forwarded-Proto</c> dan tiklangan bo'ladi.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Host_sozlanmagan_bolsa_sorov_hostiga_qaytiladi(string? configured)
+    {
+        Assert.Equal("https://crm.intellect.uz",
+            InstagramContract.PublicBase(configured, "https", "crm.intellect.uz"));
+    }
+
+    /// <summary>Lokal hostda HTTPS majburlanmaydi — dev'da mavjud bo'lmagan manzil chiqardi.
+    /// Ochiq yozilgan sxema esa har doim hurmat qilinadi.</summary>
+    [Theory]
+    [InlineData("localhost:5000", "http://localhost:5000")]
+    [InlineData("127.0.0.1:5000", "http://127.0.0.1:5000")]
+    [InlineData("https://localhost:5001", "https://localhost:5001")]
+    [InlineData("http://crm.intellect.uz", "http://crm.intellect.uz")]
+    public void Sxema_lokal_va_ochiq_yozilgan_holatda_togri_tanlanadi(string configured, string expected)
+    {
+        Assert.Equal(expected, InstagramContract.PublicBase(configured, "https", "boshqa.uz"));
+    }
+
+    /* ═══════════ INSTAGRAM LOGIN TOKENI KIMGA KERAK ═══════════ */
+
+    /// <summary>
+    /// 🔴 Token yangilash FAQAT AI agentiga bog'liq EMAS: kontent joylash AYNAN shu tokendan
+    /// foydalanadi. Ilgari faqat <c>InstagramEnabled</c> tekshirilar va faqat kontent modulini
+    /// yoqqan markazda token 60 kunda JIMGINA o'lardi.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]    // ⚠️ AYNAN SHU holat tushib qolgan edi
+    [InlineData(true, true, true)]
+    public void Login_tokeni_kerakligi_ikkala_moduldan_hisoblanadi(bool agent, bool publish, bool expected)
+    {
+        Assert.Equal(expected, InstagramContract.NeedsLoginToken(agent, publish));
+    }
+
 }

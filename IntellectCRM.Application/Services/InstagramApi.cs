@@ -258,6 +258,43 @@ public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
         }
     }
 
+    /// <summary>
+    /// SUHBATDOSHNING profili — <c>GET /{igsid}?fields=name,username</c>.
+    ///
+    /// <para><b>Nega kerak (TEXNIK.md §3.5, qoidalar §11 tuzoq 6):</b> DM webhook'ining
+    /// <c>messaging[]</c> bo'limida <b>username UMUMAN kelmaydi</b> — faqat <c>sender.id</c>
+    /// (IGSID). Izohda esa <c>from.username</c> bor. Ya'ni bu so'rovsiz Inbox'da DM suhbatlari
+    /// <c>@17841400…</c> degan raqam bo'lib turadi: operator kim bilan yozishayotganini
+    /// bilmaydi, profilga ham o'tolmaydi.</para>
+    ///
+    /// <para><b>⚠️ Faqat <c>name,username</c> so'raladi.</b> Meta bu yerda <c>profile_pic</c>,
+    /// <c>follower_count</c> va boshqalarni ham beradi, lekin (a) ularni saqlaydigan ustun yo'q,
+    /// (b) mijozning maxfiylik sozlamasiga qarab qaytmasligi mumkin — kerak bo'lmagan maydon
+    /// faqat nosozlik yuzasini kengaytirardi.</para>
+    ///
+    /// <para><b>⚠️ Chaqiruvchi xatoni YUTISHI kerak:</b> username — qulaylik, xabarning o'zi
+    /// emas. Profil so'rovi yiqilgani (mijoz akkauntini yopgan, token ruxsati yetmagan)
+    /// mijozning xabarini yozib qo'yishga ham, javob berishga ham to'sqinlik qilmasligi
+    /// SHART.</para>
+    /// </summary>
+    public async Task<(bool Ok, string Username, string Name, string Error)> GetUserProfileAsync(
+        string igsid, string token, CancellationToken ct)
+    {
+        var url = $"{IgConst.GraphBase}/{Uri.EscapeDataString(igsid ?? "")}?fields=name,username" +
+                  $"&access_token={Uri.EscapeDataString(token ?? "")}";
+        var (ok, body, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), ct);
+        if (!ok) return (false, "", "", err);
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return (true, Str(doc.RootElement, "username"), Str(doc.RootElement, "name"), "");
+        }
+        catch (JsonException)
+        {
+            return (false, "", "", "Instagram javobini o'qib bo'lmadi (kutilmagan format).");
+        }
+    }
+
     /* ═════════════════════════ Ichki qism ═════════════════════════ */
 
     /// <summary>So'rovni yuboradi: throttle + retry + xatoni o'zbekcha matnga aylantirish.

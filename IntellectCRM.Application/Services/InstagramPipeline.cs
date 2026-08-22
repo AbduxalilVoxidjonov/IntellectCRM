@@ -80,8 +80,21 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             {
                 // Qo'llab-quvvatlanmaydigan maydon (`mentions`, `live_comments`), reaksiya/o'qildi
                 // hodisasi yoki O'ZIMIZNING izohimiz. Jimgina yo'qolmasin — diagnostikada ko'rinadi.
+                //
+                // ⚠️ Maydon nomi ATAYIN sababga chiqariladi: "hodisa kelyapti, lekin hech narsa
+                // bo'lmayapti" holatining eng ko'p uchraydigan sababi — Meta'da keraksiz maydonga
+                // obuna bo'lib qolish. Umumiy matn buni ko'rsatmasdi.
+                var unsupported = InstagramEventParser.UnsupportedFields(ev.RawJson);
+                if (unsupported.Length > 0)
+                    logger.LogWarning(
+                        "Instagram: qo'llab-quvvatlanmaydigan webhook maydoni — {Fields} (hodisa: {Id})",
+                        unsupported, ev.Id);
+
                 ev.Status = IgConst.EvSkipped;
-                ev.Error = "Qayta ishlanadigan hodisa topilmadi (qo'llab-quvvatlanmaydigan tur yoki o'z yozuvimiz).";
+                ev.Error = unsupported.Length > 0
+                    ? $"Qo'llab-quvvatlanmaydigan webhook maydoni: {unsupported}. "
+                      + "Meta Dashboard'da faqat `comments`, `messages`, `message_echoes` obunasi kerak."
+                    : "Qayta ishlanadigan hodisa topilmadi (qo'llab-quvvatlanmaydigan tur yoki o'z yozuvimiz).";
                 ev.ProcessedAt = AppClock.Iso();
                 await db.SaveChangesAsync(ct);
                 return;
@@ -177,6 +190,41 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             conv.Username = inc.Username;   // DM'da username kelmaydi, izohda keladi
         }
 
+        // ── 0.4) USERNAME'NI PROFIL SO'ROVIDAN ANIQLASH (DM uchun) ──
+        //
+        // ⚠️ Webhook'ning `messaging[]` bo'limida username UMUMAN yo'q — faqat `sender.id`
+        // (qoidalar §11 tuzoq 6, TEXNIK.md §3.5). Usiz Inbox'da DM suhbatlari `@1784140…`
+        // degan RAQAM bo'lib turardi: operator kim bilan yozishayotganini bilmasdi, Telegram
+        // signalida ham raqam ko'rinardi. Izohda username bor, shuning uchun so'rov amalda
+        // faqat DM'dan boshlangan suhbatga ketadi.
+        //
+        // ⚠️ BIR MARTA: natija `IgConversation.Username` da SAQLANADI, ya'ni keyingi xabarlarda
+        // shart bajarilmaydi. Yangi ustun (va migratsiya) kerak emas.
+        //
+        // ⚠️ `InstagramEnabled` darvozasi ostida (§3): modul o'chiq markazda tashqariga
+        // HECH QANDAY so'rov ketmasligi kerak.
+        //
+        // ⚠️ Xato JIM yutiladi: username — qulaylik, xabarning o'zi emas. Profil yopiq bo'lsa
+        // yoki so'rov yiqilsa suhbat eski holida (id bilan) davom etadi.
+        if (conv.Username.Length == 0
+            && meta is not null && meta.InstagramEnabled
+            && account is not null && account.AccessToken.Length > 0
+            && inc.SenderId.Length > 0)
+        {
+            try
+            {
+                var (okProfile, uname, _, profileErr) =
+                    await api.GetUserProfileAsync(inc.SenderId, account.AccessToken, ct);
+                if (okProfile && uname.Length > 0) conv.Username = uname;
+                else if (!okProfile)
+                    logger.LogWarning("Instagram: profil so'rovi bajarilmadi ({Id}): {Err}", inc.SenderId, profileErr);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Instagram: profil so'rovida xatolik ({Id})", inc.SenderId);
+            }
+        }
+
         var channel = inc.Kind == IgConst.KindComment ? IgConst.ChannelComment : IgConst.ChannelDm;
 
         // ── 0.5) REKLAMA ATRIBUTSIYASI (E3) — TAXMINIY, yiqilsa oqim DAVOM ETADI ──
@@ -210,7 +258,9 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
             IgMessageId = inc.IgMessageId,
             AdId = ad.AdId,
             AdCampaignId = ad.CampaignId,
-            ActorName = inc.Username.Length > 0 ? "@" + inc.Username : "Mijoz",
+            // ⚠️ `conv.Username` (inc.Username EMAS): DM'da webhook username bermaydi, u
+            // yuqorida profil so'rovidan aniqlanadi — aks holda har DM qatori "Mijoz" bo'lardi.
+            ActorName = conv.Username.Length > 0 ? "@" + conv.Username : "Mijoz",
             CreatedAt = nowIso,
         });
         // ⚠️ 24 soatlik oyna MIJOZ YOZGAN vaqtdan hisoblanadi, biz qayta ishlagan vaqtdan emas.

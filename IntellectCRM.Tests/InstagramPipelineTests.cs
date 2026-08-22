@@ -129,6 +129,20 @@ public class InstagramPipelineTests
         ReceivedAt = AppClock.Iso(),
     };
 
+    /// <summary>
+    /// MIJOZGA YUBORISH so'rovlari (POST) — <b>profil so'rovi hisobga olinmaydi</b>.
+    ///
+    /// <para>⚠️ Ko'p testning savoli "javob KETDIMI". DM'da esa webhook username bermaydi va
+    /// pipeline yangi suhbat uchun bir marta <c>GET /{igsid}?fields=name,username</c> qiladi
+    /// (aks holda Inbox'da suhbat <c>@1784140…</c> degan RAQAM bo'lib turardi). U javob EMAS,
+    /// shuning uchun "yuborilmadi" tekshiruvlari aynan POST'lar bo'yicha qilinadi.</para>
+    ///
+    /// <para>⚠️ "Modul BUTUNLAY o'chiq" testida esa baribir <c>handler.Requests</c> ning O'ZI
+    /// bo'sh bo'lishi tekshiriladi (qoidalar §3: tashqariga hech narsa ketmaydi).</para>
+    /// </summary>
+    private static List<string> Sends(RecordingHandler h) =>
+        h.Requests.Where(r => r.StartsWith("POST", StringComparison.Ordinal)).ToList();
+
     /// <summary>Pipeline'ni tarmoqsiz (yoki yozib boruvchi) HTTP bilan ishga tushiradi.</summary>
     private static async Task<IgWebhookEvent> RunAsync(TestDb db, IgWebhookEvent ev, RecordingHandler handler)
     {
@@ -201,7 +215,7 @@ public class InstagramPipelineTests
         var handler = new RecordingHandler();
         await RunAsync(db, ev, handler);
 
-        Assert.Empty(handler.Requests);
+        Assert.Empty(Sends(handler));
         Assert.DoesNotContain(db.Context.IgMessages, m => m.Direction == IgConst.DirOut);
     }
 
@@ -232,7 +246,7 @@ public class InstagramPipelineTests
         Assert.Equal("Qoida: Narx savoli", outbound.ActorName);
         Assert.False(outbound.IsAi);
         Assert.Equal("", outbound.Error);
-        Assert.Single(handler.Requests);                       // aynan bitta DM yuborildi
+        Assert.Single(Sends(handler));                         // aynan bitta DM yuborildi
         Assert.Equal(1, db.Context.IgAutoRules.Single().MatchCount);
     }
 
@@ -398,7 +412,7 @@ public class InstagramPipelineTests
         Assert.True(conv.NeedsOperator);
         Assert.Contains("Matnsiz", conv.NeedsOperatorReason);
         Assert.Equal("[matnsiz xabar]", conv.LastMessageText);
-        Assert.Empty(handler.Requests);
+        Assert.Empty(Sends(handler));
     }
 
     [Fact]
@@ -449,7 +463,7 @@ public class InstagramPipelineTests
         var conv = db.Context.IgConversations.Single();
         Assert.True(conv.NeedsOperator);
         Assert.Contains("Kunlik javob chegarasi", conv.NeedsOperatorReason);
-        Assert.Empty(handler.Requests);
+        Assert.Empty(Sends(handler));
     }
 
     [Fact]
@@ -470,7 +484,7 @@ public class InstagramPipelineTests
         var conv = db.Context.IgConversations.Single();
         Assert.True(conv.NeedsOperator);
         Assert.Contains("AI javob bera olmadi", conv.NeedsOperatorReason);
-        Assert.Empty(handler.Requests);
+        Assert.Empty(Sends(handler));
         Assert.DoesNotContain(db.Context.IgMessages, m => m.Direction == IgConst.DirOut);
     }
 
@@ -490,6 +504,94 @@ public class InstagramPipelineTests
 
         Assert.Equal(1, db.Context.IgMessages.Count());
         Assert.Equal(1, db.Context.IgConversations.Single().MessageCount);
+    }
+
+    // ===================== 7) DM'da username — PROFIL SO'ROVIDAN =====================
+
+    [Fact]
+    public async Task DM_da_username_profil_sorovidan_aniqlanadi()
+    {
+        // ⚠️ Webhook'ning `messaging[]` bo'limida username UMUMAN yo'q — faqat `sender.id`.
+        // Usiz Inbox'da suhbat `@5550001112223` degan RAQAM bo'lib turardi.
+        using var db = TestDb.Sqlite();
+        db.Context.CenterMeta.Add(Meta(dm: false));     // avtojavob shart emas — faqat O'QISH
+        db.Context.IgAccounts.Add(Account());
+        var ev = Event(DmJson(text: "Salom"));
+        db.Context.IgWebhookEvents.Add(ev);
+        await db.Context.SaveChangesAsync();
+
+        var handler = new RecordingHandler(body: """{"id":"5550001112223","username":"ali_vali","name":"Ali"}""");
+        await RunAsync(db, ev, handler);
+
+        var conv = db.Context.IgConversations.Single();
+        Assert.Equal("ali_vali", conv.Username);
+        Assert.Empty(Sends(handler));                                    // javob YUBORILMADI
+        Assert.Contains(handler.Requests, r => r.Contains("fields=name,username"));
+        Assert.Equal("@ali_vali", db.Context.IgMessages.Single().ActorName);
+    }
+
+    [Fact]
+    public async Task Profil_sorovi_yiqilsa_xabar_baribir_yoziladi()
+    {
+        // Username — QULAYLIK. U olinmagani mijozning xabarini yo'qotishga sabab bo'lmaydi.
+        using var db = TestDb.Sqlite();
+        db.Context.CenterMeta.Add(Meta(dm: false));
+        db.Context.IgAccounts.Add(Account());
+        var ev = Event(DmJson(text: "Salom"));
+        db.Context.IgWebhookEvents.Add(ev);
+        await db.Context.SaveChangesAsync();
+
+        var handler = new RecordingHandler(HttpStatusCode.BadRequest,
+            """{"error":{"message":"Unsupported get request","code":100}}""");
+        var done = await RunAsync(db, ev, handler);
+
+        Assert.Equal(IgConst.EvDone, done.Status);
+        var conv = db.Context.IgConversations.Single();
+        Assert.Equal("", conv.Username);
+        Assert.Equal("Salom", conv.LastMessageText);
+        Assert.Equal("Mijoz", db.Context.IgMessages.Single().ActorName);
+    }
+
+    [Fact]
+    public async Task Username_allaqachon_bor_bolsa_profil_sorovi_TAKRORLANMAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        db.Context.CenterMeta.Add(Meta(dm: false));
+        db.Context.IgAccounts.Add(Account());
+        db.Context.IgConversations.Add(new IgConversation
+        {
+            IgUserId = ClientId, Username = "ali_vali", Status = IgConst.StatusBot, CreatedAt = AppClock.Iso(),
+        });
+        var ev = Event(DmJson(text: "Yana savol"));
+        db.Context.IgWebhookEvents.Add(ev);
+        await db.Context.SaveChangesAsync();
+
+        var handler = new RecordingHandler();
+        await RunAsync(db, ev, handler);
+
+        Assert.Empty(handler.Requests);                                  // bitta ham so'rov yo'q
+        Assert.Equal("ali_vali", db.Context.IgConversations.Single().Username);
+    }
+
+    [Fact]
+    public async Task Qollab_quvvatlanmaydigan_maydon_SABABI_bilan_skipped_boladi()
+    {
+        // "Hodisa kelyapti, lekin hech narsa bo'lmayapti" ning eng ko'p uchraydigan sababi —
+        // Meta'da keraksiz maydonga obuna. Umumiy matn buni ko'rsatmasdi.
+        using var db = TestDb.Sqlite();
+        db.Context.CenterMeta.Add(Meta());
+        db.Context.IgAccounts.Add(Account());
+        var ev = Event($$"""
+            { "entry": [{ "id": "{{OurId}}", "time": {{NowSeconds}},
+                "changes": [{ "field": "mentions", "value": { "media_id": "m-9", "comment_id": "c-9" } }]}]}
+            """);
+        db.Context.IgWebhookEvents.Add(ev);
+        await db.Context.SaveChangesAsync();
+
+        var done = await RunAsync(db, ev, new RecordingHandler());
+
+        Assert.Equal(IgConst.EvSkipped, done.Status);
+        Assert.Contains("mentions", done.Error);
     }
 
     [Fact]

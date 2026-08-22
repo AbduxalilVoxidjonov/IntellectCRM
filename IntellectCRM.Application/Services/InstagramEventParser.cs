@@ -176,6 +176,55 @@ public static class InstagramEventParser
         return result;
     }
 
+    /// <summary>
+    /// Payloadda QO'LLAB-QUVVATLANMAYDIGAN <c>changes[].field</c> nomlari (masalan
+    /// <c>mentions</c>, <c>live_comments</c>) — vergul bilan, takrorsiz. Hech nima bo'lmasa
+    /// bo'sh satr.
+    ///
+    /// <para><b>Nega kerak:</b> parser bunday hodisani jimgina tashlab yuboradi va navbatda
+    /// faqat "qayta ishlanadigan hodisa topilmadi" degan UMUMIY sabab qolardi. Meta'da esa
+    /// keraksiz maydonga obuna bo'lib qolish oson — o'shanda admin "hodisa kelyapti, lekin
+    /// hech narsa bo'lmayapti" holatini ko'rar, sababini esa hech qayerdan topa olmasdi
+    /// (qoidalar §11 tuzoq 8: "ishlanmaydi, lekin LOGGA yoziladi").</para>
+    ///
+    /// <para>⚠️ Sof funksiya: hech narsa o'zgartirmaydi, buzuq JSON'da bo'sh satr qaytaradi.</para>
+    /// </summary>
+    public static string UnsupportedFields(string rawJson)
+    {
+        if (string.IsNullOrWhiteSpace(rawJson)) return "";
+
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(rawJson); }
+        catch (JsonException) { return ""; }
+
+        var found = new List<string>();
+        using (doc)
+        {
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return "";
+            if (!root.TryGetProperty("entry", out var entries) || entries.ValueKind != JsonValueKind.Array)
+                return "";
+
+            foreach (var entry in entries.EnumerateArray())
+            {
+                if (entry.ValueKind != JsonValueKind.Object) continue;
+                if (!entry.TryGetProperty("changes", out var changes) || changes.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                foreach (var ch in changes.EnumerateArray())
+                {
+                    if (ch.ValueKind != JsonValueKind.Object) continue;
+                    var field = Str(ch, "field");
+                    if (field.Length == 0) continue;
+                    if (field == "comments" || field == FieldPolicyEnforcement) continue;
+                    if (!found.Contains(field)) found.Add(field);
+                }
+            }
+        }
+
+        return string.Join(", ", found);
+    }
+
     /* ---------------- izohlar (entry.changes[]) ---------------- */
 
     private static void ReadComments(

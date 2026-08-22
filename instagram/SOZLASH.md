@@ -98,6 +98,15 @@ maydonidan **nusxa olib** qo'ying — qo'lda termang.
 🔍 **Qanday tekshiriladi:** xato chiqqan sahifaning manzil satridagi `redirect_uri=` qiymatini
 ko'ring (`%3A%2F%2F` → `://`) va Meta'dagi qator bilan harfma-harf solishtiring.
 
+🔧 **Manzil qayerdan olinadi (2026-08-22 dan):** CRM `.env` dagi **`APP_HOST`** ni kanonik
+manzil deb oladi — ya'ni webhook manzili ham, OAuth callback ham HAR DOIM
+`https://<APP_HOST>/…` bo'ladi, admin CRM'ni qaysi nom bilan ochganidan qat'i nazar.
+`APP_HOST` bo'sh bo'lsa (dev) eskicha — joriy so'rov hostidan quriladi.
+
+Ilgari manzil faqat so'rov hostidan qurilardi va admin CRM'ni boshqa nom bilan ochsa
+(IP orqali, `www.` prefiksi bilan, vaqtinchalik domen) "nusxa olish" tugmasi **boshqa**
+manzil berardi — Meta esa `Invalid redirect_uri` bilan rad etardi.
+
 ---
 
 ## ☐ 3-qadam. `.env` ga maxfiy kalitlar (~3 daqiqa)

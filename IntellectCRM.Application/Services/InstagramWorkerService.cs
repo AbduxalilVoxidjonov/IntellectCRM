@@ -151,10 +151,14 @@ public class InstagramWorkerService(
         }
         catch (Exception ex) { logger.LogError(ex, "Yetim media fayllarini tozalashda xatolik"); }
 
-        // Token yangilash — FAQAT avtojavob moduli yoqilganda: u Instagram Login tokeniga
-        // tegishli. Reklama lidlari/statistikasi Page va System User tokenlari bilan ishlaydi,
-        // ular bu yerda yangilanmaydi (System User tokeni muddatsiz).
-        if (!meta.InstagramEnabled) return;
+        // Token yangilash — Instagram Login tokenini ISHLATADIGAN modullardan kamida bittasi
+        // yoqilgan bo'lsa. Reklama lidlari/statistikasi va CAPI Page / System User / Dataset
+        // tokenlari bilan ishlaydi, ular bu yerda yangilanmaydi (muddatsiz).
+        //
+        // ⚠️ Ilgari bu yerda faqat `InstagramEnabled` turardi va faqat kontent joylashni
+        // ishlatadigan markazda token 60 kunda JIMGINA o'lardi (`InstagramPublishService` ham
+        // AYNAN shu tokendan foydalanadi). Qoida — `InstagramContract.NeedsLoginToken`.
+        if (!InstagramContract.NeedsLoginToken(meta.InstagramEnabled, meta.InstagramPublishEnabled)) return;
 
         var telegram = sp.GetRequiredService<TelegramService>();
         try { await RefreshTokensAsync(sp, db, meta, telegram, ct); }

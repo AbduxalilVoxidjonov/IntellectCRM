@@ -182,6 +182,24 @@ tashqaridan bu "Meta tasdiqlamayapti" bo'lib ko'rinadi. `EnvKeysWiringTests` shu
 va muddatiga **< 15 kun** qolganda (`IgConst.TokenRefreshDays = 45`) yangilaydi.
 Muvaffaqiyatsiz bo'lsa — **Telegram alert**, jim yiqilmaydi.
 
+🔴 **Token yangilash darvozasi — `InstagramContract.NeedsLoginToken`, `InstagramEnabled` YOLG'IZ
+EMAS.** Instagram Login tokenini **ikkita** modul ishlatadi: izoh/DM agenti (`InstagramEnabled`)
+va **kontent joylash** (`InstagramPublishEnabled`). Ilgari worker'da yalang
+`if (!meta.InstagramEnabled) return;` turardi — faqat kontent modulini yoqqan markazda token
+60 kunda **jimgina o'lardi** va post birdan `OAuthException 190` bilan yiqila boshlardi, sabab
+esa butunlay boshqa joydagi bayroq edi.
+
+⚠️ **Yangi modul qo'shsangiz** — u qaysi tokenni ishlatishini aniqlang. Instagram Login tokeni
+bo'lsa `NeedsLoginToken` ga qo'shing; Page / System User / Dataset tokeni bo'lsa qo'shmang
+(ular muddatsiz va bu yerda yangilanmaydi).
+
+🔧 **TASHQI MANZIL — `App:Host` (env `APP_HOST`) dan, so'rov hostidan EMAS.**
+`InstagramWebhookController.PublicBase` → `InstagramContract.PublicBase` (sof funksiya,
+testlangan). Webhook manzili, OAuth `redirect_uri` va Sozlamalar sahifasidagi "nusxa olish"
+tugmalari **bitta** manbadan quriladi. Sabab: `redirect_uri` Meta'dagi bilan **harfma-harf**
+bir xil bo'lishi shart (§11 tuzoq 10), admin esa CRM'ni boshqa nom (IP, `www.`, vaqtinchalik
+domen) bilan ochgan bo'lishi mumkin edi. `APP_HOST` bo'sh bo'lsa — eskicha, so'rov hostidan.
+
 ## 8. RUXSAT — `marketing`
 
 `InstagramController`: sinf darajasida `[AdminPerm("marketing", ReadRequiresPerm = true)]` (O'QISH),
@@ -252,9 +270,9 @@ ko'ra operatorga signal berish yaxshiroq.
 | 3 | **24 soat oynasi** | `DmWindowOpen` yuborishdan OLDIN. Yopiq bo'lsa so'rov ketmaydi, `NeedsOperator = true` + sabab. Operator qo'lda javobida ham shu tekshiruv (400) |
 | 4 | **Private reply — 7 kun, BIR MARTA** | takroriy yuborish xato beradi; yuborilgani `IgMessage` (`Channel="private_reply"`) sifatida yoziladi |
 | 5 | **Echo = operator pauzasi** | `is_echo` — javob berish uchun emas, botni **jim qildirish** uchun. Iz topilmasa → odam yozgan → `OperatorPausedUntil` (`IgConst.OperatorPauseMinutes` = **720 daqiqa = 12 soat**, yagona manba). Muddat tugasa bot O'ZI qaytadi; darhol qaytarish — «Botga qaytarish» tugmasi |
-| 6 | Webhook'da DM'da **username YO'Q** | faqat `sender.id`; username profil so'rovidan olinadi |
+| 6 | Webhook'da DM'da **username YO'Q** | faqat `sender.id`. Username `InstagramApi.GetUserProfileAsync` (`GET /{igsid}?fields=name,username`) bilan olinadi — pipeline'da **suhbatga bir marta**, natija `IgConversation.Username` da saqlanadi. Darvoza `InstagramEnabled` (§3), xato **jim yutiladi** (username — qulaylik, xabar emas). Usiz Inbox'da DM suhbati `@1784140…` degan RAQAM bo'lib turardi |
 | 7 | Matnsiz xabar (rasm/stiker/ovoz) | jimgina tashlanmaydi — `NeedsOperator = true` |
-| 8 | `mentions`, `live_comments` | ishlanmaydi, lekin **logga yoziladi** |
+| 8 | `mentions`, `live_comments` | ishlanmaydi, lekin **jimgina yo'qolmaydi**: `InstagramEventParser.UnsupportedFields` maydon NOMINI qaytaradi, u navbat yozuvining `Error` ustuniga va `Warning` logiga tushadi. Umumiy "hodisa topilmadi" matni "kelyapti, lekin hech narsa bo'lmayapti" savoliga javob bermasdi |
 | 9 | `graph.facebook.com` | **YO'Q** — `IgConst.GraphBase` (`graph.instagram.com/v23.0`). Xom satr yozmang |
 | 10 | `redirect_uri` | Meta'dagi bilan **harfma-harf** bir xil, oxirida `/` yo'q; `[2]` va `[4]` da ham bir xil |
 | 11 | Kod javobi `data[]` massivida | `ExchangeCodeAsync` parseri — obyekt emas, massiv |

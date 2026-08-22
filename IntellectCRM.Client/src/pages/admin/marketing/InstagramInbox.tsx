@@ -314,7 +314,23 @@ export function InstagramInbox() {
                   <div className="conv-ch-badge ch-instagram"><ChannelIcon /></div>
                 </div>
                 <div className="chat-head-info">
-                  <div className="chat-head-name">@{conv.username || conv.igUserId}</div>
+                  {/* Username aniqlangan bo'lsa — Instagram profiliga havola. DM'da username
+                      webhook'da kelmaydi, u serverda profil so'rovidan olinadi; aniqlanmagan
+                      holatda (profil yopiq / so'rov yiqilgan) havolasiz raqam ko'rsatiladi. */}
+                  <div className="chat-head-name">
+                    {conv.username
+                      ? (
+                        <a
+                          href={`https://instagram.com/${conv.username}`}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          title="Instagram profilini ochish"
+                        >
+                          @{conv.username}
+                        </a>
+                      )
+                      : <>@{conv.igUserId}</>}
+                  </div>
                   <div className="chat-head-status">
                     {STATUS_LABEL[conv.status]}
                     {conv.intent && <> · {conv.intent}</>}

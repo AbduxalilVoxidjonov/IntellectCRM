@@ -350,6 +350,17 @@ GET {GraphBase}/{igsid}?fields=name,username,profile_pic,follower_count,
 qaytmaydi** (mijoz maxfiylik sozlamasiga qarab) — har maydon nullable deb qaralsin.
 **DM oqimida `username` aynan shu yerdan olinadi** (webhook'da yo'q).
 
+**Kodda:** `InstagramApi.GetUserProfileAsync(igsid, token, ct)` → `(Ok, Username, Name, Error)`.
+Amalda faqat `name,username` so'raladi: `profile_pic` va `follower_count` ni saqlaydigan ustun
+yo'q, keraksiz maydon esa faqat nosozlik yuzasini kengaytirardi.
+
+Chaqiriladi `InstagramPipeline` da — **suhbatga bir marta** (`IgConversation.Username` bo'sh
+bo'lsa), `InstagramEnabled` darvozasi ostida. Avtojavob o'chiq bo'lsa ham ishlaydi: modul
+"faqat o'qish" rejimida ishlatilganda ham Inbox'da ism ko'rinishi kerak.
+
+⚠️ **Xato JIM yutiladi:** profil yopiq bo'lsa yoki so'rov yiqilsa suhbat id bilan davom
+etadi — mijozning xabari YOZILADI va javob berish ham to'xtamaydi.
+
 ### 3.6. Xato javoblari va siyosat
 
 ```json

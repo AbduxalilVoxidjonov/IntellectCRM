@@ -467,7 +467,23 @@ public class InstagramWebhookController(
     /// maydoniga qo'yiladi (izoh/DM manzilidan BOSHQA).</summary>
     public static string LeadgenUrl(HttpRequest req) => PublicBase(req) + "/api/public/instagram/leadgen";
 
-    /// <summary>Tashqi manzil asosi. Cloudflare Tunnel ortida sxema <c>X-Forwarded-Proto</c> dan
-    /// tiklanadi (Program.cs `UseForwardedHeaders`), shuning uchun bu yerda qo'shimcha ish yo'q.</summary>
-    private static string PublicBase(HttpRequest req) => $"{req.Scheme}://{req.Host}";
+    /// <summary>
+    /// Tashqi manzil asosi — <b>birinchi navbatda <c>App:Host</c></b> (env <c>APP_HOST</c>),
+    /// u bo'sh bo'lsa joriy so'rov hostidan.
+    ///
+    /// <para><b>Nega kanonik host ustun:</b> Meta'dagi <c>redirect_uri</c> harfma-harf bir xil
+    /// bo'lishi shart (§11 tuzoq 10). CRM boshqa nom bilan ochilganda (IP, <c>www.</c>,
+    /// vaqtinchalik domen) so'rov hostidan qurilgan manzil boshqa chiqar va ulash
+    /// <c>Invalid redirect_uri</c> bilan yiqilardi. Qoida <see cref="InstagramContract.PublicBase"/>
+    /// da — sof funksiya, testlangan.</para>
+    ///
+    /// <para>Cloudflare Tunnel ortida zaxira yo'ldagi sxema <c>X-Forwarded-Proto</c> dan
+    /// tiklanadi (Program.cs <c>UseForwardedHeaders</c>).</para>
+    /// </summary>
+    private static string PublicBase(HttpRequest req)
+    {
+        var config = req.HttpContext.RequestServices.GetService<IConfiguration>();
+        var host = config?["App:Host"] ?? config?["APP_HOST"] ?? "";
+        return InstagramContract.PublicBase(host, req.Scheme, req.Host.ToString());
+    }
 }

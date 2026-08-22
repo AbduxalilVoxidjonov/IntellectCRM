@@ -327,6 +327,85 @@ public static class InstagramContract
         c.Status != IgConst.StatusClosed && !OperatorPaused(c, now);
 
     /// <summary>
+    /// Instagram Login tokeni (<c>IgAccount.AccessToken</c>) HOZIR kerak bo'ladigan modul
+    /// yoqilganmi — ya'ni fon xizmati bu tokenni yangilab turishi SHARTMI.
+    ///
+    /// <para><b>🔴 NEGA ALOHIDA FUNKSIYA.</b> Ilgari <c>InstagramWorkerService</c> da yalang
+    /// <c>if (!meta.InstagramEnabled) return;</c> turardi — token faqat AI agenti yoqilganda
+    /// yangilanardi. Lekin AYNAN SHU tokenni <see cref="InstagramPublishService"/> (kontent
+    /// joylash) ham ishlatadi. Natijada faqat kontent modulini yoqqan markazda 60 kunlik token
+    /// JIMGINA o'lardi va post birdan <c>OAuthException 190</c> bilan yiqila boshlardi — sababi
+    /// esa "modul o'chiq" degan boshqa joydagi bayroq edi.</para>
+    ///
+    /// <para>⚠️ Reklama lidlari (Page token), reklama statistikasi (System User) va CAPI
+    /// (Dataset) BOSHQA tokenlar bilan ishlaydi va bu yerga KIRMAYDI: ular yangilanmaydi
+    /// (muddatsiz). Yangi modul QO'SHSANGIZ — qaysi tokenni ishlatishini aniqlang va
+    /// Instagram Login tokeni bo'lsa shu ro'yxatga qo'shing.</para>
+    /// </summary>
+    public static bool NeedsLoginToken(bool agentEnabled, bool publishEnabled) =>
+        agentEnabled || publishEnabled;
+
+    /// <summary>
+    /// MODULNING TASHQI (OMMAVIY) MANZIL ASOSI — <c>https://host</c>, oxirida <c>/</c> YO'Q.
+    /// Webhook manzili, OAuth <c>redirect_uri</c> va Sozlamalar sahifasidagi "nusxa olish"
+    /// tugmalari HAMMASI shundan quriladi.
+    ///
+    /// <para><b>🔴 NEGA so'rov hostiga TAYANIB BO'LMAYDI.</b> Ilgari manzil faqat
+    /// <c>{Request.Scheme}://{Request.Host}</c> edi. Meta'da esa <c>redirect_uri</c>
+    /// <b>harfma-harf</b> ro'yxatdan o'tgani bilan bir xil bo'lishi shart (§11 tuzoq 10). Ya'ni
+    /// admin CRM'ni boshqa nom bilan ochsa (IP, <c>www.</c> prefiksi, vaqtinchalik domen,
+    /// lokal port) tugma NOTO'G'RI manzil ko'rsatardi va ulash <c>Invalid redirect_uri</c>
+    /// bilan yiqilardi — xato matni esa qayerda ekanini aytmasdi.</para>
+    ///
+    /// <para>Loyihada bunday "kanonik host" allaqachon bor: <c>App:Host</c> (env
+    /// <c>APP_HOST</c>) — telefoniya webhook'i va karyera Mini App manzili ham shundan
+    /// quriladi. Instagram ham AYNAN shu manbadan foydalanadi.</para>
+    ///
+    /// <para>⚠️ Sozlanmagan bo'lsa (dev) eski xatti-harakat saqlanadi — so'rov hostidan.</para>
+    /// </summary>
+    /// <param name="configuredHost"><c>App:Host</c> qiymati. Sxema bilan ham
+    /// (<c>https://crm.uz</c>), sxemasiz ham (<c>crm.uz</c>) bo'lishi mumkin; yo'l qismi
+    /// tashlanadi.</param>
+    /// <param name="requestScheme">Zaxira: joriy so'rov sxemasi (<c>X-Forwarded-Proto</c> dan
+    /// tiklangan).</param>
+    /// <param name="requestHost">Zaxira: joriy so'rov hosti.</param>
+    public static string PublicBase(string? configuredHost, string requestScheme, string requestHost)
+    {
+        var h = (configuredHost ?? "").Trim();
+        if (h.Length > 0)
+        {
+            var scheme = "";
+            if (h.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) { scheme = "http"; h = h[7..]; }
+            else if (h.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) { scheme = "https"; h = h[8..]; }
+
+            var slash = h.IndexOf('/');
+            if (slash >= 0) h = h[..slash];
+            h = h.Trim().TrimEnd('.');
+
+            if (h.Length > 0)
+            {
+                // Sxema ochiq yozilmagan bo'lsa: Meta faqat HTTPS qabul qiladi, lekin lokal
+                // ishlab chiqishda `https://localhost` mavjud bo'lmagan manzil bo'lardi.
+                if (scheme.Length == 0) scheme = IsLocalHost(h) ? "http" : "https";
+                return scheme + "://" + h;
+            }
+        }
+
+        return $"{requestScheme}://{requestHost}";
+    }
+
+    /// <summary>Lokal (ishlab chiqish) hostimi — <see cref="PublicBase"/> sxemani shunga qarab tanlaydi.</summary>
+    private static bool IsLocalHost(string host)
+    {
+        var name = host.Split(':')[0];
+        return name.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+               || name == "127.0.0.1"
+               || name == "::1"
+               || name.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+               || name.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// HALQA AVTOMAT O'CHIRGICHI — shu javobni yuborish MUMKINMI.
     ///
     /// <para>Qaytaradi: bo'sh satr = mumkin, aks holda operatorga ko'rsatiladigan SABAB.
