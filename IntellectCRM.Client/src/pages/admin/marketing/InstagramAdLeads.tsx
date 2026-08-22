@@ -6,7 +6,7 @@ import {
   getIgAdLeads, retryIgAdLead,
   type IgAdLead, type IgAdLeadList, type IgBreakdown,
 } from '@/api/services/instagram'
-import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
+import { Icon, MarketingPage, MkCard, MkEmpty, MkError, MkLoading, MkStat } from './mk'
 
 /**
  * REKLAMA LIDLARI — Instagram/Facebook target reklamasidagi forma (Instant Form) orqali
@@ -20,6 +20,9 @@ import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
  *
  * ⚠️ Jamlanma va kesimlar SERVERDA, butun topilma bo'yicha hisoblanadi — ro'yxat sahifalangani
  * uchun uni qatorlardan qo'shib chiqarish noto'g'ri son berardi.
+ *
+ * ⚠️ KO'RINISH: sahifa to'liq kenglikda ochiladi. Ikki kesim kartochkasi `mk-cols2` grid'ida —
+ * qat'iy `1fr 1fr` ATAYIN olib tashlandi: u tor ekranda ikkala kartani ham siqib qo'yardi.
  */
 export function InstagramAdLeads() {
   const { can } = usePerm()
@@ -88,33 +91,32 @@ export function InstagramAdLeads() {
     >
       <div className="fade-up">
         {/* Filtrlar */}
-        <div
-          className="card card-pad"
-          style={{ marginBottom: 18, display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}
-        >
-          <div style={{ minWidth: 150 }}>
-            <label className="field-label">Boshlanishi</label>
-            <input className="input" type="date" value={from} onChange={(e) => patchFilter(() => setFrom(e.target.value))} />
+        <MkCard>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 150 }}>
+              <label className="field-label">Boshlanishi</label>
+              <input className="input" type="date" value={from} onChange={(e) => patchFilter(() => setFrom(e.target.value))} />
+            </div>
+            <div style={{ minWidth: 150 }}>
+              <label className="field-label">Tugashi</label>
+              <input className="input" type="date" value={to} onChange={(e) => patchFilter(() => setTo(e.target.value))} />
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <label className="field-label">Qidiruv</label>
+              <input
+                className="input" value={q} placeholder="ism, telefon, forma yoki kampaniya"
+                onChange={(e) => patchFilter(() => setQ(e.target.value))}
+              />
+            </div>
+            <div className="seg">
+              {([['all', 'Hammasi'], ['ok', 'CRM’da'], ['failed', 'Xato']] as const).map(([k, l]) => (
+                <button key={k} className={status === k ? 'active' : ''} onClick={() => patchFilter(() => setStatus(k))}>
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
-          <div style={{ minWidth: 150 }}>
-            <label className="field-label">Tugashi</label>
-            <input className="input" type="date" value={to} onChange={(e) => patchFilter(() => setTo(e.target.value))} />
-          </div>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <label className="field-label">Qidiruv</label>
-            <input
-              className="input" value={q} placeholder="ism, telefon, forma yoki kampaniya"
-              onChange={(e) => patchFilter(() => setQ(e.target.value))}
-            />
-          </div>
-          <div className="seg">
-            {([['all', 'Hammasi'], ['ok', 'CRM’da'], ['failed', 'Xato']] as const).map(([k, l]) => (
-              <button key={k} className={status === k ? 'active' : ''} onClick={() => patchFilter(() => setStatus(k))}>
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
+        </MkCard>
 
         {campaign && (
           <div className="mk-alert" style={{ marginBottom: 16 }}>
@@ -135,21 +137,20 @@ export function InstagramAdLeads() {
           <>
             {error && <div style={{ marginBottom: 16 }}><MkError text={error} /></div>}
 
-            <div className="grid-stats" style={{ marginBottom: 22 }}>
-              {[
-                { label: 'Kelgan lidlar', value: data.totals.total },
-                { label: 'CRM’ga tushgan', value: data.totals.withLead },
-                { label: 'Yangi mijoz', value: data.totals.newLeads },
-                { label: 'Xato bilan qolgan', value: data.totals.failed },
-              ].map((s) => (
-                <div className="stat" key={s.label}>
-                  <div className="stat-value">{s.value.toLocaleString()}</div>
-                  <div className="stat-label">{s.label}</div>
-                </div>
+            <div className="mk-kpi" style={{ marginBottom: 22 }}>
+              {([
+                { label: 'Kelgan lidlar', value: data.totals.total, tone: 'primary', icon: 'inbox' },
+                { label: 'CRM’ga tushgan', value: data.totals.withLead, tone: 'success', icon: 'check' },
+                { label: 'Yangi mijoz', value: data.totals.newLeads, tone: 'muted', icon: 'user' },
+                /* ⚠️ Xato bilan qolgan lid ALOHIDA ajratib turadi — "reklamaga pul ketdi,
+                   lid qani?" savoli ekranga chiqmasdan qolmasin. */
+                { label: 'Xato bilan qolgan', value: data.totals.failed, tone: 'danger', icon: 'warn' },
+              ] as const).map((s) => (
+                <MkStat key={s.label} label={s.label} value={s.value.toLocaleString()} tone={s.tone} icon={s.icon} />
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+            <div className="mk-cols2" style={{ marginBottom: 18 }}>
               <Breakdown
                 title="Forma bo'yicha"
                 sub="Qaysi taklif ko'proq lid berdi"
@@ -162,14 +163,7 @@ export function InstagramAdLeads() {
               />
             </div>
 
-            <div className="card card-pad">
-              <div className="section-head">
-                <div>
-                  <div className="section-title">Lidlar</div>
-                  <div className="page-sub">Eng yangisi tepada — Meta bergan vaqt bo'yicha</div>
-                </div>
-              </div>
-
+            <MkCard title="Lidlar" sub="Eng yangisi tepada — Meta bergan vaqt bo'yicha">
               {data.items.length === 0
                 ? (
                   <MkEmpty
@@ -192,7 +186,7 @@ export function InstagramAdLeads() {
                   </button>
                 </div>
               )}
-            </div>
+            </MkCard>
           </>
         )}
       </div>
@@ -271,13 +265,7 @@ function AdLeadRow({
 function Breakdown({ title, sub, rows }: { title: string; sub: string; rows: IgBreakdown[] }) {
   const total = rows.reduce((s, r) => s + r.count, 0)
   return (
-    <div className="card card-pad">
-      <div className="section-head">
-        <div>
-          <div className="section-title">{title}</div>
-          <div className="page-sub">{sub}</div>
-        </div>
-      </div>
+    <MkCard title={title} sub={sub}>
       {rows.length === 0
         ? <MkEmpty text="Ma'lumot yo'q" />
         : rows.map((r) => {
@@ -298,6 +286,6 @@ function Breakdown({ title, sub, rows }: { title: string; sub: string; rows: IgB
             </div>
           )
         })}
-    </div>
+    </MkCard>
   )
 }

@@ -1,13 +1,23 @@
 /**
- * Marketing (Instagram AI agenti) bo'limining umumiy qismi — ikonlar, Instagram glyphi,
- * sahifa o'rovchisi (wrapper) va holat blokchalari (yuklanmoqda / xato / bo'sh).
+ * Marketing (Instagram AI agenti) bo'limining umumiy dizayn qatlami — ikonlar,
+ * Instagram glyphi, sahifa o'rovchisi, sahifa ichidagi sub-navigatsiya, to'liq
+ * ekranli oynalar va holat blokchalari.
  *
  * ⚠️ Mock ma'lumotlar OLIB TASHLANDI — barcha sahifalar `api/services/instagram.ts`
  * orqali haqiqiy API bilan ishlaydi. Bo'lim FAQAT Instagram'dan iborat.
+ *
+ * ⚠️ Bu fayl FAQAT komponent va TIP eksport qiladi (eslint
+ * `react-refresh/only-export-components`) — sof funksiya qo'shilmaydi.
  */
+import { useEffect } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { Link, NavLink } from 'react-router-dom'
 
 /* ---------------- ICONS (line) ---------------- */
+/**
+ * Uslub BIR XIL: 24×24 viewBox, `fill="none"`, `stroke="currentColor"`, chiziqli
+ * (Lucide/Feather). Bir nechta bo'lak bo'lsa bitta `d` ichida `M…` bilan ketma-ket.
+ */
 const Ic: Record<string, string> = {
   dashboard: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
   rules: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4',
@@ -45,6 +55,35 @@ const Ic: Record<string, string> = {
   user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   fire: 'M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 .5-2S6 11 6 14a6 6 0 0 0 12 0c0-5-6-12-6-12z',
   grip: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01',
+
+  /* ── kontent / navigatsiya uchun qo'shilganlar ── */
+  image: 'M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 15l-5-5L5 21',
+  film: 'M19.8 2H4.2A2.2 2.2 0 0 0 2 4.2v15.6A2.2 2.2 0 0 0 4.2 22h15.6a2.2 2.2 0 0 0 2.2-2.2V4.2A2.2 2.2 0 0 0 19.8 2zM7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5',
+  layers: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+  calendar: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18',
+  list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  gauge: 'M20.5 15.5a9 9 0 1 0-17 0M12 13l4-4M12 13h.01',
+  upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
+  arrowLeft: 'M19 12H5M12 19l-7-7 7-7',
+  chevLeft: 'M15 18l-6-6 6-6',
+  eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  text: 'M4 7V4h16v3M9 20h6M12 4v16',
+  hash: 'M4 9h16M4 15h16M10 3 8 21M16 3l-2 18',
+  sliders: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+  globe: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z',
+  heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
+  comment: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z',
+  bookmark: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
+  share: 'M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13',
+  dots: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  save: 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8',
+  history: 'M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2',
+  wand: 'M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h.01M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5',
+  crop: 'M6.13 1 6 16a2 2 0 0 0 2 2h15M1 6.13 16 6a2 2 0 0 1 2 2v15',
+  alert: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v4M12 16h.01',
+  info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01',
+  folder: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
+  grid: 'M10 3H3v7h7V3zM21 3h-7v7h7V3zM21 14h-7v7h7v-7zM10 14H3v7h7v-7z',
 }
 
 export function Icon({ name, style, className }: { name: string; style?: CSSProperties; className?: string }) {
@@ -75,30 +114,311 @@ export function ChannelIcon({ ch = 'instagram' }: { ch?: ChannelId }) {
 }
 
 /* ---------------- PAGE WRAPPER ---------------- */
-/** Marketing sahifa o'rovchisi — `.marketing-app` scope + sarlavha. */
+/**
+ * Marketing sahifa o'rovchisi — `.marketing-app` scope + YOPISHQOQ sarlavha.
+ *
+ * ⚠️ `full` propi OLIB TASHLANDI: sahifa DOIM to'liq kenglikda ochiladi.
+ * Sabab — marketing ekranlari (navbat, galereya, jadval, composer) tor
+ * ustunga sig'masdi va foydalanuvchi bir vaqtda kam ma'lumot ko'rardi.
+ *
+ * Sarlavha bloki sticky: uzun sahifada ham "qayerdaman va nima qila olaman"
+ * ko'rinib tursin. Ostidagi kartochkalar orasidan o'tib ketmasligi uchun
+ * fon TO'LIQ (blur + `--bg`) va z-index ko'tarilgan.
+ */
 export function MarketingPage({
-  title, sub, children, full, actions,
+  title, sub, children, actions, back, subnav,
 }: {
   title: string
   sub: string
   children: ReactNode
-  /** Inbox kabi to'liq-kenglikdagi sahifalar uchun (content-narrow yo'q). */
-  full?: boolean
   /** Sarlavha o'ng tomonidagi tugmalar. */
   actions?: ReactNode
+  /** Orqaga havola — sub-sahifalarda ("← Navbat"). */
+  back?: { to: string; label: string }
+  /** Sahifa ICHIDAGI sub-sahifa tugmalari (odatda `<MkSubnav …/>`). */
+  subnav?: ReactNode
 }) {
   return (
     <div className="marketing-app">
-      <div className={full ? '' : 'content-narrow'}>
-        <div className="mk-head" style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="page-title">{title}</div>
-            <div className="page-sub">{sub}</div>
+      <div className="mk-shell">
+        <div className="mk-head">
+          <div className="mk-head-inner">
+            {back && (
+              <Link to={back.to} className="mk-back">
+                <Icon name="arrowLeft" /> {back.label}
+              </Link>
+            )}
+            <div className="mk-head-row">
+              <div className="mk-head-titles">
+                <div className="page-title">{title}</div>
+                <div className="page-sub">{sub}</div>
+              </div>
+              {actions && <div className="mk-head-actions">{actions}</div>}
+            </div>
+            {subnav}
           </div>
-          {actions}
         </div>
         {children}
       </div>
+    </div>
+  )
+}
+
+/* ---------------- SAHIFA ICHIDAGI SUB-NAVIGATSIYA ---------------- */
+
+export interface MkSubnavItem {
+  to: string
+  label: string
+  /** `Ic` xaritasidagi nom. */
+  icon?: string
+  /** `NavLink` `end` — aniq moslik (ildiz marshrut uchun). */
+  end?: boolean
+  /** O'ngdagi kichik raqam chipi; 0 yoki `undefined` bo'lsa CHIZILMAYDI. */
+  count?: number
+}
+
+/**
+ * Sub-sahifa tugmalari — NAV'DA EMAS, SAHIFA ICHIDA.
+ *
+ * Sabab: chap menyu bo'limlar uchun, sub-sahifa esa bo'lim ICHIDAGI qadam.
+ * Menyuga chiqarilsa ro'yxat o'nlab qatorga cho'zilib, ierarxiya yo'qolardi.
+ * Mobilda qator gorizontal skrollanadi (scrollbar yashirin).
+ */
+export function MkSubnav({ items }: { items: MkSubnavItem[] }) {
+  return (
+    <nav className="mk-subnav">
+      {items.map((it) => (
+        <NavLink
+          key={it.to}
+          to={it.to}
+          end={it.end}
+          className={({ isActive }) => `mk-subnav-item${isActive ? ' active' : ''}`}
+        >
+          {it.icon && <Icon name={it.icon} />}
+          <span>{it.label}</span>
+          {/* 0 ni ATAYIN chizmaymiz — bo'sh navbat yonidagi "0" shovqin, xabar emas. */}
+          {!!it.count && <span className="mk-subnav-count">{it.count}</span>}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+/* ---------------- TO'LIQ EKRANLI OYNA ---------------- */
+
+/**
+ * TO'LIQ EKRANLI oyna — kichik modal o'rniga.
+ *
+ * Marketing formalarida (post yaratish, media, qoida) maydon ko'p: 560px
+ * kenglikdagi modalda ular ikki-uch ekran bo'lib ketardi. Bu yerda tana
+ * skrollanadi, bosh va oyoq qotib turadi — foydalanuvchi "qayerdaman" ni
+ * yo'qotmaydi va amal tugmalari doim ko'rinadi.
+ */
+export function MkSheet({
+  title, sub, icon, onClose, footer, children,
+}: {
+  title: string
+  sub?: string
+  icon?: string
+  onClose: () => void
+  footer?: ReactNode
+  children: ReactNode
+}) {
+  // Esc bilan yopish + fon skrollini bloklash: aks holda sahifa oyna ortida
+  // siljib, yopilgandan keyin foydalanuvchi boshqa joyda turib qolardi.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  return (
+    // ⚠️ `.marketing-app` o'rovchisi ATAYIN takrorlangan: oyna `MarketingPage`
+    // daraxtidan TASHQARIDA (fragment ichida) chizilsa ham scope'langan stillar
+    // va CSS o'zgaruvchilari ishlashda davom etsin. U AYRI div — selektor
+    // `.marketing-app .mk-sheet-overlay` AVLODni kutadi, bitta elementdagi
+    // ikkala klass unga mos kelmasdi.
+    <div className="marketing-app">
+      <div className="mk-sheet-overlay" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="mk-sheet">
+          <div className="mk-sheet-head">
+            {icon && <div className="mk-sheet-ic"><Icon name={icon} /></div>}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="mk-sheet-title">{title}</div>
+              {sub && <div className="mk-sheet-sub">{sub}</div>}
+            </div>
+            <button className="icon-btn" onClick={onClose} title="Yopish (Esc)" aria-label="Yopish">
+              <Icon name="close" style={{ width: 18, height: 18 }} />
+            </button>
+          </div>
+          <div className="mk-sheet-body">
+            <div className="mk-sheet-inner">{children}</div>
+          </div>
+          {footer && (
+            <div className="mk-sheet-foot">
+              <div className="mk-sheet-inner mk-sheet-foot-inner">{footer}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * QISQA tasdiq oynasi (o'chirish / bekor qilish).
+ *
+ * ⚠️ ATAYIN kichik va markazda: "rostdan o'chiraymi?" savoli uchun to'liq
+ * ekran ochish diqqatni asosiy sahifadan uzib yuborardi.
+ */
+export function MkDialog({
+  title, tone = 'default', onClose, footer, children,
+}: {
+  title: string
+  tone?: 'default' | 'danger'
+  onClose: () => void
+  footer?: ReactNode
+  children: ReactNode
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    // `.marketing-app` o'rovchisi — MkSheet'dagi bilan bir xil sabab.
+    <div className="marketing-app">
+      <div className="mk-dialog-overlay" role="dialog" aria-modal="true" aria-label={title}>
+        <div className={`mk-dialog${tone === 'danger' ? ' tone-danger' : ''}`}>
+          <div className="mk-dialog-head">
+            <div className="mk-dialog-title">{title}</div>
+            <button className="icon-btn" onClick={onClose} title="Yopish (Esc)" aria-label="Yopish">
+              <Icon name="close" style={{ width: 16, height: 16 }} />
+            </button>
+          </div>
+          <div className="mk-dialog-body">{children}</div>
+          {footer && <div className="mk-dialog-foot">{footer}</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- BOSQICHLAR ---------------- */
+
+/**
+ * Sahifa ichidagi BOSQICH tugmalari (composer'ning "sub-sahifalari").
+ *
+ * Bosqichlar bir sahifada qoladi — sehrgar (wizard) qilib marshrutga
+ * chiqarilmadi, chunki foydalanuvchi ixtiyoriy tartibda oldinga-orqaga
+ * yuradi va oraliq holat yo'qolmasligi kerak.
+ */
+export function MkSteps({
+  steps, active, onSelect, done,
+}: {
+  steps: { id: string; label: string; hint?: string; icon?: string }[]
+  active: string
+  onSelect: (id: string) => void
+  /** Bajarilgan bosqichlar — ✓ belgisi bilan. */
+  done?: Record<string, boolean>
+}) {
+  return (
+    <div className="mk-steps">
+      {steps.map((s, i) => {
+        const isDone = !!done?.[s.id]
+        const cls = `mk-step${s.id === active ? ' active' : ''}${isDone ? ' done' : ''}`
+        return (
+          <button key={s.id} type="button" className={cls} onClick={() => onSelect(s.id)}>
+            <span className="mk-step-num">
+              {isDone ? <Icon name="check" style={{ width: 14, height: 14 }} /> : i + 1}
+            </span>
+            <span className="mk-step-text">
+              <span className="mk-step-label">{s.label}</span>
+              {s.hint && <span className="mk-step-hint">{s.hint}</span>}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ---------------- KO'RSATKICH VA XABAR ---------------- */
+
+/** Katta ko'rsatkich kartochkasi. Konteyner: `<div className="mk-kpi">…</div>`. */
+export function MkStat({
+  label, value, tone = 'muted', icon, hint,
+}: {
+  label: string
+  value: ReactNode
+  tone?: 'primary' | 'success' | 'warning' | 'danger' | 'muted'
+  icon?: string
+  hint?: string
+}) {
+  return (
+    <div className={`mk-stat-card tone-${tone}`}>
+      {icon && <div className="mk-stat-ic"><Icon name={icon} /></div>}
+      <div style={{ minWidth: 0 }}>
+        <div className="mk-stat-v">{value}</div>
+        <div className="mk-stat-l">{label}</div>
+        {hint && <div className="mk-stat-h">{hint}</div>}
+      </div>
+    </div>
+  )
+}
+
+/** Yopiladigan xabar chizig'i (saqlandi / xato / maslahat). */
+export function MkNotice({
+  text, tone = 'info', onClose,
+}: {
+  text: string
+  tone?: 'success' | 'danger' | 'info'
+  onClose?: () => void
+}) {
+  const icon = tone === 'success' ? 'check' : tone === 'danger' ? 'warn' : 'info'
+  return (
+    <div className={`mk-notice tone-${tone}`}>
+      <Icon name={icon} style={{ width: 17, height: 17, flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+      {onClose && (
+        <button className="mk-notice-x" onClick={onClose} title="Yopish" aria-label="Yopish">
+          <Icon name="close" style={{ width: 15, height: 15 }} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** Bo'lim kartochkasi: sarlavha + izoh + o'ngda amallar + tana. */
+export function MkCard({
+  title, sub, actions, children, pad = true,
+}: {
+  title?: string
+  sub?: string
+  actions?: ReactNode
+  children: ReactNode
+  /** default `true` — jadval/galereya uchun `false` qilinadi. */
+  pad?: boolean
+}) {
+  const hasHead = !!title || !!sub || !!actions
+  return (
+    <div className="card mk-card">
+      {hasHead && (
+        <div className="mk-card-head">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {title && <div className="mk-card-title">{title}</div>}
+            {sub && <div className="mk-card-sub">{sub}</div>}
+          </div>
+          {actions && <div className="mk-card-acts">{actions}</div>}
+        </div>
+      )}
+      <div className={pad ? 'mk-card-body' : 'mk-card-body no-pad'}>{children}</div>
     </div>
   )
 }

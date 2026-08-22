@@ -202,7 +202,7 @@ export function InstagramInbox() {
   const conv = detail?.conversation
 
   return (
-    <MarketingPage title="Inbox" sub={`Instagram suhbatlari${total ? ` · ${total} ta` : ''}`} full>
+    <MarketingPage title="Inbox" sub={`Instagram suhbatlari${total ? ` · ${total} ta` : ''}`}>
       <div className="inbox fade-up">
         {/* ── SUHBATLAR RO'YXATI ── */}
         <div className="conv-list">

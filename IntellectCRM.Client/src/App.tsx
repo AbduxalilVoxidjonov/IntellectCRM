@@ -90,7 +90,13 @@ import { InstagramKnowledge } from '@/pages/admin/marketing/InstagramKnowledge'
 import { InstagramAnalytics } from '@/pages/admin/marketing/InstagramAnalytics'
 import { InstagramAdLeads } from '@/pages/admin/marketing/InstagramAdLeads'
 import { InstagramAdsStats } from '@/pages/admin/marketing/InstagramAdsStats'
-import { InstagramContent } from '@/pages/admin/marketing/InstagramContent'
+// Kontent (post joylash) — bitta modal o'rniga ALOHIDA sahifalar. Sub-sahifalar
+// sidebar nav'da EMAS: ular `ContentLayout` ichida tugma sifatida turadi (`MkSubnav`).
+import { ContentLayout } from '@/pages/admin/marketing/content/ContentLayout'
+import { ContentQueue } from '@/pages/admin/marketing/content/ContentQueue'
+import { ContentPublished } from '@/pages/admin/marketing/content/ContentPublished'
+import { ContentStatus } from '@/pages/admin/marketing/content/ContentStatus'
+import { ContentComposer } from '@/pages/admin/marketing/content/ContentComposer'
 import { InstagramQuality } from '@/pages/admin/marketing/InstagramQuality'
 import { InstagramSettings } from '@/pages/admin/marketing/InstagramSettings'
 // O'qituvchi portali (SPA ichida, /teacher/*)
@@ -194,7 +200,16 @@ export default function App() {
           <Route path="marketing/analytics" element={<RequirePerm perm="marketing.analytics"><InstagramAnalytics /></RequirePerm>} />
           <Route path="marketing/reklama-lidlari" element={<RequirePerm perm="marketing.leadads"><InstagramAdLeads /></RequirePerm>} />
           <Route path="marketing/reklama-statistikasi" element={<RequirePerm perm="marketing.adsstats"><InstagramAdsStats /></RequirePerm>} />
-          <Route path="marketing/kontent" element={<RequirePerm perm="marketing.content"><InstagramContent /></RequirePerm>} />
+          {/* Kontent — post joylash. Navbat/Joylanganlar/Holat BITTA layout ichida (sub-nav
+              sahifa ichidagi tugmalar), post yaratish/tahrirlash esa TO'LIQ EKRANLI alohida
+              sahifa (ilgari kichik modal oyna edi). */}
+          <Route path="marketing/kontent" element={<RequirePerm perm="marketing.content"><ContentLayout /></RequirePerm>}>
+            <Route index element={<ContentQueue />} />
+            <Route path="joylangan" element={<ContentPublished />} />
+            <Route path="holat" element={<ContentStatus />} />
+          </Route>
+          <Route path="marketing/kontent/yangi" element={<RequirePerm perm="marketing.content"><ContentComposer /></RequirePerm>} />
+          <Route path="marketing/kontent/post/:id" element={<RequirePerm perm="marketing.content"><ContentComposer /></RequirePerm>} />
           <Route path="marketing/javob-sifati" element={<RequirePerm perm="marketing.quality"><InstagramQuality /></RequirePerm>} />
           <Route path="marketing/settings" element={<RequirePerm perm="marketing.settings"><InstagramSettings /></RequirePerm>} />
           <Route path="leads" element={<RequirePerm perm="leads.list"><LeadsPage /></RequirePerm>} />

@@ -5,7 +5,7 @@ import {
   getIgAnalytics, getIgConversations, getIgStatus,
   type IgAnalytics, type IgConversation, type IgStatus,
 } from '@/api/services/instagram'
-import { ChannelIcon, Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
+import { ChannelIcon, Icon, MarketingPage, MkCard, MkEmpty, MkError, MkLoading, MkStat } from './mk'
 
 /** Bugungi sana ("yyyy-MM-dd"). */
 const today = () => new Date().toISOString().slice(0, 10)
@@ -65,11 +65,12 @@ export function InstagramDashboard() {
   const hot = convs.filter((c) => c.leadScore >= HOT_SCORE).slice(0, 6)
   const needsOperator = convs.filter((c) => c.needsOperator).slice(0, 6)
 
-  const stats = [
-    { label: 'Kelgan hodisalar', value: t.events, icon: 'inbox', bg: 'var(--primary-soft)', fg: 'var(--primary)' },
-    { label: 'Yuborilgan javoblar', value: t.replies, icon: 'send', bg: 'var(--primary-soft)', fg: 'var(--primary)' },
-    { label: 'Yangi lidlar', value: t.leads, icon: 'users', bg: 'var(--success-soft)', fg: 'var(--success)' },
-    { label: 'Qaynoq lidlar', value: t.hot, icon: 'fire', bg: 'var(--warning-soft)', fg: 'var(--warning)' },
+  /** Bugungi asosiy raqamlar. Rang — MA'NO bo'yicha: lid yaxshi, qaynoq — diqqat talab. */
+  const stats: { label: string; value: number; icon: string; tone: 'primary' | 'success' | 'warning' | 'muted' }[] = [
+    { label: 'Kelgan hodisalar', value: t.events, icon: 'inbox', tone: 'primary' },
+    { label: 'Yuborilgan javoblar', value: t.replies, icon: 'send', tone: 'primary' },
+    { label: 'Yangi lidlar', value: t.leads, icon: 'users', tone: 'success' },
+    { label: 'Qaynoq lidlar', value: t.hot, icon: 'fire', tone: 'warning' },
   ]
 
   return (
@@ -123,24 +124,18 @@ export function InstagramDashboard() {
         )}
 
         {/* Bugungi raqamlar */}
-        <div className="grid-stats" style={{ marginBottom: 22 }}>
+        <div className="mk-kpi" style={{ marginBottom: 22 }}>
           {stats.map((s) => (
-            <div className="stat" key={s.label}>
-              <div className="stat-top">
-                <div className="stat-icon" style={{ background: s.bg, color: s.fg }}>
-                  <Icon name={s.icon} style={{ width: 19, height: 19 }} />
-                </div>
-              </div>
-              <div className="stat-value">{s.value.toLocaleString()}</div>
-              <div className="stat-label">{s.label}</div>
-            </div>
+            <MkStat key={s.label} label={s.label} value={s.value.toLocaleString()} icon={s.icon} tone={s.tone} />
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 22 }}>
+        {/* Uchala blok BITTA moslashuvchan grid'da: keng ekranda yonma-yon turadi,
+            tor ekranda ustma-ust tushadi. Ilgari qattiq `1fr 1fr` edi va uchinchi
+            blok butun kenglikka cho'zilib ketardi. */}
+        <div className="mk-cols2">
           {/* Navbat */}
-          <div className="card card-pad">
-            <div className="section-head"><div className="section-title">Navbat holati</div></div>
+          <MkCard title="Navbat holati" sub="Webhook navbati va bugungi chegaralar">
             <div className="row-between">
               <div>
                 <div className="opt-name">Qayta ishlanmagan hodisalar</div>
@@ -171,59 +166,64 @@ export function InstagramDashboard() {
               </div>
               <div className="stat-value" style={{ fontSize: 24, margin: 0 }}>{t.escalations}</div>
             </div>
-          </div>
+          </MkCard>
 
           {/* Operator kerak */}
-          <div className="card card-pad">
-            <div className="section-head">
-              <div className="section-title">Operator kerak</div>
+          <MkCard
+            title="Operator kerak"
+            sub="AI o'zi hal qila olmagan suhbatlar"
+            actions={(
               <button className="link-btn" onClick={() => nav('/admin/marketing/inbox')}>
                 Inbox <Icon name="chevRight" style={{ width: 13, height: 13 }} />
               </button>
-            </div>
+            )}
+          >
             {needsOperator.length === 0
               ? <MkEmpty text="Hozircha odam aralashuvi kerak emas" />
               : needsOperator.map((c) => (
                 <div className="feed-item" key={c.id} style={{ cursor: 'pointer' }} onClick={() => nav(`/admin/marketing/inbox?id=${c.id}`)}>
                   <div className="ch-icon ch-instagram"><ChannelIcon /></div>
-                  <div className="feed-body">
+                  <div className="feed-body" style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>@{c.username || c.igUserId}</div>
-                    <div className="feed-time">{c.needsOperatorReason || 'Sabab ko‘rsatilmagan'}</div>
+                    <div className="feed-time" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.needsOperatorReason || 'Sabab ko‘rsatilmagan'}
+                    </div>
                   </div>
                   <span className="badge badge-danger">Operator</span>
                 </div>
               ))}
-          </div>
-        </div>
+          </MkCard>
 
-        {/* Qaynoq suhbatlar */}
-        <div className="card card-pad">
-          <div className="section-head">
-            <div>
-              <div className="section-title">Oxirgi qaynoq suhbatlar</div>
-              <div className="page-sub">Qiziqish balli {HOT_SCORE} va undan yuqori</div>
-            </div>
-            <button className="link-btn" onClick={() => nav('/admin/marketing/inbox')}>
-              Barchasi <Icon name="chevRight" style={{ width: 13, height: 13 }} />
-            </button>
-          </div>
-          {hot.length === 0
-            ? <MkEmpty text="Qaynoq suhbat yo'q" hint="Mijoz aniq qiziqish bildirsa yoki telefon qoldirsa shu yerda chiqadi." />
-            : hot.map((c) => (
-              <div className="feed-item" key={c.id} style={{ alignItems: 'center', cursor: 'pointer' }} onClick={() => nav(`/admin/marketing/inbox?id=${c.id}`)}>
-                <div className="ch-icon ch-instagram"><ChannelIcon /></div>
-                <div className="feed-body">
-                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>@{c.username || c.igUserId}</div>
-                  <div className="feed-time" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 460 }}>
-                    {c.lastMessageText || '—'}
+          {/* Qaynoq suhbatlar */}
+          <MkCard
+            title="Oxirgi qaynoq suhbatlar"
+            sub={`Qiziqish balli ${HOT_SCORE} va undan yuqori`}
+            actions={(
+              <button className="link-btn" onClick={() => nav('/admin/marketing/inbox')}>
+                Barchasi <Icon name="chevRight" style={{ width: 13, height: 13 }} />
+              </button>
+            )}
+          >
+            {hot.length === 0
+              ? <MkEmpty text="Qaynoq suhbat yo'q" hint="Mijoz aniq qiziqish bildirsa yoki telefon qoldirsa shu yerda chiqadi." />
+              : hot.map((c) => (
+                <div className="feed-item" key={c.id} style={{ alignItems: 'center', cursor: 'pointer' }} onClick={() => nav(`/admin/marketing/inbox?id=${c.id}`)}>
+                  <div className="ch-icon ch-instagram"><ChannelIcon /></div>
+                  <div className="feed-body" style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>@{c.username || c.igUserId}</div>
+                    {/* Matn kartochka kengligiga moslashadi — qattiq `maxWidth` olib
+                        tashlandi, aks holda tor ustunda qatordan chiqib ketardi. */}
+                    <div className="feed-time" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.lastMessageText || '—'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                    {c.leadId && <span className="badge badge-success">Lid</span>}
+                    <span className="badge badge-warning"><Icon name="fire" style={{ width: 11, height: 11 }} /> {c.leadScore}</span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  {c.leadId && <span className="badge badge-success">Lid</span>}
-                  <span className="badge badge-warning"><Icon name="fire" style={{ width: 11, height: 11 }} /> {c.leadScore}</span>
-                </div>
-              </div>
-            ))}
+              ))}
+          </MkCard>
         </div>
       </div>
     </MarketingPage>

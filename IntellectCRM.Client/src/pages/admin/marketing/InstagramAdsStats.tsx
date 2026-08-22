@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   CartesianGrid, Cell, Line, LineChart, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -12,7 +12,7 @@ import {
   getIgAdsCampaigns, getIgAdsOverview, getIgAdsStatus, syncIgAdsStats,
   type IgAdsPlatform, type IgAdsStatus, type IgRoiCampaigns, type IgRoiNode, type IgRoiOverview,
 } from '@/api/services/instagramAds'
-import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
+import { Icon, MarketingPage, MkCard, MkEmpty, MkError, MkLoading, MkNotice, MkStat } from './mk'
 
 /**
  * REKLAMA STATISTIKASI (Meta Ads Insights) — "pul qayerga ketdi va nima olib keldi".
@@ -38,6 +38,11 @@ import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
  * ⚠️ GRAFIK QOIDALARI (`.claude/rules/course-analytics.md`): bitta grafikda IKKI Y-O'Q
  * ishlatilmaydi (xarajat va lidlar ALOHIDA grafiklarda), yashil/qizil juftlik esa
  * deuteranopiyada ajralmagani uchun umuman olinmaydi.
+ *
+ * ⚠️ KO'RINISH: sahifa TO'LIQ EKRANDA ochiladi va uzun skroll o'rniga SAHIFA ICHIDAGI
+ * tab tugmalariga bo'lingan (`?bolim=…`). Davr/platforma/kampaniya filtrlari hamma tabga
+ * tegishli, shuning uchun ular tablardan TASHQARIDA, tepada turadi. `notes[]` ham
+ * tashqarida: u raqamlarni QANDAY o'qish kerakligini aytadi, ya'ni har bir tabga taalluqli.
  */
 
 /* ─────────────────────────── Ranglar ─────────────────────────── */
@@ -63,6 +68,23 @@ const PLATFORM_LABEL: Record<string, string> = {
   facebook: 'Facebook',
   all: 'Ajratilmagan',
 }
+
+/* ─────────────────────────── Sahifa ichidagi bo'limlar ─────────────────────────── */
+
+/**
+ * Tablar — nav'da EMAS, sahifaning O'ZIDA.
+ * ⚠️ Bo'linish MA'NO bo'yicha: "umumiy manzara" → "qaysi kampaniya" → "qaysi platforma"
+ * → "raqamlar qachongi". Adset va e'lon AYRI tab EMAS: ular kampaniya jadvalining
+ * ochiladigan qatorlari, ya'ni ajratilsa iyerarxiya yo'qolardi.
+ */
+const TABS = [
+  { key: 'umumiy', label: 'Umumiy', icon: 'analytics' },
+  { key: 'kampaniyalar', label: 'Kampaniyalar', icon: 'layers' },
+  { key: 'platformalar', label: 'Platformalar', icon: 'globe' },
+  { key: 'holat', label: "Ma'lumot holati", icon: 'info' },
+] as const
+
+type TabKey = (typeof TABS)[number]['key']
 
 /* ─────────────────────────── Sana yordamchilari ─────────────────────────── */
 
@@ -124,6 +146,24 @@ export function InstagramAdsStats() {
 
   const [syncing, setSyncing] = useState(false)
   const [syncNote, setSyncNote] = useState<{ ok: boolean; text: string } | null>(null)
+
+  /**
+   * Ochiq tab MANZILDA saqlanadi (`?bolim=…`) — sahifa yangilansa yoki havola nusxa
+   * qilib berilsa o'sha bo'lim ochilsin.
+   * ⚠️ Noma'lum kalit JIMGINA "Umumiy" ga tushadi: eskirgan havola tufayli ekran
+   * butunlay bo'shab qolmasin (`?source=` filtridagi bilan bir xil mantiq).
+   */
+  const [params, setParams] = useSearchParams()
+  const rawTab = params.get('bolim') ?? ''
+  const tab: TabKey = (TABS.some((t) => t.key === rawTab) ? rawTab : 'umumiy') as TabKey
+
+  const setTab = (k: TabKey) => {
+    const next = new URLSearchParams(params)
+    // Standart bo'lim manzilni ifloslantirmaydi.
+    if (k === 'umumiy') next.delete('bolim')
+    else next.set('bolim', k)
+    setParams(next, { replace: true })
+  }
 
   /**
    * Kampaniya tanlash ro'yxati. ⚠️ FAQAT filtr bo'sh bo'lganda yangilanadi: kampaniya
@@ -222,7 +262,6 @@ export function InstagramAdsStats() {
       })),
     [overview],
   )
-  const platformTotal = platformSlices.reduce((s, p) => s + p.spendMinor, 0)
 
   /**
    * Tanlangan kampaniya ro'yxatda bo'lmasligi mumkin (davr o'zgargan bo'lsa) — u holda
@@ -286,52 +325,54 @@ export function InstagramAdsStats() {
           </div>
         )}
 
-        {/* ───────────── 1. Filtr paneli ───────────── */}
-        <div
-          className="card card-pad"
-          style={{ marginBottom: 18, display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}
-        >
-          <div style={{ minWidth: 150 }}>
-            <label className="field-label">Boshlanishi</label>
-            <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div style={{ minWidth: 150 }}>
-            <label className="field-label">Tugashi</label>
-            <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
+        {/* ───────────── 1. Filtr paneli — TABLARDAN TASHQARIDA ─────────────
+            Davr, platforma va kampaniya HAR BIR tabga tegishli, shuning uchun ular
+            tab almashganda ham joyida qoladi. */}
+        <MkCard>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 150 }}>
+              <label className="field-label">Boshlanishi</label>
+              <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div style={{ minWidth: 150 }}>
+              <label className="field-label">Tugashi</label>
+              <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
 
-          <div className="seg">
-            <button onClick={() => preset('today')}>Bugun</button>
-            <button onClick={() => preset('d7')}>7 kun</button>
-            <button onClick={() => preset('d30')}>30 kun</button>
-            <button onClick={() => preset('month')}>Bu oy</button>
-            <button onClick={() => preset('prevMonth')}>O'tgan oy</button>
-          </div>
+            <div className="seg">
+              <button onClick={() => preset('today')}>Bugun</button>
+              <button onClick={() => preset('d7')}>7 kun</button>
+              <button onClick={() => preset('d30')}>30 kun</button>
+              <button onClick={() => preset('month')}>Bu oy</button>
+              <button onClick={() => preset('prevMonth')}>O'tgan oy</button>
+            </div>
 
-          <div className="seg">
-            {([['all', 'Hammasi'], ['instagram', 'Instagram'], ['facebook', 'Facebook']] as const).map(([k, l]) => (
-              <button key={k} className={platform === k ? 'active' : ''} onClick={() => setPlatform(k)}>
-                {l}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ minWidth: 220, flex: 1 }}>
-            <label className="field-label">Kampaniya</label>
-            <select className="input" value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
-              <option value="">Barcha kampaniyalar</option>
-              {options.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
+            <div className="seg">
+              {([['all', 'Hammasi'], ['instagram', 'Instagram'], ['facebook', 'Facebook']] as const).map(([k, l]) => (
+                <button key={k} className={platform === k ? 'active' : ''} onClick={() => setPlatform(k)}>
+                  {l}
+                </button>
               ))}
-            </select>
+            </div>
+
+            <div style={{ minWidth: 220, flex: 1 }}>
+              <label className="field-label">Kampaniya</label>
+              <select className="input" value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+                <option value="">Barcha kampaniyalar</option>
+                {options.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
+        </MkCard>
 
         {syncNote && (
-          <div className={syncNote.ok ? 'mk-alert' : 'mk-alert mk-alert-danger'}>
-            <Icon name={syncNote.ok ? 'check' : 'warn'} style={{ width: 18, height: 18, flexShrink: 0 }} />
-            <div>{syncNote.text}</div>
-          </div>
+          <MkNotice
+            text={syncNote.text}
+            tone={syncNote.ok ? 'success' : 'danger'}
+            onClose={() => setSyncNote(null)}
+          />
         )}
 
         {loading && <MkLoading />}
@@ -354,182 +395,167 @@ export function InstagramAdsStats() {
 
         {!loading && !error && connected && overview && totals && (
           <>
-            {/* ───────────── Backend ogohlantirishlari — JIM YUTILMAYDI ───────────── */}
+            {/* ───────────── Backend ogohlantirishlari — JIM YUTILMAYDI ─────────────
+                Tablardan TASHQARIDA: ular raqamlarni qanday o'qish kerakligini aytadi,
+                ya'ni "Kampaniyalar" tabida turgan odam ham ko'rishi shart. */}
             {overview.notes.length > 0 && (
-              <div className="card card-pad" style={{ marginBottom: 18 }}>
-                <div className="section-head">
-                  <div>
-                    <div className="section-title">Hisobotni to'g'ri o'qish uchun</div>
-                    <div className="page-sub">Raqamlarning chegaralari va ularning sabablari</div>
-                  </div>
-                </div>
+              <MkCard
+                title="Hisobotni to'g'ri o'qish uchun"
+                sub="Raqamlarning chegaralari va ularning sabablari"
+              >
                 <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>
                   {overview.notes.map((n) => (
                     <li key={n} style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.5 }}>{n}</li>
                   ))}
                 </ul>
-              </div>
+              </MkCard>
             )}
 
-            {/* ───────────── 2. KPI kartochkalari (8 ta) ───────────── */}
-            <div
-              className="grid-stats"
-              style={{ marginBottom: 22, gridTemplateColumns: 'repeat(auto-fit, minmax(158px, 1fr))' }}
-            >
-              <Kpi
-                label="Xarajat"
-                value={formatAdsMoney(totals.spendMinor, offset, currency)}
-                hint={`${overview.from} … ${overview.to}`}
-              />
-              <Kpi label="Ko'rsatish" value={num(totals.impressions)} hint={`${num(totals.clicks)} klik`} />
-              <Kpi
-                /* ⚠️ "≈" — bu ANIQ son emas. Chegaralar hint'da ochiq yoziladi. */
-                label="Qamrov"
-                value={`≈ ${num(totals.reach)}`}
-                hint={`kamida ${num(totals.reach)} · ko'pi bilan ${num(totals.reachUpper)}`}
-              />
-              <Kpi
-                label="CRM lidlari"
-                value={num(totals.crmLeads)}
-                hint={`Meta: ${num(totals.metaLeads)} · CRM: ${num(totals.crmLeads)}`}
-              />
-              {/* ⚠️ Lidlar bilan QO'SHILMAYDI — bu AYRI natija turi (Click-to-Direct).
-                  Kampaniyada forma bo'lmasa "CRM lidlari" nol turadi-yu, reklama aslida
-                  ishlagan bo'ladi: aynan shu son buni ko'rsatadi. */}
-              <Kpi
-                label="Yozishma boshlandi"
-                value={num(totals.msgStarted)}
-                hint="Click-to-Direct natijasi · Meta, 7 kunlik oyna"
-              />
-              <Kpi
-                label="CPL — lid narxi"
-                value={totals.cplMinor == null ? '—' : formatAdsMoney(totals.cplMinor, offset, currency)}
-                hint={totals.cplMinor == null ? "hisoblab bo'lmadi" : 'xarajat / CRM lidlari'}
-              />
-              <Kpi
-                label="O'quvchi bo'ldi"
-                value={num(totals.converted)}
-                hint={`${num(totals.paid)} tasi to'lov qildi`}
-              />
-              <Kpi
-                label="ROI"
-                value={formatRoi(totals.roi)}
-                hint={`daromad ${formatAdsMoney(totals.revenueMinor, offset, currency)} — butun umr bo'yicha`}
-              />
-            </div>
-
-            {/* ───────────── 3. Grafik 1 — kunlik xarajat ─────────────
-                ⚠️ Lidlar ALOHIDA grafikda: ikki y-o'q TAQIQLANADI. */}
-            <ChartCard
-              title="Kunlik xarajat"
-              sub={`Reklamaga sarflangan pul${currency ? ` (${currency})` : ''}`}
-              empty="Bu davrda xarajat yo'q"
-              rows={daily.length}
-            >
-              <LineChart data={daily} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => axisNum(v)} />
-                <Tooltip formatter={(v) => [`${axisNum(Number(v))}${currency ? ` ${currency}` : ''}`, 'Xarajat']} />
-                <Line type="monotone" dataKey="Xarajat" stroke={C_SPEND} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ChartCard>
-
-            {/* ───────────── Grafik 2 — kunlik lidlar ─────────────
-                Ikkala seriya ham "dona", ya'ni BITTA y-o'q halol. Meta va CRM sonlari
-                ATAYIN yonma-yon: farqi ko'rinib tursin. */}
-            <ChartCard
-              title="Kunlik lidlar"
-              sub="CRM'ga tushgan takrorsiz lidlar va Meta hisoblagan lidlar"
-              empty="Bu davrda lid yo'q"
-              rows={daily.length}
-            >
-              <LineChart data={daily} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip formatter={(v, n) => [`${num(Number(v))} ta`, n as string]} />
-                <Line type="monotone" dataKey="CRM lidlari" stroke={C_LEADS} strokeWidth={2} dot={false} />
-                <Line
-                  type="monotone" dataKey="Meta lidlari" stroke={C_SPEND}
-                  strokeWidth={2} strokeDasharray="4 3" dot={false}
-                />
-              </LineChart>
-            </ChartCard>
-
-            {/* ───────────── 4. Platforma ulushi ───────────── */}
-            <div className="card card-pad" style={{ marginBottom: 18 }}>
-              <div className="section-head">
-                <div>
-                  <div className="section-title">Platforma bo'yicha ulush</div>
-                  <div className="page-sub">Xarajat qayerga ketdi — Instagram yoki Facebook</div>
-                </div>
+            {/* ───────────── Sahifa ichidagi bo'limlar ───────────── */}
+            <div className="mk-scroll-x" style={{ marginBottom: 18 }}>
+              <div className="seg">
+                {TABS.map((t) => (
+                  <button
+                    key={t.key}
+                    className={tab === t.key ? 'active' : ''}
+                    onClick={() => setTab(t.key)}
+                  >
+                    <Icon
+                      name={t.icon}
+                      style={{ width: 14, height: 14, marginRight: 6, verticalAlign: -2 }}
+                    />
+                    {t.label}
+                  </button>
+                ))}
               </div>
-
-              {platformSlices.length === 0
-                ? (
-                  <MkEmpty
-                    text="Platforma kesimi yo'q"
-                    hint="Statistika platformalarga ajratilmagan holda yuklangan bo'lishi mumkin — keyingi sinxronizatsiyadan so'ng ko'rinadi."
-                  />
-                )
-                : (
-                  <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ width: 220, height: 200 }}>
-                      <ResponsiveContainer>
-                        <PieChart>
-                          <Pie
-                            data={platformSlices} dataKey="spendMinor" nameKey="label"
-                            cx="50%" cy="50%" innerRadius={54} outerRadius={88}
-                            paddingAngle={1} isAnimationActive={false}
-                          >
-                            {platformSlices.map((p) => <Cell key={p.key} fill={p.color} />)}
-                          </Pie>
-                          <Tooltip
-                            formatter={(v, n) => [formatAdsMoney(Number(v), offset, currency), n as string]}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {/* Legenda — rang YAGONA kanal bo'lib qolmasin: son va foiz matn bilan ham bor. */}
-                    <div style={{ flex: 1, minWidth: 240 }}>
-                      {platformSlices.map((p) => {
-                        const pct = platformTotal > 0 ? Math.round((p.spendMinor / platformTotal) * 100) : 0
-                        return (
-                          <div className="metric-row" key={p.key} style={{ gap: 10 }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                {p.label}
-                                <span className="feed-time" style={{ marginLeft: 8 }}>{num(p.crmLeads)} lid</span>
-                              </div>
-                              <div className="progress-track" style={{ marginTop: 6 }}>
-                                <div className="progress-fill" style={{ width: `${pct}%`, background: p.color }} />
-                              </div>
-                            </div>
-                            <div style={{ textAlign: 'right', minWidth: 110 }}>
-                              <div className="mk-num">{formatAdsMoney(p.spendMinor, offset, currency)}</div>
-                              <div className="feed-time">{pct}%</div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
             </div>
 
-            {/* ───────────── 5. Jadval: kampaniya → adset → e'lon ───────────── */}
-            <CampaignTable data={tree} offset={offset} currency={currency} />
+            {/* ═════════ TAB: UMUMIY — KPI va kunlik grafiklar ═════════ */}
+            {tab === 'umumiy' && (
+              <>
+                <div className="mk-kpi" style={{ marginBottom: 22 }}>
+                  <MkStat
+                    label="Xarajat"
+                    value={formatAdsMoney(totals.spendMinor, offset, currency)}
+                    tone="primary"
+                    icon="zap"
+                    hint={`${overview.from} … ${overview.to}`}
+                  />
+                  <MkStat
+                    label="Ko'rsatish"
+                    value={num(totals.impressions)}
+                    icon="eye"
+                    hint={`${num(totals.clicks)} klik`}
+                  />
+                  <MkStat
+                    /* ⚠️ "≈" — bu ANIQ son emas. Chegaralar hint'da ochiq yoziladi. */
+                    label="Qamrov"
+                    value={`≈ ${num(totals.reach)}`}
+                    icon="users"
+                    hint={`kamida ${num(totals.reach)} · ko'pi bilan ${num(totals.reachUpper)}`}
+                  />
+                  <MkStat
+                    label="CRM lidlari"
+                    value={num(totals.crmLeads)}
+                    tone="primary"
+                    icon="user"
+                    hint={`Meta: ${num(totals.metaLeads)} · CRM: ${num(totals.crmLeads)}`}
+                  />
+                  {/* ⚠️ Lidlar bilan QO'SHILMAYDI — bu AYRI natija turi (Click-to-Direct).
+                      Kampaniyada forma bo'lmasa "CRM lidlari" nol turadi-yu, reklama aslida
+                      ishlagan bo'ladi: aynan shu son buni ko'rsatadi. */}
+                  <MkStat
+                    label="Yozishma boshlandi"
+                    value={num(totals.msgStarted)}
+                    icon="msg"
+                    hint="Click-to-Direct natijasi · Meta, 7 kunlik oyna"
+                  />
+                  <MkStat
+                    label="CPL — lid narxi"
+                    value={totals.cplMinor == null ? '—' : formatAdsMoney(totals.cplMinor, offset, currency)}
+                    tone="warning"
+                    icon="gauge"
+                    hint={totals.cplMinor == null ? "hisoblab bo'lmadi" : 'xarajat / CRM lidlari'}
+                  />
+                  <MkStat
+                    label="O'quvchi bo'ldi"
+                    value={num(totals.converted)}
+                    tone="success"
+                    icon="check"
+                    hint={`${num(totals.paid)} tasi to'lov qildi`}
+                  />
+                  <MkStat
+                    label="ROI"
+                    value={formatRoi(totals.roi)}
+                    /* ⚠️ Tus — YAGONA kanal emas: qiymatning O'ZI ham ekranda turadi
+                       (`formatRoi`), ya'ni rangni ko'rmagan odam ham xulosa chiqara oladi. */
+                    tone={totals.roi == null ? 'muted' : totals.roi >= 0 ? 'success' : 'danger'}
+                    icon="trendUp"
+                    hint={`daromad ${formatAdsMoney(totals.revenueMinor, offset, currency)} — butun umr bo'yicha`}
+                  />
+                </div>
 
-            {/* ───────────── 6. Holat bloki ───────────── */}
-            <StatusBlock
-              status={status}
-              overview={overview}
-              canSync={canSync}
-              syncing={syncing}
-              onSync={sync}
-            />
+                {/* ───────────── Grafik 1 — kunlik xarajat ─────────────
+                    ⚠️ Lidlar ALOHIDA grafikda: ikki y-o'q TAQIQLANADI. */}
+                <ChartCard
+                  title="Kunlik xarajat"
+                  sub={`Reklamaga sarflangan pul${currency ? ` (${currency})` : ''}`}
+                  empty="Bu davrda xarajat yo'q"
+                  rows={daily.length}
+                >
+                  <LineChart data={daily} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => axisNum(v)} />
+                    <Tooltip formatter={(v) => [`${axisNum(Number(v))}${currency ? ` ${currency}` : ''}`, 'Xarajat']} />
+                    <Line type="monotone" dataKey="Xarajat" stroke={C_SPEND} strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ChartCard>
+
+                {/* ───────────── Grafik 2 — kunlik lidlar ─────────────
+                    Ikkala seriya ham "dona", ya'ni BITTA y-o'q halol. Meta va CRM sonlari
+                    ATAYIN yonma-yon: farqi ko'rinib tursin. */}
+                <ChartCard
+                  title="Kunlik lidlar"
+                  sub="CRM'ga tushgan takrorsiz lidlar va Meta hisoblagan lidlar"
+                  empty="Bu davrda lid yo'q"
+                  rows={daily.length}
+                >
+                  <LineChart data={daily} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip formatter={(v, n) => [`${num(Number(v))} ta`, n as string]} />
+                    <Line type="monotone" dataKey="CRM lidlari" stroke={C_LEADS} strokeWidth={2} dot={false} />
+                    <Line
+                      type="monotone" dataKey="Meta lidlari" stroke={C_SPEND}
+                      strokeWidth={2} strokeDasharray="4 3" dot={false}
+                    />
+                  </LineChart>
+                </ChartCard>
+              </>
+            )}
+
+            {/* ═════════ TAB: KAMPANIYALAR — kampaniya → adset → e'lon ═════════ */}
+            {tab === 'kampaniyalar' && (
+              <CampaignTable data={tree} offset={offset} currency={currency} />
+            )}
+
+            {/* ═════════ TAB: PLATFORMALAR ═════════ */}
+            {tab === 'platformalar' && (
+              <PlatformCard slices={platformSlices} offset={offset} currency={currency} />
+            )}
+
+            {/* ═════════ TAB: MA'LUMOT HOLATI ═════════ */}
+            {tab === 'holat' && (
+              <StatusBlock
+                status={status}
+                overview={overview}
+                canSync={canSync}
+                syncing={syncing}
+                onSync={sync}
+              />
+            )}
           </>
         )}
       </div>
@@ -538,17 +564,6 @@ export function InstagramAdsStats() {
 }
 
 /* ═══════════════════════════════ QISMLAR ═══════════════════════════════ */
-
-/** KPI kartochkasi. `hint` — raqamning MA'NOSI yoki chegarasi (halollik uchun majburiy). */
-function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="stat">
-      <div className="stat-value" style={{ fontSize: 20 }}>{value}</div>
-      <div className="stat-label">{label}</div>
-      <div className="field-hint" style={{ marginTop: 4 }}>{hint}</div>
-    </div>
-  )
-}
 
 /** Grafik kartochkasi — bo'sh holat har ikkala grafikda bir xil ko'rinsin. */
 function ChartCard({
@@ -561,13 +576,7 @@ function ChartCard({
   children: ReactElement
 }) {
   return (
-    <div className="card card-pad" style={{ marginBottom: 18 }}>
-      <div className="section-head">
-        <div>
-          <div className="section-title">{title}</div>
-          <div className="page-sub">{sub}</div>
-        </div>
-      </div>
+    <MkCard title={title} sub={sub}>
       {rows === 0
         ? <MkEmpty text={empty} />
         : (
@@ -575,7 +584,91 @@ function ChartCard({
             <ResponsiveContainer>{children}</ResponsiveContainer>
           </div>
         )}
-    </div>
+    </MkCard>
+  )
+}
+
+/** Platforma kesimining bitta bo'lagi (ekranda ko'rsatiladigan shakl). */
+type PlatformSlice = {
+  key: string
+  label: string
+  color: string
+  spendMinor: number
+  crmLeads: number
+}
+
+/**
+ * PLATFORMA ULUSHI — "xarajat qayerga ketdi".
+ *
+ * ⚠️ Rang YAGONA kanal bo'lib qolmasin: har qatorda nom, lid soni, summa va foiz
+ * MATN bilan ham turadi.
+ */
+function PlatformCard({
+  slices, offset, currency,
+}: {
+  slices: PlatformSlice[]
+  offset: number
+  currency: string
+}) {
+  const total = slices.reduce((s, p) => s + p.spendMinor, 0)
+
+  return (
+    <MkCard
+      title="Platforma bo'yicha ulush"
+      sub="Xarajat qayerga ketdi — Instagram yoki Facebook"
+    >
+      {slices.length === 0
+        ? (
+          <MkEmpty
+            text="Platforma kesimi yo'q"
+            hint="Statistika platformalarga ajratilmagan holda yuklangan bo'lishi mumkin — keyingi sinxronizatsiyadan so'ng ko'rinadi."
+          />
+        )
+        : (
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ width: 220, height: 200 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={slices} dataKey="spendMinor" nameKey="label"
+                    cx="50%" cy="50%" innerRadius={54} outerRadius={88}
+                    paddingAngle={1} isAnimationActive={false}
+                  >
+                    {slices.map((p) => <Cell key={p.key} fill={p.color} />)}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v, n) => [formatAdsMoney(Number(v), offset, currency), n as string]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Legenda — rang YAGONA kanal bo'lib qolmasin: son va foiz matn bilan ham bor. */}
+            <div style={{ flex: 1, minWidth: 240 }}>
+              {slices.map((p) => {
+                const pct = total > 0 ? Math.round((p.spendMinor / total) * 100) : 0
+                return (
+                  <div className="metric-row" key={p.key} style={{ gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>
+                        {p.label}
+                        <span className="feed-time" style={{ marginLeft: 8 }}>{num(p.crmLeads)} lid</span>
+                      </div>
+                      <div className="progress-track" style={{ marginTop: 6 }}>
+                        <div className="progress-fill" style={{ width: `${pct}%`, background: p.color }} />
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', minWidth: 110 }}>
+                      <div className="mk-num">{formatAdsMoney(p.spendMinor, offset, currency)}</div>
+                      <div className="feed-time">{pct}%</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+    </MkCard>
   )
 }
 
@@ -586,8 +679,8 @@ function ChartCard({
  * chiqarilmaydi: kampaniyalar 200 tada qirqilishi mumkin va u holda jamlanma noto'g'ri
  * bo'lardi (`books.md` dagi saboq).
  *
- * ⚠️ Jadval 14 ustunli — u gorizontal SKROLL ichida turadi; sahifaning O'ZI hech qachon
- * yon tomonga siljimaydi.
+ * ⚠️ Jadval 14 ustunli — u gorizontal SKROLL ichida (`mk-scroll-x`) turadi; sahifaning
+ * O'ZI hech qachon yon tomonga siljimaydi.
  */
 function CampaignTable({
   data, offset, currency,
@@ -610,21 +703,14 @@ function CampaignTable({
   if (!data) return null
 
   return (
-    <div className="card card-pad" style={{ marginBottom: 18 }}>
-      <div className="section-head">
-        <div>
-          <div className="section-title">Kampaniyalar</div>
-          <div className="page-sub">
-            Qatorni bosib adset va e'lonlarni oching
-            {data.insightLevel && ` · statistika «${data.insightLevel}» darajasidan yig'ilgan`}
-          </div>
-        </div>
-      </div>
-
+    <MkCard
+      title="Kampaniyalar"
+      sub={`Qatorni bosib adset va e'lonlarni oching${data.insightLevel ? ` · statistika «${data.insightLevel}» darajasidan yig'ilgan` : ''}`}
+    >
       {data.campaigns.length === 0
         ? <MkEmpty text="Bu davrda kampaniya yo'q" hint="Boshqa oraliq yoki platformani tanlab ko'ring." />
         : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="mk-scroll-x">
             <table className="mk-table" style={{ minWidth: 1160 }}>
               <thead>
                 <tr>
@@ -687,7 +773,7 @@ function CampaignTable({
           vaqti bo'yicha, ya'ni ikki son to'g'ridan-to'g'ri taqqoslanmaydi.
         </div>
       )}
-    </div>
+    </MkCard>
   )
 }
 
@@ -806,19 +892,15 @@ function StatusBlock({
   const lastError = status?.lastError || overview.lastError
 
   return (
-    <div className="card card-pad">
-      <div className="section-head">
-        <div>
-          <div className="section-title">Ma'lumot holati</div>
-          <div className="page-sub">Statistika Meta'dan kuniga bir marta olinadi</div>
-        </div>
-        {canSync && (
-          <button className="btn btn-outline btn-sm" onClick={onSync} disabled={syncing}>
-            <Icon name="refresh" /> {syncing ? 'Olinmoqda…' : 'Qayta urinish'}
-          </button>
-        )}
-      </div>
-
+    <MkCard
+      title="Ma'lumot holati"
+      sub="Statistika Meta'dan kuniga bir marta olinadi"
+      actions={canSync && (
+        <button className="btn btn-outline btn-sm" onClick={onSync} disabled={syncing}>
+          <Icon name="refresh" /> {syncing ? 'Olinmoqda…' : 'Qayta urinish'}
+        </button>
+      )}
+    >
       <div className="row-between">
         <span className="opt-name">Oxirgi sinxronizatsiya</span>
         <span>{shortTime(lastSync)}</span>
@@ -856,6 +938,6 @@ function StatusBlock({
           <span className="badge badge-success">Oxirgi yangilanish muvaffaqiyatli</span>
         </div>
       )}
-    </div>
+    </MkCard>
   )
 }

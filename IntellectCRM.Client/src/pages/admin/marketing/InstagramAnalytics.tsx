@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import { apiErrorMessage } from '@/lib/utils'
 import { getIgAnalytics, type IgAnalytics, type IgBreakdown } from '@/api/services/instagram'
-import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
+import { Icon, MarketingPage, MkCard, MkEmpty, MkError, MkLoading, MkStat } from './mk'
 
 /**
  * GRAFIK RANGLARI — TEKSHIRILGAN (`.claude/rules/course-analytics.md`).
@@ -58,6 +58,10 @@ const CHANNEL_LABEL: Record<string, string> = {
  * Kunlik grafikda IKKI o'lchov (kelgan hodisa · yuborilgan javob) bitta y-o'qda ko'rsatiladi —
  * ikkalasi ham "dona", ya'ni taqqoslash halol. Lidlar ALOHIDA grafikda: turli miqyosdagi
  * o'lchovni ikki y-o'q bilan bitta grafikka tiqish ATAYIN qilinmagan (chalg'itadi).
+ *
+ * ⚠️ KO'RINISH: sahifa to'liq kenglikda ochiladi. Kesim kartochkalari `grid-cards` grid'ida —
+ * qat'iy `1fr 1fr 1fr` ATAYIN olib tashlandi: u tor ekranda uchta kartani siqib, keng
+ * ekranda esa ularni cho'zib yuborardi.
  */
 export function InstagramAnalytics() {
   const [from, setFrom] = useState(() => daysAgo(29))
@@ -98,21 +102,23 @@ export function InstagramAnalytics() {
     >
       <div className="fade-up">
         {/* Davr tanlash */}
-        <div className="card card-pad" style={{ marginBottom: 18, display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 150 }}>
-            <label className="field-label">Boshlanishi</label>
-            <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <MkCard>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 150 }}>
+              <label className="field-label">Boshlanishi</label>
+              <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div style={{ minWidth: 150 }}>
+              <label className="field-label">Tugashi</label>
+              <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+            <div className="seg">
+              <button onClick={() => quick(7)}>7 kun</button>
+              <button onClick={() => quick(30)}>30 kun</button>
+              <button onClick={() => quick(90)}>90 kun</button>
+            </div>
           </div>
-          <div style={{ minWidth: 150 }}>
-            <label className="field-label">Tugashi</label>
-            <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-          <div className="seg">
-            <button onClick={() => quick(7)}>7 kun</button>
-            <button onClick={() => quick(30)}>30 kun</button>
-            <button onClick={() => quick(90)}>90 kun</button>
-          </div>
-        </div>
+        </MkCard>
 
         {loading && <MkLoading />}
         {!loading && error && <MkError text={error} onRetry={load} />}
@@ -120,28 +126,19 @@ export function InstagramAnalytics() {
         {!loading && !error && data && (
           <>
             {/* Jamlanma */}
-            <div className="grid-stats" style={{ marginBottom: 22 }}>
-              {[
-                { label: 'Kelgan hodisalar', value: data.totals.events },
-                { label: 'Yuborilgan javoblar', value: data.totals.replies },
-                { label: 'Yaratilgan lidlar', value: data.totals.leads },
-                { label: 'Qaynoq lidlar', value: data.totals.hot },
-              ].map((s) => (
-                <div className="stat" key={s.label}>
-                  <div className="stat-value">{s.value.toLocaleString()}</div>
-                  <div className="stat-label">{s.label}</div>
-                </div>
+            <div className="mk-kpi" style={{ marginBottom: 22 }}>
+              {([
+                { label: 'Kelgan hodisalar', value: data.totals.events, tone: 'primary', icon: 'inbox' },
+                { label: 'Yuborilgan javoblar', value: data.totals.replies, tone: 'muted', icon: 'send' },
+                { label: 'Yaratilgan lidlar', value: data.totals.leads, tone: 'success', icon: 'user' },
+                { label: 'Qaynoq lidlar', value: data.totals.hot, tone: 'warning', icon: 'fire' },
+              ] as const).map((s) => (
+                <MkStat key={s.label} label={s.label} value={s.value.toLocaleString()} tone={s.tone} icon={s.icon} />
               ))}
             </div>
 
             {/* Kunlik grafik: hodisa vs javob (bitta y-o'q, ikkalasi ham "dona") */}
-            <div className="card card-pad" style={{ marginBottom: 18 }}>
-              <div className="section-head">
-                <div>
-                  <div className="section-title">Kunlik oqim</div>
-                  <div className="page-sub">Kelgan hodisalar va yuborilgan javoblar</div>
-                </div>
-              </div>
+            <MkCard title="Kunlik oqim" sub="Kelgan hodisalar va yuborilgan javoblar">
               {chart.length === 0
                 ? <MkEmpty text="Bu davrda ma'lumot yo'q" />
                 : (
@@ -159,16 +156,10 @@ export function InstagramAnalytics() {
                     </ResponsiveContainer>
                   </div>
                 )}
-            </div>
+            </MkCard>
 
             {/* Lidlar — ALOHIDA grafik (ikki y-o'q ishlatilmaydi) */}
-            <div className="card card-pad" style={{ marginBottom: 18 }}>
-              <div className="section-head">
-                <div>
-                  <div className="section-title">Kunlik lidlar</div>
-                  <div className="page-sub">Instagram orqali voronkaga tushgan mijozlar</div>
-                </div>
-              </div>
+            <MkCard title="Kunlik lidlar" sub="Instagram orqali voronkaga tushgan mijozlar">
               {chart.length === 0
                 ? <MkEmpty text="Bu davrda lid yo'q" />
                 : (
@@ -184,23 +175,17 @@ export function InstagramAnalytics() {
                     </ResponsiveContainer>
                   </div>
                 )}
-            </div>
+            </MkCard>
 
-            {/* Kesimlar */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 18 }}>
+            {/* Kesimlar — `grid-cards`: keng ekranda yonma-yon, tor ekranda o'zi ustma-ust */}
+            <div className="grid-cards" style={{ marginBottom: 18 }}>
               <Breakdown title="Niyat bo'yicha" rows={data.byIntent} labels={INTENT_LABEL} />
               <Breakdown title="Til bo'yicha" rows={data.byLanguage} labels={LANG_LABEL} />
               <Breakdown title="Kanal bo'yicha" rows={data.byChannel} labels={CHANNEL_LABEL} />
             </div>
 
             {/* Top qoidalar */}
-            <div className="card card-pad">
-              <div className="section-head">
-                <div>
-                  <div className="section-title">Eng ko'p ishlagan qoidalar</div>
-                  <div className="page-sub">AI'gacha javob bergan kalit so'z qoidalari</div>
-                </div>
-              </div>
+            <MkCard title="Eng ko'p ishlagan qoidalar" sub="AI'gacha javob bergan kalit so'z qoidalari">
               {data.topRules.length === 0
                 ? <MkEmpty text="Qoida ishlamagan" hint="Kalit so'z qoidalari qo'shilsa javob tezroq va arzonroq bo'ladi." />
                 : data.topRules.map((r, i) => (
@@ -210,7 +195,7 @@ export function InstagramAnalytics() {
                     <div className="mk-num">{r.count.toLocaleString()}</div>
                   </div>
                 ))}
-            </div>
+            </MkCard>
           </>
         )}
       </div>
@@ -228,8 +213,7 @@ function Breakdown({
 }) {
   const total = rows.reduce((s, r) => s + r.count, 0)
   return (
-    <div className="card card-pad">
-      <div className="section-head"><div className="section-title">{title}</div></div>
+    <MkCard title={title}>
       {rows.length === 0
         ? <MkEmpty text="Ma'lumot yo'q" />
         : rows.map((r) => {
@@ -249,6 +233,6 @@ function Breakdown({
             </div>
           )
         })}
-    </div>
+    </MkCard>
   )
 }

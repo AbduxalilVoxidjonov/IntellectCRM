@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage, formatDateTime } from '@/lib/utils'
@@ -28,7 +29,72 @@ import {
  *
  * ⚠️ Maxfiy qiymatlar (token, app secret, verify token) HECH QACHON ko'rsatilmaydi —
  * faqat "sozlangan / sozlanmagan" holati.
+ *
+ * ═══ SAHIFA ICHIDAGI TABLAR ═══
+ *
+ * Ilgari bu sahifa BITTA ulkan skroll edi (o'nga yaqin karta): admin kerakli sozlamani
+ * topolmasdi va "bu yerda umuman bormi?" degan savol bilan qolardi. Endi kartalar
+ * MANTIQIY guruhlarga bo'lingan va tugmalar bilan almashtiriladi:
+ *
+ * | Tab | Ichida nima bor | Savoli |
+ * |---|---|---|
+ * | `akkaunt` | Ulanishni tekshirish · Instagram akkaunt · Meta ilovasi · Holat | "ulanganmi va ishlayaptimi?" |
+ * | `avtojavob` | Avtojavob bayroqlari · AI va chegaralar | "kimga va qanday javob beramiz?" |
+ * | `reklama` | Lead Ads · Ads Insights · CAPI | "pulli reklama tomoni" |
+ * | `kontent` | Kontent joylash | "post joylash yoqilganmi?" |
+ * | `sinov` | AI javobini sinash | "AI nima deb javob berardi?" |
+ *
+ * ⚠️ Tablar **SIDEBAR NAV'GA CHIQARILMAYDI** — bular bo'lim emas, bitta sozlama
+ * sahifasining bo'laklari (`mk.tsx` dagi `MkSubnav` izohidagi bir xil mantiq).
+ *
+ * ⚠️ `MkSubnav` ISHLATILMAYDI: u `NavLink` (ya'ni MARSHRUT) bilan ishlaydi, bu yerda esa
+ * bitta sahifa ichida qolamiz. Ko'rinish bir xil bo'lishi uchun AYNI o'sha
+ * `mk-subnav` / `mk-subnav-item` klasslari tugmalarga qo'yilgan.
+ *
+ * ⚠️ **BARCHA TABLAR DOIM DOM'DA TURADI**, faol bo'lmagani `display: none` bilan
+ * yashiriladi (`TabPanel`). Sabab: bo'limlarning yarmi O'Z state'i va O'Z
+ * `useEffect(load)` iga ega ichki komponentlar (`LeadAdsBlock`, `AdsStatsBlock`,
+ * `CapiBlock`, `ContentBlock`, `DiagnosticsBlock`, `TestBlock`). Shartli render qilinsa
+ * tab almashgan sayin ular QAYTA yaratilib, kiritilgan token/ID matnlari yo'qolardi va
+ * har almashishda bekorga API so'rovi ketardi.
+ *
+ * ⚠️ «Saqlash» tugmasi ATAYIN tablardan TASHQARIDA (yopishqoq sarlavhada) va BUTUN
+ * formani saqlaydi — bayroqlar bitta `IgSettings` obyektida. Har tabga alohida saqlash
+ * qo'yilsa foydalanuvchi "qaysi tugma nimani saqlaydi" ni bilmasdi.
  */
+
+/**
+ * Tablar katalogi. `key` — URL'dagi qiymat (`?bolim=…`), shuning uchun O'ZBEKCHA va
+ * BARQAROR: bir marta ulashilgan havola keyin ham o'sha joyni ochsin.
+ */
+const TABS = [
+  { key: 'akkaunt', label: 'Akkaunt va ulanish', icon: 'link' },
+  { key: 'avtojavob', label: 'Avtojavob', icon: 'ai' },
+  { key: 'reklama', label: 'Reklama', icon: 'trendUp' },
+  { key: 'kontent', label: 'Kontent', icon: 'image' },
+  { key: 'sinov', label: 'Sinov', icon: 'play' },
+] as const
+
+type TabKey = (typeof TABS)[number]['key']
+
+/**
+ * Bitta tabning tanasi.
+ *
+ * ⚠️ Yashirish `hidden` atributi bilan YETMAYDI: `.mk-cols2` klassi `display: grid`
+ * beradi va u UA'ning `[hidden] { display: none }` qoidasidan kuchliroq. Shuning uchun
+ * `display` INLINE yoziladi (`hidden` esa skrinrider uchun qoladi).
+ *
+ * `mk-cols2` — to'liq ekranli grid (`repeat(auto-fit, minmax(430px, 1fr))`): keng
+ * monitorda kartalar yonma-yon tushadi, tor ekranda bitta ustunga qaytadi.
+ */
+function TabPanel({ active, children }: { active: boolean; children: ReactNode }) {
+  return (
+    <div className="mk-cols2" style={{ display: active ? 'grid' : 'none' }} hidden={!active}>
+      {children}
+    </div>
+  )
+}
+
 export function InstagramSettings() {
   const { can } = usePerm()
   const canEdit = can('marketing.settings', 'edit')
@@ -44,6 +110,29 @@ export function InstagramSettings() {
 
   /** OAuth callback'dan qaytganda (`?connected=1`) muvaffaqiyat xabari ko'rsatiladi. */
   const justConnected = params.get('connected') === '1'
+
+  /**
+   * FAOL TAB — URL'da (`?bolim=akkaunt`).
+   *
+   * Nega state emas, URL: sozlamaning aniq joyiga havola ulashish mumkin bo'lsin va F5
+   * dan keyin foydalanuvchi o'sha yerda qolsin (uzun formani qidirib qaytadan topmasin).
+   *
+   * ⚠️ Parametr YO'Q bo'lsa ham, NOMA'LUM qiymat kelsa ham — BIRINCHI tab ochiladi.
+   * Boshqa sahifalardagi «Sozlamalarga o'ting» havolalari `/admin/marketing/settings` ga
+   * (parametrsiz) keladi, klientdagi eski/xato kalit esa sahifani bo'shatib qo'ymasin.
+   */
+  const rawTab = params.get('bolim')
+  const tab: TabKey = TABS.find((t) => t.key === rawTab)?.key ?? TABS[0].key
+
+  const goTab = (key: TabKey) => {
+    // ⚠️ Mavjud parametrlar SAQLANADI (masalan OAuth'dan kelgan `connected=1`) — aks holda
+    // tab almashtirilganda "Akkaunt ulandi" xabari sababsiz yo'qolardi.
+    const next = new URLSearchParams(params)
+    next.set('bolim', key)
+    // `replace` — tab almashtirish brauzer tarixini to'ldirmasin ("orqaga" tugmasi
+    // sahifadan CHIQSIN, tablar bo'ylab yurmasin).
+    setParams(next, { replace: true })
+  }
 
   const load = useCallback(() => {
     setLoading(true)
@@ -141,6 +230,26 @@ export function InstagramSettings() {
           <Icon name="check" /> {saving ? 'Saqlanmoqda…' : 'Saqlash'}
         </button>
       )}
+      subnav={(
+        /* Tugmalar MARSHRUTGA emas, HOLATGA bog'langan — shuning uchun `MkSubnav` emas,
+           lekin ko'rinish bir xil bo'lsin deb AYNI o'sha klasslar ishlatiladi.
+           Sarlavha bloki yopishqoq, ya'ni uzun tabda ham qaysi bo'limdaligi ko'rinib turadi
+           va «Saqlash» tugmasi doim qo'l ostida bo'ladi. */
+        <nav className="mk-subnav" aria-label="Sozlamalar bo'limlari">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={'mk-subnav-item' + (tab === t.key ? ' active' : '')}
+              aria-current={tab === t.key ? 'page' : undefined}
+              onClick={() => goTab(t.key)}
+            >
+              <Icon name={t.icon} />
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
     >
       <div className="fade-up">
         {justConnected && (
@@ -164,263 +273,286 @@ export function InstagramSettings() {
           </div>
         )}
 
-        {/* ── ULANISHNI TEKSHIRISH ──
-            ATAYIN eng TEPADA: admin sozlamani saqlagach birinchi savoli "ishladimi?" bo'ladi,
-            javob esa sahifa oxirida turgan bo'lsa topilmasdi. */}
-        <DiagnosticsBlock canEdit={canEdit} />
+        <TabPanel active={tab === 'akkaunt'}>
+          {/* ── ULANISHNI TEKSHIRISH ──
+              ATAYIN BIRINCHI TABNING eng TEPASIDA: admin sozlamani saqlagach birinchi savoli
+              "ishladimi?" bo'ladi, javob esa oxirida turgan bo'lsa topilmasdi. Shu sababdan
+              tabning nomi ham «Akkaunt va ulanish» — tekshiruvni qidirib yurish kerak emas.
 
-        {/* ── AKKAUNT ──
-            `id` — «Kontent joylash» kartasidagi «akkauntni qayta ulang» havolasi shu yerga
-            olib keladi (yangi ruxsat FAQAT qayta ulashda so'raladi). */}
-        <div className="card card-pad" id="ig-account-card" style={{ marginBottom: 18 }}>
-          <div className="section-head">
-            <div className="section-title">Instagram akkaunt</div>
-            {status.connected && canEdit && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-outline btn-sm" onClick={refresh} disabled={busy === 'refresh'}>
-                  <Icon name="refresh" /> Tokenni yangilash
-                </button>
-                <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={disconnect} disabled={busy === 'disconnect'}>
-                  <Icon name="unlink" /> Uzish
-                </button>
+              ⚠️ TO'LIQ QATOR: natija qatorlari uzun matnli (xabar + maslahat) — yarim
+              ustunga siqilsa har qator uch-to'rt satrga bo'linib ketardi. */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <DiagnosticsBlock canEdit={canEdit} />
+          </div>
+
+          {/* ── AKKAUNT ──
+              `id` — «Kontent joylash» kartasidagi «akkauntni qayta ulang» havolasi shu yerga
+              olib keladi (yangi ruxsat FAQAT qayta ulashda so'raladi). */}
+          <div className="card card-pad" id="ig-account-card">
+            <div className="section-head">
+              <div className="section-title">Instagram akkaunt</div>
+              {status.connected && canEdit && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-outline btn-sm" onClick={refresh} disabled={busy === 'refresh'}>
+                    <Icon name="refresh" /> Tokenni yangilash
+                  </button>
+                  <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={disconnect} disabled={busy === 'disconnect'}>
+                    <Icon name="unlink" /> Uzish
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {status.connected ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div className="ch-icon ch-instagram" style={{ width: 46, height: 46, borderRadius: 13 }}>
+                  <ChannelIcon />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: 16 }}>@{status.username || '—'}</div>
+                  <div className="page-sub">{status.name}</div>
+                </div>
+                <span className="badge badge-success"><span className="badge-dot" /> Ulangan</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700 }}>Akkaunt ulanmagan</div>
+                  <div className="field-hint">
+                    Instagram professional (Business yoki Creator) akkauntini ulang — izoh va DM'lar
+                    shundan keyin keladi.
+                  </div>
+                </div>
+                {canEdit && (
+                  <button className="btn btn-primary" onClick={connect} disabled={busy === 'connect'}>
+                    <Icon name="link" /> Instagram akkauntni ulash
+                  </button>
+                )}
               </div>
             )}
           </div>
 
-          {status.connected ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="ch-icon ch-instagram" style={{ width: 46, height: 46, borderRadius: 13 }}>
-                <ChannelIcon />
+          {/* ── META ILOVASI ──
+              App ID AYNAN shu yerdan kiritiladi: usisiz «Ulash» tugmasi ishlamaydi (server
+              "App ID kiritilmagan" deb qaytaradi). App Secret va Verify Token esa `.env` da —
+              ular bu yerda ko'rsatilmaydi ham, so'ralmaydi ham. */}
+          <div className="card card-pad">
+            <div className="section-head">
+              <div>
+                <div className="section-title">Meta ilovasi</div>
+                <div className="page-sub">developers.facebook.com → Instagram → API setup with Instagram login</div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>@{status.username || '—'}</div>
-                <div className="page-sub">{status.name}</div>
+            </div>
+            <div className="field">
+              <label className="field-label">Instagram App ID</label>
+              <input
+                className="input" value={form.instagramAppId} disabled={!canEdit}
+                onChange={(e) => patch({ instagramAppId: e.target.value })}
+                placeholder="masalan: 1234567890123456"
+              />
+              <div className="field-hint">
+                Meta konsolida <b>Instagram → API setup with Instagram login</b> → 3-bo'limdagi
+                raqam. ⚠️ Ilova tepasidagi (App settings → Basic) <b>Meta App ID</b> EMAS —
+                u kiritilsa Instagram «Invalid platform app» xatosini beradi.
+                Maxfiy emas — OAuth havolasida baribir ochiq ko'rinadi. Saqlanmaguncha
+                «Instagram akkauntni ulash» tugmasi ishlamaydi.
               </div>
-              <span className="badge badge-success"><span className="badge-dot" /> Ulangan</span>
             </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700 }}>Akkaunt ulanmagan</div>
-                <div className="field-hint">
-                  Instagram professional (Business yoki Creator) akkauntini ulang — izoh va DM'lar
-                  shundan keyin keladi.
-                </div>
+          </div>
+
+          {/* ── DIAGNOSTIKA ──
+              ⚠️ TO'LIQ QATOR: ichida o'zining `mk-status-grid` i bor (11 ta kartochka) va
+              uzun «Webhook URL» qatorlari — yarim ustunda ular o'qib bo'lmas holga kelardi. */}
+          <div className="card card-pad" style={{ gridColumn: '1 / -1' }}>
+            <div className="section-head">
+              <div>
+                <div className="section-title">Holat</div>
+                <div className="page-sub">Maxfiy qiymatlar ko'rsatilmaydi — faqat sozlangani belgilanadi</div>
               </div>
-              {canEdit && (
-                <button className="btn btn-primary" onClick={connect} disabled={busy === 'connect'}>
-                  <Icon name="link" /> Instagram akkauntni ulash
-                </button>
-              )}
+              <button className="btn btn-ghost btn-sm" onClick={load}><Icon name="refresh" /> Yangilash</button>
             </div>
-          )}
-        </div>
-
-        {/* ── META ILOVASI ──
-            App ID AYNAN shu yerdan kiritiladi: usisiz «Ulash» tugmasi ishlamaydi (server
-            "App ID kiritilmagan" deb qaytaradi). App Secret va Verify Token esa `.env` da —
-            ular bu yerda ko'rsatilmaydi ham, so'ralmaydi ham. */}
-        <div className="card card-pad" style={{ marginBottom: 18 }}>
-          <div className="section-head">
-            <div>
-              <div className="section-title">Meta ilovasi</div>
-              <div className="page-sub">developers.facebook.com → Instagram → API setup with Instagram login</div>
-            </div>
-          </div>
-          <div className="field">
-            <label className="field-label">Instagram App ID</label>
-            <input
-              className="input" value={form.instagramAppId} disabled={!canEdit}
-              onChange={(e) => patch({ instagramAppId: e.target.value })}
-              placeholder="masalan: 1234567890123456"
-            />
-            <div className="field-hint">
-              Meta konsolida <b>Instagram → API setup with Instagram login</b> → 3-bo'limdagi
-              raqam. ⚠️ Ilova tepasidagi (App settings → Basic) <b>Meta App ID</b> EMAS —
-              u kiritilsa Instagram «Invalid platform app» xatosini beradi.
-              Maxfiy emas — OAuth havolasida baribir ochiq ko'rinadi. Saqlanmaguncha
-              «Instagram akkauntni ulash» tugmasi ishlamaydi.
-            </div>
-          </div>
-        </div>
-
-        {/* ── DIAGNOSTIKA ── */}
-        <div className="card card-pad" style={{ marginBottom: 18 }}>
-          <div className="section-head">
-            <div>
-              <div className="section-title">Holat</div>
-              <div className="page-sub">Maxfiy qiymatlar ko'rsatilmaydi — faqat sozlangani belgilanadi</div>
-            </div>
-            <button className="btn btn-ghost btn-sm" onClick={load}><Icon name="refresh" /> Yangilash</button>
-          </div>
-          <div className="mk-status-grid">
-            <MkStatusCard label="Modul" ok={status.enabled} value={status.enabled ? 'Yoqilgan' : "O'chirilgan"} hint={status.enabled ? undefined : 'Jonli javob ketmaydi'} />
-            <MkStatusCard label="Akkaunt" ok={status.connected} value={status.connected ? `@${status.username}` : 'Ulanmagan'} />
-            <MkStatusCard
-              label="Token muddati"
-              ok={status.connected && status.tokenDaysLeft > 15}
-              warn={status.connected && status.tokenDaysLeft > 0}
-              value={status.connected ? `${status.tokenDaysLeft} kun qoldi` : '—'}
-              hint={status.connected && status.tokenDaysLeft <= 15 ? 'Tez orada yangilanadi' : undefined}
-            />
-            <MkStatusCard label="Webhook obunasi" ok={status.webhookSubscribed} value={status.webhookSubscribed ? 'Faol' : 'Yo‘q'} />
-            <MkStatusCard label="INSTAGRAM_APP_SECRET" ok={status.appSecretSet} hint=".env fayldan o'qiladi" />
-            <MkStatusCard label="INSTAGRAM_VERIFY_TOKEN" ok={status.verifyTokenSet} hint=".env fayldan o'qiladi" />
-            <MkStatusCard label="App ID" ok={status.appIdSet} />
-            <MkStatusCard label="Gemini (AI)" ok={status.geminiConfigured} hint={status.geminiConfigured ? undefined : "AI javob bera olmaydi"} />
-            <MkStatusCard
-              label="Bilim bazasi"
-              ok={status.knowledgeCount > 0}
-              value={`${status.knowledgeCount} ta bo'lak`}
-              hint={status.knowledgeCount > 0 ? undefined : "Bo'sh — AI javob bermaydi"}
-            />
-            <MkStatusCard
-              label="Navbat"
-              ok={status.failedEvents === 0}
-              warn={status.failedEvents === 0 && status.pendingEvents > 0}
-              value={`${status.pendingEvents} kutmoqda · ${status.failedEvents} xato`}
-            />
-            <MkStatusCard
-              label="Bugungi javoblar"
-              ok={status.todayReplies < status.dailyLimit}
-              value={`${status.todayReplies} / ${status.dailyLimit}`}
-              hint="Kunlik chegara"
-            />
-          </div>
-
-          <div style={{ marginTop: 20 }}>
-            <MkCopyRow
-              label="Webhook URL"
-              value={status.webhookUrl}
-              hint="Meta → Webhooks → «Callback URL» maydoniga AYNAN shu manzil (…/webhook) qo'yiladi. Pastdagi OAuth manzili emas!"
-            />
-            <MkCopyRow
-              label="OAuth callback URL"
-              value={status.callbackUrl}
-              hint="FAQAT «Valid OAuth Redirect URIs» ro'yxati uchun. Webhook maydoniga bu manzil YARAMAYDI."
-            />
-          </div>
-        </div>
-
-        {/* ── AVTOJAVOB ── */}
-        <div className="card card-pad" style={{ marginBottom: 18 }}>
-          <div className="section-head"><div className="section-title">Avtojavob</div></div>
-
-          <Toggle
-            name="Modul yoqilgan"
-            desc="O'chirilgan bo'lsa hech qanday tashqi so'rov ketmaydi va hech kimga javob yozilmaydi."
-            on={form.instagramEnabled}
-            disabled={!canEdit}
-            onToggle={() => patch({ instagramEnabled: !form.instagramEnabled })}
-          />
-          <Toggle
-            name="Izohlarga javob berish"
-            desc="Post ostidagi izohlarga AI qisqa javob yozadi (1-2 gap)."
-            on={form.instagramAutoReplyComments}
-            disabled={!canEdit}
-            onToggle={() => patch({ instagramAutoReplyComments: !form.instagramAutoReplyComments })}
-          />
-          <Toggle
-            name="DM (shaxsiy xabar) ga javob berish"
-            desc="To'g'ridan-to'g'ri xabarlarga batafsil javob. Instagram qoidasi: oxirgi xabardan 24 soat ichida."
-            on={form.instagramAutoReplyDm}
-            disabled={!canEdit}
-            onToggle={() => patch({ instagramAutoReplyDm: !form.instagramAutoReplyDm })}
-          />
-          <Toggle
-            name="Izohga shaxsiy javob (private reply)"
-            desc="Izoh qoldirgan odamga qo'shimcha ravishda DM ham yuboriladi (izohdan keyingi 7 kun ichida)."
-            on={form.instagramPrivateReplyEnabled}
-            disabled={!canEdit}
-            onToggle={() => patch({ instagramPrivateReplyEnabled: !form.instagramPrivateReplyEnabled })}
-          />
-          <Toggle
-            name="Telegram'ga xabar berish"
-            desc="Qaynoq lid paydo bo'lsa yoki operator kerak bo'lsa adminlarga Telegram xabari ketadi."
-            on={form.instagramNotifyTelegram}
-            disabled={!canEdit}
-            onToggle={() => patch({ instagramNotifyTelegram: !form.instagramNotifyTelegram })}
-          />
-        </div>
-
-        {/* ── AI VA CHEGARALAR ── */}
-        <div className="card card-pad" style={{ marginBottom: 18 }}>
-          <div className="section-head"><div className="section-title">AI va chegaralar</div></div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div className="field">
-              <label className="field-label">Gemini modeli</label>
-              <input
-                className="input" value={form.instagramAiModel} disabled={!canEdit}
-                onChange={(e) => patch({ instagramAiModel: e.target.value })}
-                placeholder="bo'sh = tizim default'i"
+            <div className="mk-status-grid">
+              <MkStatusCard label="Modul" ok={status.enabled} value={status.enabled ? 'Yoqilgan' : "O'chirilgan"} hint={status.enabled ? undefined : 'Jonli javob ketmaydi'} />
+              <MkStatusCard label="Akkaunt" ok={status.connected} value={status.connected ? `@${status.username}` : 'Ulanmagan'} />
+              <MkStatusCard
+                label="Token muddati"
+                ok={status.connected && status.tokenDaysLeft > 15}
+                warn={status.connected && status.tokenDaysLeft > 0}
+                value={status.connected ? `${status.tokenDaysLeft} kun qoldi` : '—'}
+                hint={status.connected && status.tokenDaysLeft <= 15 ? 'Tez orada yangilanadi' : undefined}
               />
-              <div className="field-hint">Bo'sh qoldirilsa loyihaning standart modeli ishlatiladi.</div>
+              <MkStatusCard label="Webhook obunasi" ok={status.webhookSubscribed} value={status.webhookSubscribed ? 'Faol' : 'Yo‘q'} />
+              <MkStatusCard label="INSTAGRAM_APP_SECRET" ok={status.appSecretSet} hint=".env fayldan o'qiladi" />
+              <MkStatusCard label="INSTAGRAM_VERIFY_TOKEN" ok={status.verifyTokenSet} hint=".env fayldan o'qiladi" />
+              <MkStatusCard label="App ID" ok={status.appIdSet} />
+              <MkStatusCard label="Gemini (AI)" ok={status.geminiConfigured} hint={status.geminiConfigured ? undefined : "AI javob bera olmaydi"} />
+              <MkStatusCard
+                label="Bilim bazasi"
+                ok={status.knowledgeCount > 0}
+                value={`${status.knowledgeCount} ta bo'lak`}
+                hint={status.knowledgeCount > 0 ? undefined : "Bo'sh — AI javob bermaydi"}
+              />
+              <MkStatusCard
+                label="Navbat"
+                ok={status.failedEvents === 0}
+                warn={status.failedEvents === 0 && status.pendingEvents > 0}
+                value={`${status.pendingEvents} kutmoqda · ${status.failedEvents} xato`}
+              />
+              <MkStatusCard
+                label="Bugungi javoblar"
+                ok={status.todayReplies < status.dailyLimit}
+                value={`${status.todayReplies} / ${status.dailyLimit}`}
+                hint="Kunlik chegara"
+              />
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+              <MkCopyRow
+                label="Webhook URL"
+                value={status.webhookUrl}
+                hint="Meta → Webhooks → «Callback URL» maydoniga AYNAN shu manzil (…/webhook) qo'yiladi. Pastdagi OAuth manzili emas!"
+              />
+              <MkCopyRow
+                label="OAuth callback URL"
+                value={status.callbackUrl}
+                hint="FAQAT «Valid OAuth Redirect URIs» ro'yxati uchun. Webhook maydoniga bu manzil YARAMAYDI."
+              />
+            </div>
+          </div>
+        </TabPanel>
+
+        <TabPanel active={tab === 'avtojavob'}>
+          {/* ── AVTOJAVOB ── */}
+          <div className="card card-pad">
+            <div className="section-head"><div className="section-title">Avtojavob</div></div>
+
+            <Toggle
+              name="Modul yoqilgan"
+              desc="O'chirilgan bo'lsa hech qanday tashqi so'rov ketmaydi va hech kimga javob yozilmaydi."
+              on={form.instagramEnabled}
+              disabled={!canEdit}
+              onToggle={() => patch({ instagramEnabled: !form.instagramEnabled })}
+            />
+            <Toggle
+              name="Izohlarga javob berish"
+              desc="Post ostidagi izohlarga AI qisqa javob yozadi (1-2 gap)."
+              on={form.instagramAutoReplyComments}
+              disabled={!canEdit}
+              onToggle={() => patch({ instagramAutoReplyComments: !form.instagramAutoReplyComments })}
+            />
+            <Toggle
+              name="DM (shaxsiy xabar) ga javob berish"
+              desc="To'g'ridan-to'g'ri xabarlarga batafsil javob. Instagram qoidasi: oxirgi xabardan 24 soat ichida."
+              on={form.instagramAutoReplyDm}
+              disabled={!canEdit}
+              onToggle={() => patch({ instagramAutoReplyDm: !form.instagramAutoReplyDm })}
+            />
+            <Toggle
+              name="Izohga shaxsiy javob (private reply)"
+              desc="Izoh qoldirgan odamga qo'shimcha ravishda DM ham yuboriladi (izohdan keyingi 7 kun ichida)."
+              on={form.instagramPrivateReplyEnabled}
+              disabled={!canEdit}
+              onToggle={() => patch({ instagramPrivateReplyEnabled: !form.instagramPrivateReplyEnabled })}
+            />
+            <Toggle
+              name="Telegram'ga xabar berish"
+              desc="Qaynoq lid paydo bo'lsa yoki operator kerak bo'lsa adminlarga Telegram xabari ketadi."
+              on={form.instagramNotifyTelegram}
+              disabled={!canEdit}
+              onToggle={() => patch({ instagramNotifyTelegram: !form.instagramNotifyTelegram })}
+            />
+          </div>
+
+          {/* ── AI VA CHEGARALAR ── */}
+          <div className="card card-pad">
+            <div className="section-head"><div className="section-title">AI va chegaralar</div></div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="field">
+                <label className="field-label">Gemini modeli</label>
+                <input
+                  className="input" value={form.instagramAiModel} disabled={!canEdit}
+                  onChange={(e) => patch({ instagramAiModel: e.target.value })}
+                  placeholder="bo'sh = tizim default'i"
+                />
+                <div className="field-hint">Bo'sh qoldirilsa loyihaning standart modeli ishlatiladi.</div>
+              </div>
+
+              <div className="field">
+                <label className="field-label">Lid manbasi</label>
+                <input
+                  className="input" value={form.instagramLeadSource} disabled={!canEdit}
+                  onChange={(e) => patch({ instagramLeadSource: e.target.value })}
+                  placeholder="Instagram"
+                />
+                <div className="field-hint">Yaratilgan lidlarda «Manba» maydoniga shu nom yoziladi.</div>
+              </div>
+
+              <div className="field">
+                <label className="field-label">Javob kechikishi (soniya)</label>
+                <input
+                  className="input" type="number" min={0} max={120} disabled={!canEdit}
+                  value={form.instagramReplyDelaySeconds}
+                  onChange={(e) => patch({ instagramReplyDelaySeconds: Number(e.target.value) || 0 })}
+                />
+                <div className="field-hint">Bir zumda kelgan javob robot bo'lib ko'rinadi — kichik pauza tabiiyroq.</div>
+              </div>
+
+              <div className="field">
+                <label className="field-label">Kunlik javob chegarasi</label>
+                <input
+                  className="input" type="number" min={0} max={5000} disabled={!canEdit}
+                  value={form.instagramDailyReplyLimit}
+                  onChange={(e) => patch({ instagramDailyReplyLimit: Number(e.target.value) || 0 })}
+                />
+                <div className="field-hint">Himoya chegarasi: kutilmagan halqada akkaunt spam sifatida bloklanmasin.</div>
+              </div>
             </div>
 
             <div className="field">
-              <label className="field-label">Lid manbasi</label>
-              <input
-                className="input" value={form.instagramLeadSource} disabled={!canEdit}
-                onChange={(e) => patch({ instagramLeadSource: e.target.value })}
-                placeholder="Instagram"
+              <label className="field-label">Salomlashuv matni</label>
+              <textarea
+                className="textarea" value={form.instagramGreeting} disabled={!canEdit}
+                onChange={(e) => patch({ instagramGreeting: e.target.value })}
+                placeholder="Assalomu alaykum! Men markazning AI yordamchisiman…"
               />
-              <div className="field-hint">Yaratilgan lidlarda «Manba» maydoniga shu nom yoziladi.</div>
-            </div>
-
-            <div className="field">
-              <label className="field-label">Javob kechikishi (soniya)</label>
-              <input
-                className="input" type="number" min={0} max={120} disabled={!canEdit}
-                value={form.instagramReplyDelaySeconds}
-                onChange={(e) => patch({ instagramReplyDelaySeconds: Number(e.target.value) || 0 })}
-              />
-              <div className="field-hint">Bir zumda kelgan javob robot bo'lib ko'rinadi — kichik pauza tabiiyroq.</div>
-            </div>
-
-            <div className="field">
-              <label className="field-label">Kunlik javob chegarasi</label>
-              <input
-                className="input" type="number" min={0} max={5000} disabled={!canEdit}
-                value={form.instagramDailyReplyLimit}
-                onChange={(e) => patch({ instagramDailyReplyLimit: Number(e.target.value) || 0 })}
-              />
-              <div className="field-hint">Himoya chegarasi: kutilmagan halqada akkaunt spam sifatida bloklanmasin.</div>
+              <div className="field-hint">
+                Bu matnda AI ekani OSHKOR qilinishi kerak — Meta qoidasi ham, odob qoidasi ham shuni talab qiladi.
+              </div>
             </div>
           </div>
+        </TabPanel>
 
-          <div className="field">
-            <label className="field-label">Salomlashuv matni</label>
-            <textarea
-              className="textarea" value={form.instagramGreeting} disabled={!canEdit}
-              onChange={(e) => patch({ instagramGreeting: e.target.value })}
-              placeholder="Assalomu alaykum! Men markazning AI yordamchisiman…"
-            />
-            <div className="field-hint">
-              Bu matnda AI ekani OSHKOR qilinishi kerak — Meta qoidasi ham, odob qoidasi ham shuni talab qiladi.
-            </div>
-          </div>
-        </div>
+        <TabPanel active={tab === 'reklama'}>
+          {/* ── REKLAMA LIDLARI ── */}
+          <LeadAdsBlock
+            canEdit={canEdit}
+            enabled={form.instagramLeadAdsEnabled}
+            source={form.instagramAdsLeadSource}
+            onPatch={patch}
+          />
 
-        {/* ── REKLAMA LIDLARI ── */}
-        <LeadAdsBlock
-          canEdit={canEdit}
-          enabled={form.instagramLeadAdsEnabled}
-          source={form.instagramAdsLeadSource}
-          onPatch={patch}
-        />
+          {/* ── REKLAMA STATISTIKASI (Ads Insights) ── */}
+          <AdsStatsBlock canEdit={canEdit} enabled={form.instagramAdsStatsEnabled} onPatch={patch} />
 
-        {/* ── REKLAMA STATISTIKASI (Ads Insights) ── */}
-        <AdsStatsBlock canEdit={canEdit} enabled={form.instagramAdsStatsEnabled} onPatch={patch} />
+          {/* ── CAPI: LID SIFATINI META'GA QAYTARISH ── */}
+          <CapiBlock canEdit={canEdit} />
+        </TabPanel>
 
-        {/* ── CAPI: LID SIFATINI META'GA QAYTARISH ── */}
-        <CapiBlock canEdit={canEdit} />
+        <TabPanel active={tab === 'kontent'}>
+          {/* ── KONTENT JOYLASH ── */}
+          <ContentBlock
+            canEdit={canEdit}
+            enabled={form.instagramPublishEnabled}
+            onPatch={patch}
+            onGoToAccount={() => goTab('akkaunt')}
+          />
+        </TabPanel>
 
-        {/* ── KONTENT JOYLASH ── */}
-        <ContentBlock canEdit={canEdit} enabled={form.instagramPublishEnabled} onPatch={patch} />
-
-        {/* ── SINOV ── */}
-        <TestBlock canEdit={canEdit} />
+        <TabPanel active={tab === 'sinov'}>
+          {/* ── SINOV ── */}
+          <TestBlock canEdit={canEdit} />
+        </TabPanel>
       </div>
     </MarketingPage>
   )
@@ -521,7 +653,7 @@ function LeadAdsBlock({
   }
 
   return (
-    <div className="card card-pad" style={{ marginBottom: 18 }}>
+    <div className="card card-pad">
       <div className="section-head">
         <div>
           <div className="section-title">Reklama lidlari (Lead Ads)</div>
@@ -742,7 +874,7 @@ function AdsStatsBlock({
   }
 
   return (
-    <div className="card card-pad" style={{ marginBottom: 18 }}>
+    <div className="card card-pad">
       <div className="section-head">
         <div>
           <div className="section-title">Reklama statistikasi (Ads Insights)</div>
@@ -983,7 +1115,7 @@ function CapiBlock({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <div className="card card-pad" style={{ marginBottom: 18 }}>
+    <div className="card card-pad">
       <div className="section-head">
         <div>
           <div className="section-title">Lid sifatini Meta'ga qaytarish (CAPI)</div>
@@ -1172,11 +1304,13 @@ function CapiBlock({ canEdit }: { canEdit: boolean }) {
  * login ortidagi `/uploads/...` manzilini ocholmaydi.
  */
 function ContentBlock({
-  canEdit, enabled, onPatch,
+  canEdit, enabled, onPatch, onGoToAccount,
 }: {
   canEdit: boolean
   enabled: boolean
   onPatch: (p: Partial<IgSettings>) => void
+  /** Akkaunt kartasi BOSHQA tabda — tugma avval o'sha tabni ochishi kerak. */
+  onGoToAccount?: () => void
 }) {
   const [status, setStatus] = useState<IgContentStatus | null>(null)
   const [error, setError] = useState('')
@@ -1187,13 +1321,22 @@ function ContentBlock({
       .catch((e) => setError(apiErrorMessage(e, "Kontent moduli holatini yuklab bo'lmadi")))
   }, [])
 
-  /** Akkaunt kartasi shu sahifaning tepasida — havola o'rniga aniq o'sha yerga olib boramiz. */
+  /**
+   * Akkaunt kartasiga o'tish.
+   *
+   * ⚠️ Sahifa tablarga bo'lingandan keyin karta BOSHQA tabda qoldi: faqat `scrollIntoView`
+   * qilinsa tugma JIMGINA hech narsa qilmasdi (element `display: none` ichida). Shuning
+   * uchun avval tab almashtiriladi, keyin — React chizib bo'lgach — kartaga suriladi.
+   */
   const goToAccount = () => {
-    document.getElementById('ig-account-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    onGoToAccount?.()
+    setTimeout(() => {
+      document.getElementById('ig-account-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
   }
 
   return (
-    <div className="card card-pad" style={{ marginBottom: 18 }}>
+    <div className="card card-pad">
       <div className="section-head">
         <div>
           <div className="section-title">Kontent joylash</div>
@@ -1440,7 +1583,7 @@ function DiagnosticsBlock({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <div className="card card-pad" style={{ marginBottom: 18 }}>
+    <div className="card card-pad">
       <div className="section-head">
         <div>
           <div className="section-title">Ulanishni tekshirish</div>

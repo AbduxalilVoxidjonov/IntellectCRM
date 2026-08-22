@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage } from '@/lib/utils'
 import {
   createIgRule, deleteIgRule, getIgRules, updateIgRule,
   type IgRule, type IgRuleChannel, type IgRulePayload,
 } from '@/api/services/instagram'
-import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
+import {
+  Icon, MarketingPage, MkCard, MkDialog, MkEmpty, MkError, MkLoading, MkSheet, MkStat,
+} from './mk'
 
 /** Qoida qaysi kanalda ishlashi. */
 const CHANNELS: { key: IgRuleChannel; label: string }[] = [
@@ -43,6 +45,9 @@ export function InstagramRules() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modal, setModal] = useState<IgRule | 'new' | null>(null)
+  /** O'chirish tasdig'i — `window.confirm` o'rniga bo'lim uslubidagi kichik oyna. */
+  const [toDelete, setToDelete] = useState<IgRule | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -56,15 +61,31 @@ export function InstagramRules() {
   useEffect(load, [load])
 
   const remove = async (r: IgRule) => {
-    if (!window.confirm(`«${r.title}» qoidasi o'chirilsinmi?`)) return
     setError('')
+    setRemoving(true)
     try {
       await deleteIgRule(r.id)
+      setToDelete(null)
       load()
     } catch (e) {
       setError(apiErrorMessage(e, "O'chirib bo'lmadi"))
+      setToDelete(null)
+    } finally {
+      setRemoving(false)
     }
   }
+
+  /**
+   * Ro'yxat ustidagi ko'rsatkichlar — "qoidalar umuman ishlayaptimi" degan savolga
+   * jadvalni o'qimasdan javob beradi. Sanoq mijoz tomonda: ro'yxat baribir to'liq
+   * yuklanadi, ya'ni qo'shimcha so'rov KERAK EMAS.
+   */
+  const stats = useMemo(() => ({
+    total: rules.length,
+    active: rules.filter((r) => r.isActive).length,
+    stopAi: rules.filter((r) => r.stopAi).length,
+    matches: rules.reduce((s, r) => s + r.matchCount, 0),
+  }), [rules])
 
   return (
     <MarketingPage
@@ -89,86 +110,130 @@ export function InstagramRules() {
         )}
 
         {!loading && rules.length > 0 && (
-          <div className="card" style={{ overflowX: 'auto' }}>
-            <table className="mk-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 60 }}>Tartib</th>
-                  <th>Sarlavha</th>
-                  <th>Kalit so'zlar</th>
-                  <th>Kanal</th>
-                  <th>Javob</th>
-                  <th>AI</th>
-                  <th>Holat</th>
-                  <th className="mk-num">Moslik</th>
-                  <th style={{ width: 90 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {rules.map((r) => (
-                  <tr key={r.id}>
-                    <td className="mk-num">{r.order}</td>
-                    <td style={{ fontWeight: 700 }}>{r.title}</td>
-                    <td>
-                      <div className="kw-wrap">
-                        {r.keywords.split(',').map((k) => k.trim()).filter(Boolean).map((k) => (
-                          <span key={k} className="chip-kw">{k}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>{channelLabel(r.channel)}</td>
-                    <td style={{ maxWidth: 320, color: 'var(--text-2)' }}>
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {r.replyText}
-                      </div>
-                    </td>
-                    <td>
-                      {r.stopAi
-                        ? <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>To'xtatiladi</span>
-                        : <span className="badge badge-ai"><Icon name="sparkle" style={{ width: 11, height: 11 }} /> Davom etadi</span>}
-                    </td>
-                    <td>
-                      {r.isActive
-                        ? <span className="badge badge-success"><span className="badge-dot" /> Faol</span>
-                        : <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>O'chiq</span>}
-                    </td>
-                    <td className="mk-num">{r.matchCount.toLocaleString()}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                        {canEdit && (
-                          <button className="icon-btn" title="Tahrirlash" style={{ width: 32, height: 32 }} onClick={() => setModal(r)}>
-                            <Icon name="edit" style={{ width: 15, height: 15 }} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button className="icon-btn" title="O'chirish" style={{ width: 32, height: 32, color: 'var(--danger)' }} onClick={() => remove(r)}>
-                            <Icon name="trash" style={{ width: 15, height: 15 }} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="mk-kpi" style={{ marginBottom: 18 }}>
+              <MkStat label="Jami qoida" value={stats.total} icon="rules" tone="primary" />
+              <MkStat label="Faol" value={stats.active} icon="check" tone="success" hint="Faqat shular ishlaydi" />
+              <MkStat label="AI'ni to'xtatadi" value={stats.stopAi} icon="zap" tone="warning" hint="Javobdan keyin AI chaqirilmaydi" />
+              <MkStat label="Jami moslik" value={stats.matches.toLocaleString()} icon="trendUp" tone="muted" hint="Qoidalar necha marta ishlagan" />
+            </div>
+
+            {/* Jadval ATAYIN qoldi: ustunlar (tartib · kanal · AI · moslik) yonma-yon
+                solishtiriladi, kartochkalarda esa bu taqqoslash yo'qolardi. Sahifa
+                to'liq kenglikda bo'lgani uchun jadval endi qisqarmaydi. */}
+            <MkCard pad={false}>
+              <div className="mk-scroll-x">
+                <table className="mk-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 60 }}>Tartib</th>
+                      <th>Sarlavha</th>
+                      <th>Kalit so'zlar</th>
+                      <th>Kanal</th>
+                      <th>Javob</th>
+                      <th>AI</th>
+                      <th>Holat</th>
+                      <th className="mk-num">Moslik</th>
+                      <th style={{ width: 90 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rules.map((r) => (
+                      <tr key={r.id}>
+                        <td className="mk-num">{r.order}</td>
+                        <td style={{ fontWeight: 700 }}>{r.title}</td>
+                        <td>
+                          <div className="kw-wrap">
+                            {r.keywords.split(',').map((k) => k.trim()).filter(Boolean).map((k) => (
+                              <span key={k} className="chip-kw">{k}</span>
+                            ))}
+                          </div>
+                        </td>
+                        <td>{channelLabel(r.channel)}</td>
+                        <td style={{ maxWidth: 520, color: 'var(--text-2)' }}>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {r.replyText}
+                          </div>
+                        </td>
+                        <td>
+                          {r.stopAi
+                            ? <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>To'xtatiladi</span>
+                            : <span className="badge badge-ai"><Icon name="sparkle" style={{ width: 11, height: 11 }} /> Davom etadi</span>}
+                        </td>
+                        <td>
+                          {r.isActive
+                            ? <span className="badge badge-success"><span className="badge-dot" /> Faol</span>
+                            : <span className="badge" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>O'chiq</span>}
+                        </td>
+                        <td className="mk-num">{r.matchCount.toLocaleString()}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                            {canEdit && (
+                              <button className="icon-btn" title="Tahrirlash" style={{ width: 32, height: 32 }} onClick={() => setModal(r)}>
+                                <Icon name="edit" style={{ width: 15, height: 15 }} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button className="icon-btn" title="O'chirish" style={{ width: 32, height: 32, color: 'var(--danger)' }} onClick={() => setToDelete(r)}>
+                                <Icon name="trash" style={{ width: 15, height: 15 }} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </MkCard>
+          </>
         )}
 
         {modal && (
-          <RuleModal
+          <RuleSheet
             rule={modal === 'new' ? null : modal}
             nextOrder={rules.length ? Math.max(...rules.map((r) => r.order)) + 1 : 1}
             onClose={() => setModal(null)}
             onSaved={() => { setModal(null); load() }}
           />
         )}
+
+        {toDelete && (
+          <MkDialog
+            title="Qoidani o'chirish"
+            tone="danger"
+            onClose={() => setToDelete(null)}
+            footer={(
+              <>
+                <button className="btn btn-ghost" onClick={() => setToDelete(null)}>Bekor qilish</button>
+                <button className="btn btn-danger" onClick={() => remove(toDelete)} disabled={removing}>
+                  <Icon name="trash" /> {removing ? "O'chirilmoqda…" : "O'chirish"}
+                </button>
+              </>
+            )}
+          >
+            <div>
+              «<b>{toDelete.title}</b>» qoidasi o'chirilsinmi?
+            </div>
+            <div className="field-hint" style={{ marginTop: 8 }}>
+              Qoida o'chirilgach shu kalit so'zlarga tayyor javob yuborilmaydi — savol AI'ga o'tadi.
+            </div>
+          </MkDialog>
+        )}
       </div>
     </MarketingPage>
   )
 }
 
-/** Qoida yaratish/tahrirlash modali. */
-function RuleModal({
+/**
+ * Qoida yaratish/tahrirlash — TO'LIQ EKRANLI oyna (`MkSheet`).
+ *
+ * ⚠️ Forma ATAYIN ikki ustunga bo'lingan, chunki qoidada ikkita mustaqil savol bor:
+ * «QACHON ishlaydi» (kalit so'z, kanal, tartib) va «NIMA QILADI» (javob matni,
+ * AI'ni to'xtatish, faollik). Ilgari ular bitta tor ustunda ketma-ket turib,
+ * foydalanuvchi javob matnini yozayotib kalit so'zlarni ko'rmasdi.
+ */
+function RuleSheet({
   rule, nextOrder, onClose, onSaved,
 }: {
   rule: IgRule | null
@@ -194,6 +259,9 @@ function RuleModal({
 
   const patch = (p: Partial<IgRulePayload>) => setForm((f) => ({ ...f, ...p }))
 
+  /** Kalit so'zlar chiplari — vergul bilan ajratilgani ANIQ ko'rinsin. */
+  const keywordChips = form.keywords.split(',').map((k) => k.trim()).filter(Boolean)
+
   const save = async () => {
     if (!form.title.trim() || !form.replyText.trim()) {
       setError("Sarlavha va javob matni to'ldirilishi shart.")
@@ -213,18 +281,25 @@ function RuleModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal fade-up" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <div className="modal-title">{rule ? 'Qoidani tahrirlash' : 'Yangi qoida'}</div>
-          <button className="icon-btn" onClick={onClose} style={{ background: 'transparent' }}>
-            <Icon name="close" style={{ width: 17, height: 17 }} />
+    <MkSheet
+      title={rule ? 'Qoidani tahrirlash' : 'Yangi qoida'}
+      sub="Mijoz kalit so'zlardan birini yozsa — shu javob darhol yuboriladi."
+      icon="rules"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn btn-ghost" onClick={onClose}>Bekor qilish</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>
+            <Icon name="check" /> {saving ? 'Saqlanmoqda…' : 'Saqlash'}
           </button>
-        </div>
+        </>
+      )}
+    >
+      {error && <div style={{ marginBottom: 16 }}><MkError text={error} /></div>}
 
-        <div className="modal-body">
-          {error && <div style={{ marginBottom: 14 }}><MkError text={error} /></div>}
-
+      <div className="mk-cols2">
+        {/* ── CHAP: QACHON ishlaydi ── */}
+        <MkCard title="Qachon ishlaydi" sub="Qoida qanday xabarga va qaysi navbatda mos keladi">
           <div className="field">
             <label className="field-label">Sarlavha</label>
             <input
@@ -232,6 +307,7 @@ function RuleModal({
               onChange={(e) => patch({ title: e.target.value })}
               placeholder="Masalan: Narx so'rovlari"
             />
+            <div className="field-hint">Faqat ichki nom — mijozga ko'rinmaydi.</div>
           </div>
 
           <div className="field">
@@ -242,6 +318,11 @@ function RuleModal({
               placeholder="narx, qancha, narxi, price, цена"
             />
             <div className="field-hint">Vergul bilan ajrating. Mijoz shu so'zlardan birini yozsa qoida ishlaydi.</div>
+            {keywordChips.length > 0 && (
+              <div className="kw-wrap" style={{ marginTop: 8 }}>
+                {keywordChips.map((k, i) => <span key={`${k}-${i}`} className="chip-kw">{k}</span>)}
+              </div>
+            )}
           </div>
 
           <div className="field">
@@ -255,15 +336,7 @@ function RuleModal({
                 >{c.label}</button>
               ))}
             </div>
-          </div>
-
-          <div className="field">
-            <label className="field-label">Javob matni</label>
-            <textarea
-              className="textarea" value={form.replyText}
-              onChange={(e) => patch({ replyText: e.target.value })}
-              placeholder="Mijozga yuboriladigan javob…"
-            />
+            <div className="field-hint">Qoida faqat tanlangan kanaldagi xabarlarga tegishli.</div>
           </div>
 
           <div className="field">
@@ -275,6 +348,44 @@ function RuleModal({
             />
             <div className="field-hint">Kichik raqam oldin tekshiriladi — birinchi mos kelgan qoida ishlaydi.</div>
           </div>
+        </MkCard>
+
+        {/* ── O'NG: NIMA QILADI ── */}
+        <MkCard title="Nima qiladi" sub="Mijozga yuboriladigan javob va qoidadan keyingi xatti-harakat">
+          <div className="field">
+            <label className="field-label">Javob matni</label>
+            <textarea
+              className="textarea" value={form.replyText}
+              onChange={(e) => patch({ replyText: e.target.value })}
+              placeholder="Mijozga yuboriladigan javob…"
+              style={{ minHeight: 170 }}
+            />
+          </div>
+
+          {/* Jonli ko'rinish — matn mijozning ekranida qanday chiqishini ko'rsatadi.
+              Bo'sh bo'lsa CHIZILMAYDI: bo'sh pufak faqat joyni egallardi. */}
+          {form.replyText.trim() && (
+            <div className="field">
+              <label className="field-label">Mijoz nimani ko'radi</label>
+              <div
+                style={{
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 14,
+                  borderTopLeftRadius: 4,
+                  padding: '11px 14px',
+                  fontSize: 13.5,
+                  lineHeight: 1.55,
+                  color: 'var(--text-1)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {form.replyText}
+              </div>
+              <div className="field-hint">{form.replyText.length} belgi</div>
+            </div>
+          )}
 
           <div className="row-between">
             <div>
@@ -294,15 +405,8 @@ function RuleModal({
             </div>
             <div className={'switch ' + (form.isActive ? 'on' : '')} onClick={() => patch({ isActive: !form.isActive })} />
           </div>
-        </div>
-
-        <div className="modal-foot">
-          <button className="btn btn-ghost" onClick={onClose}>Bekor qilish</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>
-            <Icon name="check" /> {saving ? 'Saqlanmoqda…' : 'Saqlash'}
-          </button>
-        </div>
+        </MkCard>
       </div>
-    </div>
+    </MkSheet>
   )
 }

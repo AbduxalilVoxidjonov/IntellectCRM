@@ -297,3 +297,392 @@
 @keyframes mkPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 .marketing-app .live-dot { width: 7px; height: 7px; border-radius: 99px; background: var(--success); animation: mkPulse 1.6s infinite; display: inline-block; }
 @media (prefers-reduced-motion: reduce) { .marketing-app .fade-up { animation: none; } }
+
+/* ============================================================
+   TO'LIQ EKRAN QATLAMI (2026-08)
+   ------------------------------------------------------------
+   Marketing sahifalari endi DOIM to'liq kenglikda ochiladi, sub-sahifalar
+   esa chap menyuda emas — sahifa ICHIDA tugma bo'lib turadi. Quyidagi
+   selektorlarning HAMMASI `.marketing-app` scope'ida (CRM'ning qolgan
+   qismiga tegmaydi). Yangi rang O'YLAB TOPILMAGAN — faqat mavjud
+   o'zgaruvchilar (`--primary`, `--surface*`, `--radius*`, `--shadow-*`).
+   ⚠️ `.content-narrow` klassi joyida QOLDI (boshqa joyda ishlatilishi
+   mumkin), lekin `MarketingPage` uni endi chizmaydi.
+   ============================================================ */
+
+/* ---- sahifa o'rovchisi: max-width YO'Q ---- */
+.marketing-app .mk-shell { width: 100%; }
+
+/* ---- YOPISHQOQ sarlavha ----
+   Uzun sahifada "qayerdaman va nima qila olaman" doim ko'rinib tursin.
+   Fon yarim shaffof + blur: ostidagi kartochkalar sarlavha ichidan
+   o'qilib qolmasligi uchun z-index ko'tarilgan. */
+.marketing-app .mk-head {
+  position: sticky;
+  top: -24px;
+  z-index: 30;
+  margin: 0 0 20px;
+  padding: 14px 0 12px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.marketing-app .mk-head-inner { display: flex; flex-direction: column; gap: 12px; }
+.marketing-app .mk-head-row { display: flex; align-items: flex-end; gap: 16px; }
+.marketing-app .mk-head-titles { flex: 1; min-width: 0; }
+.marketing-app .mk-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.marketing-app .mk-back {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  font-size: 12.5px; font-weight: 700; color: var(--text-2);
+  text-decoration: none; padding: 3px 9px 3px 6px; border-radius: 99px;
+  background: var(--surface-2); transition: background .14s, color .14s;
+}
+.marketing-app .mk-back:hover { background: var(--surface-3); color: var(--text); }
+.marketing-app .mk-back svg { width: 15px; height: 15px; }
+
+/* ---- SAHIFA ICHIDAGI SUB-NAVIGATSIYA ----
+   Faol element — to'liq "pill" (fon + primary matn + soya). Ostki chiziqli
+   variant ATAYIN tanlanmadi: qator gorizontal skrollanadi va chiziq
+   skroll chegarasida qirqilib ko'rinardi. */
+.marketing-app .mk-subnav {
+  display: flex; align-items: center; gap: 6px;
+  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+  padding: 3px; margin: 0 -3px; background: var(--surface-2); border-radius: var(--radius-sm);
+}
+.marketing-app .mk-subnav::-webkit-scrollbar { display: none; }
+.marketing-app .mk-subnav-item {
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  padding: 8px 13px; border-radius: 9px; font-size: 12.5px; font-weight: 700;
+  color: var(--text-2); text-decoration: none;
+  transition: background .14s, color .14s, box-shadow .14s;
+}
+.marketing-app .mk-subnav-item:hover { color: var(--text); background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.marketing-app .mk-subnav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+.marketing-app .mk-subnav-item.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow-sm); }
+.marketing-app .mk-subnav-count {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
+  display: inline-grid; place-items: center;
+  font-size: 10.5px; font-weight: 800;
+  background: var(--surface-3); color: var(--text-2);
+}
+.marketing-app .mk-subnav-item.active .mk-subnav-count { background: var(--primary-soft); color: var(--primary); }
+
+/* ---- TO'LIQ EKRANLI OYNA (MkSheet) ----
+   Bosh va oyoq qotib turadi, faqat tana skrollanadi — amal tugmalari
+   uzun formada ham doim qo'l ostida bo'lsin. */
+.marketing-app .mk-sheet-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(10, 8, 20, .38);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+}
+.marketing-app .mk-sheet {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+  animation: mkSheetIn .22s ease;
+}
+.marketing-app .mk-sheet-head {
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.marketing-app .mk-sheet-ic {
+  width: 36px; height: 36px; border-radius: var(--radius-sm); flex-shrink: 0;
+  display: grid; place-items: center; background: var(--primary-soft); color: var(--primary);
+}
+.marketing-app .mk-sheet-ic svg { width: 19px; height: 19px; }
+.marketing-app .mk-sheet-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.marketing-app .mk-sheet-sub { font-size: 12.5px; color: var(--text-2); margin-top: 1px; }
+.marketing-app .mk-sheet-body { flex: 1; overflow-y: auto; padding: 24px; }
+.marketing-app .mk-sheet-inner { max-width: 1120px; margin: 0 auto; }
+.marketing-app .mk-sheet-foot {
+  flex-shrink: 0; padding: 14px 24px;
+  background: var(--surface); border-top: 1px solid var(--border);
+}
+.marketing-app .mk-sheet-foot-inner { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+@keyframes mkSheetIn { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .marketing-app .mk-sheet { animation: none; } }
+
+/* ---- QISQA TASDIQ OYNASI (MkDialog) ---- */
+.marketing-app .mk-dialog-overlay {
+  position: fixed; inset: 0; z-index: 320;
+  background: rgba(10, 8, 20, .45);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  display: grid; place-items: center; padding: 20px;
+}
+.marketing-app .mk-dialog {
+  width: 100%; max-width: 480px;
+  background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  overflow: hidden; animation: mkSheetIn .18s ease;
+}
+.marketing-app .mk-dialog.tone-danger { border-top: 3px solid var(--danger); }
+.marketing-app .mk-dialog-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px; }
+.marketing-app .mk-dialog-title { flex: 1; min-width: 0; font-size: 16px; font-weight: 800; }
+.marketing-app .mk-dialog-body { padding: 0 20px 18px; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+.marketing-app .mk-dialog-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { .marketing-app .mk-dialog { animation: none; } }
+
+/* ---- BOSQICHLAR (MkSteps) ----
+   Orasidagi ulovchi chiziq ::after bilan — qadamlar ketma-ketligi
+   ko'rinsin, lekin bosish tartibi MAJBURIY emas. */
+.marketing-app .mk-steps {
+  display: flex; align-items: stretch; gap: 0;
+  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+}
+.marketing-app .mk-steps::-webkit-scrollbar { display: none; }
+.marketing-app .mk-step {
+  position: relative; display: inline-flex; align-items: center; gap: 10px;
+  padding: 11px 18px 11px 14px; white-space: nowrap; text-align: left;
+  border-radius: var(--radius-sm); color: var(--text-2);
+  transition: background .14s, color .14s;
+}
+.marketing-app .mk-step:hover { background: var(--surface-2); }
+.marketing-app .mk-step + .mk-step::before {
+  content: ""; position: absolute; left: -7px; top: 50%;
+  width: 14px; height: 1.5px; background: var(--border-strong);
+}
+.marketing-app .mk-step-num {
+  width: 26px; height: 26px; border-radius: 99px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 12px; font-weight: 800;
+  background: var(--surface-3); color: var(--text-2);
+  transition: background .14s, color .14s;
+}
+.marketing-app .mk-step-text { display: flex; flex-direction: column; min-width: 0; }
+.marketing-app .mk-step-label { font-size: 13px; font-weight: 700; }
+.marketing-app .mk-step-hint { font-size: 11.5px; color: var(--text-3); margin-top: 1px; }
+.marketing-app .mk-step.active { background: var(--surface); box-shadow: var(--shadow-sm); color: var(--text); }
+.marketing-app .mk-step.active .mk-step-num { background: var(--primary); color: #fff; }
+.marketing-app .mk-step.done .mk-step-num { background: var(--success-soft); color: var(--success); }
+.marketing-app .mk-step.active.done .mk-step-num { background: var(--primary); color: #fff; }
+
+/* ---- KO'RSATKICH KARTOCHKALARI (MkStat) ---- */
+.marketing-app .mk-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.marketing-app .mk-stat-card {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--text-3);
+  border-radius: var(--radius); padding: 15px 16px; box-shadow: var(--shadow-sm);
+}
+.marketing-app .mk-stat-ic {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: grid; place-items: center; background: var(--surface-2); color: var(--text-2);
+}
+.marketing-app .mk-stat-ic svg { width: 18px; height: 18px; }
+.marketing-app .mk-stat-v { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+.marketing-app .mk-stat-l { font-size: 12.5px; color: var(--text-2); font-weight: 600; margin-top: 3px; }
+.marketing-app .mk-stat-h { font-size: 11.5px; color: var(--text-3); margin-top: 3px; line-height: 1.4; }
+.marketing-app .mk-stat-card.tone-primary { border-left-color: var(--primary); }
+.marketing-app .mk-stat-card.tone-primary .mk-stat-ic { background: var(--primary-soft); color: var(--primary); }
+.marketing-app .mk-stat-card.tone-success { border-left-color: var(--success); }
+.marketing-app .mk-stat-card.tone-success .mk-stat-ic { background: var(--success-soft); color: var(--success); }
+.marketing-app .mk-stat-card.tone-warning { border-left-color: var(--warning); }
+.marketing-app .mk-stat-card.tone-warning .mk-stat-ic { background: var(--warning-soft); color: var(--warning); }
+.marketing-app .mk-stat-card.tone-danger { border-left-color: var(--danger); }
+.marketing-app .mk-stat-card.tone-danger .mk-stat-ic { background: var(--danger-soft); color: var(--danger); }
+.marketing-app .mk-stat-card.tone-muted { border-left-color: var(--border-strong); }
+
+/* ---- XABAR CHIZIG'I (MkNotice) ---- */
+.marketing-app .mk-notice {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2);
+  margin-bottom: 14px;
+}
+.marketing-app .mk-notice.tone-success { border-color: var(--success); background: var(--success-soft); color: var(--success); }
+.marketing-app .mk-notice.tone-danger { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+.marketing-app .mk-notice.tone-info { border-color: color-mix(in srgb, var(--primary) 30%, transparent); background: var(--primary-soft); color: var(--primary-700); }
+.marketing-app .mk-notice-x { display: grid; place-items: center; padding: 3px; border-radius: 6px; color: inherit; opacity: .7; }
+.marketing-app .mk-notice-x:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+
+/* ---- BO'LIM KARTOCHKASI (MkCard) ---- */
+.marketing-app .mk-card { margin-bottom: 16px; overflow: hidden; }
+.marketing-app .mk-card-head { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.marketing-app .mk-card-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.marketing-app .mk-card-sub { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+.marketing-app .mk-card-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.marketing-app .mk-card-body { padding: 20px; }
+.marketing-app .mk-card-body.no-pad { padding: 0; }
+
+/* ---- COMPOSER (chap — tahrir, o'ng — ko'rinish) ---- */
+.marketing-app .mk-composer { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; align-items: start; }
+.marketing-app .mk-side-sticky { position: sticky; top: 96px; }
+@media (max-width: 1240px) {
+  .marketing-app .mk-composer { grid-template-columns: minmax(0, 1fr); }
+  .marketing-app .mk-side-sticky { position: static; }
+}
+
+/* ---- PASTKI AMAL PANELI ----
+   Uzun formada "Saqlash" tugmasini qidirib pastga tushish shart bo'lmasin. */
+.marketing-app .mk-actionbar {
+  position: sticky; bottom: 0; z-index: 20;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 20px; padding: 13px 16px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0;
+}
+.marketing-app .mk-actionbar-hint { flex: 1; min-width: 160px; font-size: 12.5px; color: var(--text-2); }
+.marketing-app .mk-actionbar-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ---- POST TURI TANLASH ---- */
+.marketing-app .mk-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.marketing-app .mk-type {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 14px;
+  background: var(--surface); transition: border-color .14s, background .14s, box-shadow .14s;
+}
+.marketing-app .mk-type:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.marketing-app .mk-type.sel { border-color: var(--primary); background: var(--primary-soft); }
+.marketing-app .mk-type-ic {
+  width: 34px; height: 34px; border-radius: 10px; margin-bottom: 4px;
+  display: grid; place-items: center; background: var(--surface-2); color: var(--text-2);
+}
+.marketing-app .mk-type.sel .mk-type-ic { background: var(--surface); color: var(--primary); }
+.marketing-app .mk-type-ic svg { width: 18px; height: 18px; }
+.marketing-app .mk-type-name { font-size: 13.5px; font-weight: 700; }
+.marketing-app .mk-type-hint { font-size: 11.5px; color: var(--text-2); line-height: 1.4; }
+
+/* ---- DRAG & DROP maydoni ---- */
+.marketing-app .mk-drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  min-height: 150px; padding: 22px; text-align: center;
+  border: 1.5px dashed var(--border-strong); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--text-2); font-size: 13px;
+  transition: border-color .14s, background .14s, color .14s;
+}
+.marketing-app .mk-drop svg { width: 26px; height: 26px; color: var(--text-3); }
+.marketing-app .mk-drop.over { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.marketing-app .mk-drop.over svg { color: var(--primary); }
+.marketing-app .mk-drop.busy { opacity: .6; pointer-events: none; }
+
+/* ---- MEDIA kartochkasi (composer ichida) ---- */
+.marketing-app .mk-media-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; background: var(--surface); margin-bottom: 12px; }
+.marketing-app .mk-media-head { display: flex; align-items: flex-start; gap: 14px; }
+.marketing-app .mk-media-thumb {
+  width: 104px; height: 104px; flex-shrink: 0;
+  border-radius: var(--radius-sm); object-fit: cover; background: var(--surface-3);
+}
+.marketing-app .mk-media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 12px; }
+
+/* ---- GALEREYA (rejalashtirilgan/joylangan postlar) ---- */
+.marketing-app .mk-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.marketing-app .mk-tile {
+  position: relative; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);
+  transition: box-shadow .16s, border-color .16s;
+}
+.marketing-app .mk-tile:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+.marketing-app .mk-tile-media { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--surface-3); }
+.marketing-app .mk-tile-media img, .marketing-app .mk-tile-media video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: transform .2s ease;
+}
+.marketing-app .mk-tile:hover .mk-tile-media img, .marketing-app .mk-tile:hover .mk-tile-media video { transform: scale(1.03); }
+.marketing-app .mk-tile-badge { position: absolute; top: 8px; left: 8px; z-index: 1; }
+.marketing-app .mk-tile-body { padding: 12px 14px; }
+.marketing-app .mk-tile-cap {
+  font-size: 12.5px; color: var(--text-2); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marketing-app .mk-tile-media img, .marketing-app .mk-tile-media video { transition: none; }
+  .marketing-app .mk-tile:hover .mk-tile-media img, .marketing-app .mk-tile:hover .mk-tile-media video { transform: none; }
+}
+
+/* ---- INSTAGRAM KO'RINISHI (telefon ramkasi) ---- */
+.marketing-app .mk-phone {
+  border-radius: 22px; border: 1px solid var(--border); overflow: hidden;
+  background: var(--surface); box-shadow: var(--shadow-md);
+}
+.marketing-app .mk-phone-head { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+.marketing-app .mk-phone-media { width: 100%; display: block; background: var(--surface-3); object-fit: cover; }
+.marketing-app .mk-phone-bar { display: flex; align-items: center; gap: 14px; padding: 11px 14px 6px; color: var(--text); }
+.marketing-app .mk-phone-bar svg { width: 21px; height: 21px; }
+.marketing-app .mk-phone-bar .spacer { margin-left: auto; }
+.marketing-app .mk-phone-cap { padding: 4px 14px 14px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+
+/* ---- KUN BO'YICHA GURUHLANGAN NAVBAT ---- */
+.marketing-app .mk-day { margin-bottom: 20px; }
+.marketing-app .mk-day-head {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; margin-bottom: 10px; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.marketing-app .mk-day-date { font-size: 13px; font-weight: 800; }
+.marketing-app .mk-day-count { font-size: 11.5px; font-weight: 700; color: var(--text-3); }
+.marketing-app .mk-day-items { display: flex; flex-direction: column; gap: 10px; }
+
+/* ---- NAVBAT QATORI ----
+   Chapdagi 3px chiziq HOLAT rangi: `style={{ ['--rail']: 'var(--warning)' }}`. */
+.marketing-app .mk-post-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--rail, var(--border-strong));
+  border-radius: var(--radius); padding: 12px 16px; box-shadow: var(--shadow-sm);
+  transition: box-shadow .16s, border-color .16s;
+}
+.marketing-app .mk-post-row:hover { box-shadow: var(--shadow-md); }
+.marketing-app .mk-post-media { width: 64px; height: 64px; flex-shrink: 0; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface-3); }
+.marketing-app .mk-post-main { flex: 1; min-width: 0; }
+.marketing-app .mk-post-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+
+/* ---- IKKI USTUN (Sozlamalar) ---- */
+.marketing-app .mk-cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 16px; align-items: start; }
+
+/* ---- GORIZONTAL SKROLL O'ROVCHISI (jadval / chiplar) ---- */
+.marketing-app .mk-scroll-x { overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.marketing-app .mk-scroll-x::-webkit-scrollbar { height: 7px; }
+.marketing-app .mk-scroll-x::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 99px; }
+.marketing-app .mk-scroll-x::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- KUNLIK LIMIT ko'rsatkichi ----
+   ⚠️ `total = 0` "noma'lum" degani (Meta hujjatlari zid) — u holda
+   to'ldirish CHIZILMAYDI, taxminiy son ko'rsatilmaydi. */
+.marketing-app .mk-quota { display: flex; align-items: center; gap: 12px; }
+.marketing-app .mk-quota-ring { position: relative; width: 46px; height: 46px; flex-shrink: 0; }
+.marketing-app .mk-quota-ring svg { width: 46px; height: 46px; transform: rotate(-90deg); }
+.marketing-app .mk-quota-ring .track { stroke: var(--surface-3); }
+.marketing-app .mk-quota-ring .fill { stroke: var(--primary); transition: stroke-dashoffset .3s ease; }
+.marketing-app .mk-quota-ring .num {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 12px; font-weight: 800;
+}
+.marketing-app .mk-quota-text { min-width: 0; }
+.marketing-app .mk-quota-label { font-size: 12.5px; font-weight: 700; }
+.marketing-app .mk-quota-hint { font-size: 11.5px; color: var(--text-3); margin-top: 1px; }
+
+/* ============================================================ MOBIL MOSLASHUV */
+@media (max-width: 860px) {
+  .marketing-app .mk-head { top: -12px; padding: 12px 0 10px; }
+  .marketing-app .mk-head-row { flex-direction: column; align-items: stretch; gap: 10px; }
+  .marketing-app .mk-head-actions { flex-wrap: wrap; }
+  .marketing-app .page-title { font-size: 19px; }
+}
+
+@media (max-width: 900px) {
+  /* mavjud dashboard katakchalari — 4 ustun mobilda o'qib bo'lmasdi */
+  .marketing-app .grid-stats { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .marketing-app .mk-kpi { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .marketing-app .mk-stat-v { font-size: 21px; }
+  .marketing-app .mk-composer { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .marketing-app .mk-cols2 { grid-template-columns: minmax(0, 1fr); }
+  .marketing-app .mk-gallery { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .marketing-app .mk-sheet-head, .marketing-app .mk-sheet-foot { padding-left: 16px; padding-right: 16px; }
+  .marketing-app .mk-sheet-body { padding: 16px; }
+  /* oyoqdagi tugmalar to'liq kenglikda — barmoq bilan tegish oson bo'lsin */
+  .marketing-app .mk-sheet-foot-inner { flex-direction: column-reverse; align-items: stretch; }
+  .marketing-app .mk-sheet-foot-inner .btn { width: 100%; }
+  .marketing-app .mk-dialog-foot { flex-direction: column-reverse; align-items: stretch; }
+  .marketing-app .mk-dialog-foot .btn { width: 100%; }
+  /* navbat qatorida amallar pastga tushadi */
+  .marketing-app .mk-post-row { flex-wrap: wrap; align-items: flex-start; }
+  .marketing-app .mk-post-acts { width: 100%; }
+  .marketing-app .mk-actionbar-acts { width: 100%; }
+  .marketing-app .mk-actionbar-acts .btn { flex: 1; }
+}
+
+@media (max-width: 520px) {
+  .marketing-app .mk-kpi { grid-template-columns: minmax(0, 1fr); }
+  .marketing-app .grid-stats { grid-template-columns: minmax(0, 1fr); }
+}

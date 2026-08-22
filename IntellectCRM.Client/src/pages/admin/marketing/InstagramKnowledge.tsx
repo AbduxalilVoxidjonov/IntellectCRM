@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage } from '@/lib/utils'
 import { getIgKnowledge, saveIgKnowledge, type IgKnowledge } from '@/api/services/instagram'
-import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
+import { Icon, MarketingPage, MkEmpty, MkError, MkLoading, MkNotice, MkStat } from './mk'
 
 /**
  * BILIM BAZASI — AI javoblarining YAGONA manbasi.
@@ -88,6 +88,18 @@ export function InstagramKnowledge() {
     }
   }
 
+  /**
+   * «AI qancha ma'lumot ko'radi» ko'rsatkichlari — hammasi MIJOZ tomonda sanaladi
+   * (ro'yxat baribir to'liq yuklangan, qo'shimcha so'rov kerak emas).
+   * Belgilar soni muhim: promptga tushadigan matn hajmi shu.
+   */
+  const stats = useMemo(() => ({
+    total: items.length,
+    active: items.filter((x) => x.isActive).length,
+    off: items.filter((x) => !x.isActive).length,
+    chars: items.reduce((s, x) => s + x.content.length, 0),
+  }), [items])
+
   return (
     <MarketingPage
       title="Bilim bazasi"
@@ -116,9 +128,8 @@ export function InstagramKnowledge() {
 
         {error && <div style={{ marginBottom: 14 }}><MkError text={error} /></div>}
         {saved && !error && (
-          <div className="mk-alert" style={{ borderColor: 'var(--success)', background: 'var(--success-soft)', color: '#0d6b4b' }}>
-            <Icon name="check" style={{ width: 18, height: 18, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>{saved}</div>
+          <div style={{ marginBottom: 14 }}>
+            <MkNotice text={saved} tone="success" onClose={() => setSaved('')} />
           </div>
         )}
 
@@ -131,55 +142,73 @@ export function InstagramKnowledge() {
           />
         )}
 
-        {!loading && items.map((it, i) => (
-          <div className="mk-kb-item" key={it.id ?? `yangi-${i}`}>
-            <div className="mk-kb-head">
-              <span className="rule-num">{i + 1}</span>
-              <input
-                className="input"
-                style={{ flex: 1 }}
-                value={it.title}
-                disabled={!canEdit}
-                onChange={(e) => patch(i, { title: e.target.value })}
-                placeholder="Bo'lak sarlavhasi — masalan: Kurslar va narxlar"
-              />
-              {canEdit && (
-                <>
-                  <button className="icon-btn" title="Yuqoriga" style={{ width: 34, height: 34 }} onClick={() => move(i, -1)} disabled={i === 0}>
-                    <Icon name="chevUp" style={{ width: 16, height: 16 }} />
-                  </button>
-                  <button className="icon-btn" title="Pastga" style={{ width: 34, height: 34 }} onClick={() => move(i, 1)} disabled={i === items.length - 1}>
-                    <Icon name="chevDown" style={{ width: 16, height: 16 }} />
-                  </button>
-                  <div
-                    className={'switch ' + (it.isActive ? 'on' : '')}
-                    title={it.isActive ? 'Faol' : "O'chiq"}
-                    onClick={() => patch(i, { isActive: !it.isActive })}
-                  />
-                  <button className="icon-btn" title="O'chirish" style={{ width: 34, height: 34, color: 'var(--danger)' }} onClick={() => remove(i)}>
-                    <Icon name="trash" style={{ width: 16, height: 16 }} />
-                  </button>
-                </>
-              )}
-            </div>
-            <textarea
-              className="textarea"
-              style={{ minHeight: 150 }}
-              value={it.content}
-              disabled={!canEdit}
-              onChange={(e) => patch(i, { content: e.target.value })}
-              placeholder="Matn: aniq faktlar, narxlar, shartlar. Qanday yozsangiz — AI shunday aytadi."
-            />
-            {it.updatedAt && (
-              <div className="field-hint">
-                Oxirgi o'zgarish: {it.updatedAt}{it.updatedBy ? ` · ${it.updatedBy}` : ''}
-              </div>
-            )}
+        {!loading && items.length > 0 && (
+          <div className="mk-kpi" style={{ marginBottom: 18 }}>
+            <MkStat label="Jami bo'lak" value={stats.total} icon="book" tone="primary" />
+            <MkStat label="Faol" value={stats.active} icon="check" tone="success" hint="Faqat shular promptga tushadi" />
+            <MkStat label="O'chiq" value={stats.off} icon="close" tone="muted" hint="Saqlanadi, lekin ishlatilmaydi" />
+            <MkStat label="Matn hajmi" value={stats.chars.toLocaleString()} icon="text" tone="muted" hint="Belgilar soni" />
           </div>
-        ))}
+        )}
+
+        {/* Bo'laklar ikki ustunda: matn maydonlari uzun, bitta ustunda ular keng
+            ekranda cho'zilib, ro'yxat esa cheksiz pastga ketardi. Tartib row-major —
+            ya'ni o'qilish ketma-ketligi `order` bilan bir xil. */}
+        {!loading && items.length > 0 && (
+          <div className="mk-cols2">
+            {items.map((it, i) => (
+              <div className="mk-kb-item" key={it.id ?? `yangi-${i}`} style={{ marginBottom: 0 }}>
+                <div className="mk-kb-head">
+                  <span className="rule-num">{i + 1}</span>
+                  <input
+                    className="input"
+                    style={{ flex: 1, minWidth: 0 }}
+                    value={it.title}
+                    disabled={!canEdit}
+                    onChange={(e) => patch(i, { title: e.target.value })}
+                    placeholder="Bo'lak sarlavhasi — masalan: Kurslar va narxlar"
+                  />
+                  {canEdit && (
+                    <>
+                      {/* ⚠️ Yorliqlar "Yuqoriga/Pastga" EMAS: ikki ustunli grid'da
+                          qo'shni bo'lak yonma-yon turadi, gap esa TARTIB haqida. */}
+                      <button className="icon-btn" title="Tartibda oldinga" style={{ width: 34, height: 34 }} onClick={() => move(i, -1)} disabled={i === 0}>
+                        <Icon name="chevUp" style={{ width: 16, height: 16 }} />
+                      </button>
+                      <button className="icon-btn" title="Tartibda orqaga" style={{ width: 34, height: 34 }} onClick={() => move(i, 1)} disabled={i === items.length - 1}>
+                        <Icon name="chevDown" style={{ width: 16, height: 16 }} />
+                      </button>
+                      <div
+                        className={'switch ' + (it.isActive ? 'on' : '')}
+                        title={it.isActive ? 'Faol' : "O'chiq"}
+                        onClick={() => patch(i, { isActive: !it.isActive })}
+                      />
+                      <button className="icon-btn" title="O'chirish" style={{ width: 34, height: 34, color: 'var(--danger)' }} onClick={() => remove(i)}>
+                        <Icon name="trash" style={{ width: 16, height: 16 }} />
+                      </button>
+                    </>
+                  )}
+                </div>
+                <textarea
+                  className="textarea"
+                  style={{ minHeight: 190 }}
+                  value={it.content}
+                  disabled={!canEdit}
+                  onChange={(e) => patch(i, { content: e.target.value })}
+                  placeholder="Matn: aniq faktlar, narxlar, shartlar. Qanday yozsangiz — AI shunday aytadi."
+                />
+                {it.updatedAt && (
+                  <div className="field-hint">
+                    Oxirgi o'zgarish: {it.updatedAt}{it.updatedBy ? ` · ${it.updatedBy}` : ''}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {!loading && canEdit && items.length > 0 && (
-          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button className="btn btn-outline" onClick={add}><Icon name="plus" /> Bo'lak qo'shish</button>
             <button className="btn btn-primary" onClick={save} disabled={saving || !dirty}>
               <Icon name="check" /> {saving ? 'Saqlanmoqda…' : 'Saqlash'}

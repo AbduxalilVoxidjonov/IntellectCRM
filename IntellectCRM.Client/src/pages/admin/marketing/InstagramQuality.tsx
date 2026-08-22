@@ -3,7 +3,7 @@ import { apiErrorMessage } from '@/lib/utils'
 import {
   getIgQuality, type IgQuality, type IgQualityIntent, type IgQualityPair,
 } from '@/api/services/instagramQuality'
-import { Icon, MarketingPage, MkEmpty, MkError, MkLoading } from './mk'
+import { Icon, MarketingPage, MkCard, MkEmpty, MkError, MkLoading, MkStat } from './mk'
 
 /** Yakka seriya rangi — `course-analytics.md`: yashil/qizil juftlik ISHLATILMAYDI. */
 const C_BAR = '#0284c7'
@@ -75,6 +75,9 @@ function editLevel(p: IgQualityPair): { label: string; icon: string; color: stri
  * davr va kanal — hammasiga, niyat — jamlanma va lentaga (kesimga emas, chunki kesim ayni
  * paytda tanlagich), "faqat tahrirlanganlar" — faqat lentaga. Shuning uchun uning tugmasi
  * ham filtrlar kartasida emas, LENTA sarlavhasida turadi.
+ *
+ * ⚠️ KO'RINISH: sahifa to'liq kenglikda ochiladi — niyat jadvali gorizontal skroll
+ * (`mk-scroll-x`) ichida, ya'ni sahifa tanasi hech qachon yon tomonga siljimaydi.
  */
 export function InstagramQuality() {
   const [data, setData] = useState<IgQuality | null>(null)
@@ -112,44 +115,43 @@ export function InstagramQuality() {
     >
       <div className="fade-up">
         {/* ── Filtrlar (davr · kanal · niyat) ─────────────────────────────── */}
-        <div
-          className="card card-pad"
-          style={{ marginBottom: 18, display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}
-        >
-          <div style={{ minWidth: 150 }}>
-            <label className="field-label">Boshlanishi</label>
-            <input className="input" type="date" value={from} onChange={(e) => patch(() => setFrom(e.target.value))} />
+        <MkCard>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 150 }}>
+              <label className="field-label">Boshlanishi</label>
+              <input className="input" type="date" value={from} onChange={(e) => patch(() => setFrom(e.target.value))} />
+            </div>
+            <div style={{ minWidth: 150 }}>
+              <label className="field-label">Tugashi</label>
+              <input className="input" type="date" value={to} onChange={(e) => patch(() => setTo(e.target.value))} />
+            </div>
+            <div className="seg">
+              {([[7, '7 kun'], [30, '30 kun'], [90, '90 kun']] as const).map(([d, l]) => (
+                <button
+                  key={d}
+                  className={from === daysAgo(d - 1) && to === today() ? 'active' : ''}
+                  onClick={() => setRange(d)}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div style={{ minWidth: 190 }}>
+              <label className="field-label">Niyat</label>
+              <select className="input" value={intent} onChange={(e) => patch(() => setIntent(e.target.value))}>
+                <option value="">Barcha niyatlar</option>
+                {Object.entries(INTENT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
+            <div style={{ minWidth: 190 }}>
+              <label className="field-label">Kanal</label>
+              <select className="input" value={channel} onChange={(e) => patch(() => setChannel(e.target.value))}>
+                <option value="">Barcha kanallar</option>
+                {Object.entries(CHANNEL_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
           </div>
-          <div style={{ minWidth: 150 }}>
-            <label className="field-label">Tugashi</label>
-            <input className="input" type="date" value={to} onChange={(e) => patch(() => setTo(e.target.value))} />
-          </div>
-          <div className="seg">
-            {([[7, '7 kun'], [30, '30 kun'], [90, '90 kun']] as const).map(([d, l]) => (
-              <button
-                key={d}
-                className={from === daysAgo(d - 1) && to === today() ? 'active' : ''}
-                onClick={() => setRange(d)}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-          <div style={{ minWidth: 190 }}>
-            <label className="field-label">Niyat</label>
-            <select className="input" value={intent} onChange={(e) => patch(() => setIntent(e.target.value))}>
-              <option value="">Barcha niyatlar</option>
-              {Object.entries(INTENT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
-          </div>
-          <div style={{ minWidth: 190 }}>
-            <label className="field-label">Kanal</label>
-            <select className="input" value={channel} onChange={(e) => patch(() => setChannel(e.target.value))}>
-              <option value="">Barcha kanallar</option>
-              {Object.entries(CHANNEL_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
-          </div>
-        </div>
+        </MkCard>
 
         {loading && <MkLoading />}
         {!loading && error && <MkError text={error} onRetry={load} />}
@@ -188,13 +190,31 @@ export function InstagramQuality() {
             )}
 
             {/* ── KPI ──────────────────────────────────────────────────────── */}
-            <div className="grid-stats" style={{ marginBottom: 22 }}>
-              <Kpi value={data.total.toLocaleString()} label="Jami taklif" hint="AI matn yozgan javoblar" />
-              <Kpi value={data.edited.toLocaleString()} label="Tahrirlangan" hint={`${data.kept.toLocaleString()} tasi aynan qabul qilingan`} />
-              <Kpi value={`${data.editedPercent}%`} label="Tahrir ulushi" hint="Qanchasiga odam qo'l urdi" />
-              <Kpi
+            <div className="mk-kpi" style={{ marginBottom: 22 }}>
+              <MkStat
+                value={data.total.toLocaleString()}
+                label="Jami taklif"
+                tone="primary"
+                icon="ai"
+                hint="AI matn yozgan javoblar"
+              />
+              <MkStat
+                value={data.edited.toLocaleString()}
+                label="Tahrirlangan"
+                tone="warning"
+                icon="edit"
+                hint={`${data.kept.toLocaleString()} tasi aynan qabul qilingan`}
+              />
+              <MkStat
+                value={`${data.editedPercent}%`}
+                label="Tahrir ulushi"
+                icon="gauge"
+                hint="Qanchasiga odam qo'l urdi"
+              />
+              <MkStat
                 value={data.edited > 0 ? `${data.avgSimilarity}%` : '—'}
                 label="O'rtacha o'xshashlik"
+                icon="sliders"
                 hint="Faqat TAHRIRLANGANLAR bo'yicha — 100% ga yaqin bo'lsa tuzatish kichik"
               />
             </div>
@@ -207,12 +227,10 @@ export function InstagramQuality() {
             />
 
             {/* ── Lenta ───────────────────────────────────────────────────── */}
-            <div className="card card-pad" style={{ marginTop: 18 }}>
-              <div className="section-head" style={{ flexWrap: 'wrap', gap: 10 }}>
-                <div>
-                  <div className="section-title">AI taklifi → operator javobi</div>
-                  <div className="page-sub">Eng yangisi tepada</div>
-                </div>
+            <MkCard
+              title="AI taklifi → operator javobi"
+              sub="Eng yangisi tepada"
+              actions={(
                 <div className="seg">
                   {([[false, 'Hammasi'], [true, 'Faqat tahrirlanganlar']] as const).map(([v, l]) => (
                     <button key={String(v)} className={onlyEdited === v ? 'active' : ''} onClick={() => patch(() => setOnlyEdited(v))}>
@@ -220,9 +238,9 @@ export function InstagramQuality() {
                     </button>
                   ))}
                 </div>
-              </div>
-
-              <div className="field-hint" style={{ marginTop: -6, marginBottom: 12 }}>
+              )}
+            >
+              <div className="field-hint" style={{ marginTop: 0, marginBottom: 12 }}>
                 Bu tugma FAQAT ro'yxatga ta'sir qiladi: yuqoridagi jamlanma ham, niyat kesimi ham
                 undan o'zgarmaydi — aks holda «tahrir ulushi» doim 100% bo'lib qolardi.
               </div>
@@ -250,22 +268,11 @@ export function InstagramQuality() {
                     </div>
                   </>
                 )}
-            </div>
+            </MkCard>
           </>
         )}
       </div>
     </MarketingPage>
-  )
-}
-
-/** KPI kartochkasi. */
-function Kpi({ value, label, hint }: { value: string; label: string; hint: string }) {
-  return (
-    <div className="stat">
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
-      <div className="field-hint" style={{ marginTop: 6 }}>{hint}</div>
-    </div>
   )
 }
 
@@ -286,22 +293,15 @@ function IntentTable({
   onSelect: (key: string) => void
 }) {
   return (
-    <div className="card card-pad">
-      <div className="section-head">
-        <div>
-          <div className="section-title">Niyat bo'yicha</div>
-          <div className="page-sub">
-            AI eng ko'p tuzatiladigan mavzu tepada — promptning aynan shu qismi zaif.
-            Qator bosilsa lenta o'sha niyat bo'yicha filtrlanadi.
-          </div>
-        </div>
-      </div>
-
+    <MkCard
+      title="Niyat bo'yicha"
+      sub="AI eng ko'p tuzatiladigan mavzu tepada — promptning aynan shu qismi zaif. Qator bosilsa lenta o'sha niyat bo'yicha filtrlanadi."
+    >
       {rows.length === 0
         ? <MkEmpty text="Ma'lumot yo'q" />
         : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="mk-table">
+          <div className="mk-scroll-x">
+            <table className="mk-table" style={{ minWidth: 720 }}>
               <thead>
                 <tr>
                   <th>Niyat</th>
@@ -351,15 +351,16 @@ function IntentTable({
             </table>
           </div>
         )}
-    </div>
+    </MkCard>
   )
 }
 
 /**
  * Bitta juftlik: chapda AI taklifi, o'ngda operator yuborgani.
  *
- * Ustunlar `auto-fit` bilan tizilgan — tor ekranda ustma-ust tushadi (media so'rovsiz).
- * Uzun matn qisqartiriladi, qator bosilsa to'liq ochiladi.
+ * ⚠️ Ustunlar `mk-cols2` bilan tizilgan: bo'lak ikkita bo'lgani uchun keng ekranda ular
+ * yonma-yon (taklif ↔ javob), 860px dan tor ekranda esa ustma-ust tushadi — media
+ * so'rovini bu yerda qo'lda yozish shart emas.
  */
 function PairRow({ pair }: { pair: IgQualityPair }) {
   const [open, setOpen] = useState(false)
@@ -384,7 +385,7 @@ function PairRow({ pair }: { pair: IgQualityPair }) {
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+      <div className="mk-cols2">
         <TextBox label="AI taklif qilgan" text={cut(pair.aiText)} muted />
         <TextBox label="Operator yuborgan" text={cut(pair.sentText)} />
       </div>
