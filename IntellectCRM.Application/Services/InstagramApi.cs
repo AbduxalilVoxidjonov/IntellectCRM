@@ -302,9 +302,29 @@ public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
     /// Oddiy DM. ⚠️ Chaqirishdan OLDIN 24 soatlik oyna tekshirilgan bo'lishi kerak
     /// (<see cref="InstagramContract.DmWindowOpen"/>) — bu yerda faqat HTTP bajariladi.
     /// </summary>
+    /// <param name="humanAgent">🔴 FAQAT operator qo'lda yozganda <c>true</c>. Meta'ga
+    /// <c>messaging_type=MESSAGE_TAG</c> · <c>tag=HUMAN_AGENT</c> qo'shiladi va javob 24 soatlik
+    /// oynadan TASHQARIDA ham (7 kungacha) yetib boradi. Avtomatik javobga qo'yish Meta
+    /// siyosatini buzadi — <see cref="InstagramContract.HumanAgentWindowOpen"/> izohiga qarang.</param>
     public async Task<(bool Ok, string Error)> SendDmAsync(
-        string igUserId, string recipientId, string message, string token, CancellationToken ct)
+        string igUserId, string recipientId, string message, string token, CancellationToken ct,
+        bool humanAgent = false)
     {
+        // ⚠️ Ikki xil payload: teg kerak bo'lmaganda maydonlar UMUMAN yuborilmaydi (ortiqcha
+        // parametr Meta tomonidan rad etilishi mumkin va oddiy javob yo'lini buzardi).
+        if (humanAgent)
+        {
+            var tagged = new
+            {
+                recipient = new { id = recipientId ?? "" },
+                message = new { text = InstagramContract.TrimBytes(message, IgConst.MaxReplyBytes) },
+                messaging_type = "MESSAGE_TAG",
+                tag = "HUMAN_AGENT",
+            };
+            return await PostMessagesAsync(
+                string.IsNullOrWhiteSpace(igUserId) ? "me" : igUserId, tagged, token, ct);
+        }
+
         var payload = new
         {
             recipient = new { id = recipientId ?? "" },

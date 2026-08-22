@@ -209,6 +209,11 @@ public static class IgConst
     /// </summary>
     public const int MaxReplyBytes = 1000;
 
+    /// <summary>Operatorning <c>HUMAN_AGENT</c> tegi bilan javob bera oladigan oynasi — 7 kun.
+    /// <para>Qoida: <see cref="InstagramContract.HumanAgentWindowOpen"/>. Bot bu oynadan
+    /// FOYDALANMAYDI (Meta siyosati: teg faqat tirik odam javobiga).</para></summary>
+    public const int HumanAgentWindowHours = 168;
+
     /// <summary>
     /// AI'ga beriladigan uzunlik MO'LJALI (belgi) — chegara EMAS.
     ///
@@ -366,6 +371,29 @@ public static class InstagramContract
         if (c.Status == IgConst.StatusOperator) return true;
         if (!TryIso(c.OperatorPausedUntil, out var until)) return false;
         return now < until;
+    }
+
+    /// <summary>
+    /// <b>OPERATOR</b> uchun kengaytirilgan javob oynasi — <c>HUMAN_AGENT</c> tegi bilan
+    /// <b>7 kun</b> (168 soat).
+    ///
+    /// <para><b>Nega bor:</b> Meta odatiy 24 soatlik oynadan tashqarida ham javob berishga
+    /// ruxsat beradi — lekin FAQAT javobni <b>tirik odam</b> yozgan bo'lsa
+    /// (<c>messaging_type=MESSAGE_TAG</c>, <c>tag=HUMAN_AGENT</c>). Busiz operator juma kuni
+    /// kelgan savolga dushanba kuni javob yoza olmasdi va UI "oyna yopilgan" derdi — bu
+    /// Meta'ning mutlaq cheklovi emas, bizning ishlatmagan imkoniyatimiz edi.</para>
+    ///
+    /// <para>🔴 <b>BOT UCHUN ISHLATILMAYDI.</b> Tegni avtomatik javobga qo'yish Meta siyosatini
+    /// buzadi (u aynan "odam javob berdi" degani) va akkauntga cheklov keltirishi mumkin.
+    /// Shuning uchun uni faqat <c>InstagramController.Reply</c> (operator qo'lda yozgani)
+    /// ishlatadi; <see cref="InstagramPipeline"/> hamon <see cref="DmWindowOpen"/> ga tayanadi.</para>
+    /// </summary>
+    public static bool HumanAgentWindowOpen(string lastInboundAtIso, DateTime now)
+    {
+        if (!TryIso(lastInboundAtIso, out var last)) return false;
+        var diff = now - last;
+        if (diff < TimeSpan.Zero) return true;
+        return diff < TimeSpan.FromHours(IgConst.HumanAgentWindowHours);
     }
 
     /// <summary>Bot javob berishi mumkin bo'lgan suhbatmi (yopiq emas, pauzada emas).</summary>

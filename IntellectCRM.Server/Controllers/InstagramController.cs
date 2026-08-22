@@ -470,15 +470,30 @@ public partial class InstagramController(
         if (acc is null || acc.AccessToken.Length == 0)
             return BadRequest(new { message = "Instagram akkaunt ulanmagan — Sozlamalar bo'limidan ulang." });
 
-        if (!InstagramContract.DmWindowOpen(c.LastInboundAt, AppClock.Now))
+        // ── JAVOB OYNASI: operator uchun IKKI BOSQICH ──
+        //
+        // 24 soat ichida — odatdagi javob. 24 soatdan keyin, lekin 7 kun ichida — Meta'ning
+        // `HUMAN_AGENT` tegi bilan (u aynan "javobni TIRIK ODAM yozdi" degani va operator
+        // yo'lida bu rost). Ilgari bu yerda faqat 24 soat tekshirilar va operator juma kuni
+        // kelgan savolga dushanba kuni javob YOZA OLMASDI — UI esa buni Instagram'ning mutlaq
+        // cheklovi qilib ko'rsatardi, aslida bu bizning ishlatmagan imkoniyatimiz edi.
+        //
+        // 🔴 Teg BOTGA berilmaydi (`InstagramPipeline` hamon `DmWindowOpen` ga tayanadi):
+        // avtomatik javobni "odam yozdi" deb belgilash Meta siyosatini buzadi.
+        var standardWindow = InstagramContract.DmWindowOpen(c.LastInboundAt, AppClock.Now);
+        var humanAgentWindow = InstagramContract.HumanAgentWindowOpen(c.LastInboundAt, AppClock.Now);
+
+        if (!standardWindow && !humanAgentWindow)
             return BadRequest(new
             {
-                message = "Javob berish oynasi yopilgan: Instagram qoidasiga ko'ra mijoz oxirgi "
-                          + $"yozganidan keyin {IgConst.DmWindowHours} soat ichida javob berish mumkin. "
-                          + "Mijoz qayta yozguncha DM yubora olmaymiz — telefon orqali bog'laning.",
+                message = "Javob berish oynasi yopilgan: mijoz oxirgi yozganidan beri "
+                          + $"{IgConst.HumanAgentWindowHours / 24} kundan ko'p vaqt o'tdi. "
+                          + "Instagram bu holatda DM yuborishga umuman ruxsat bermaydi — "
+                          + "telefon orqali bog'laning.",
             });
 
-        var (ok, err) = await api.SendDmAsync(acc.IgUserId, c.IgUserId, text, acc.AccessToken, ct);
+        var (ok, err) = await api.SendDmAsync(
+            acc.IgUserId, c.IgUserId, text, acc.AccessToken, ct, humanAgent: !standardWindow);
 
         var now = AppClock.Iso();
         var sent = new IgMessage

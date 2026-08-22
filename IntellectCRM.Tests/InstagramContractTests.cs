@@ -636,4 +636,51 @@ public class InstagramHardeningTests
         Assert.Equal("aaaaaaa…", trimmed);       // 7 bayt matn + 3 bayt "…" = 10
     }
 
+
+    /* ═══════════ OPERATOR OYNASI — HUMAN_AGENT (7 kun) ═══════════ */
+
+    /// <summary>
+    /// Operator 24 soatdan keyin ham javob yoza olishi kerak — Meta buni <c>HUMAN_AGENT</c>
+    /// tegi bilan 7 kungacha ruxsat beradi. Ilgari faqat 24 soat tekshirilar va juma kuni
+    /// kelgan savolga dushanba kuni javob berib bo'lmasdi.
+    /// </summary>
+    [Fact]
+    public void Operator_oynasi_24_soatdan_uzun_lekin_7_kun_bilan_chegaralangan()
+    {
+        var now = new DateTime(2026, 8, 22, 12, 0, 0);
+        string At(double hours) => now.AddHours(-hours).ToString("yyyy-MM-ddTHH:mm:ss");
+
+        // 25 soat: bot uchun YOPIQ, operator uchun OCHIQ — asosiy yangilik shu.
+        Assert.False(InstagramContract.DmWindowOpen(At(25), now));
+        Assert.True(InstagramContract.HumanAgentWindowOpen(At(25), now));
+
+        Assert.True(InstagramContract.HumanAgentWindowOpen(At(167), now));    // 7 kunga bir soat qoldi
+        Assert.False(InstagramContract.HumanAgentWindowOpen(At(169), now));   // 7 kundan oshdi
+    }
+
+    /// <summary>⚠️ FAIL-CLOSED: sana bo'sh yoki buzuq bo'lsa yubormaymiz —
+    /// <see cref="InstagramContract.DmWindowOpen"/> bilan bir xil siyosat.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    [InlineData("buzuq-sana")]
+    public void Operator_oynasi_ham_FAIL_CLOSED(string? iso)
+    {
+        Assert.False(InstagramContract.HumanAgentWindowOpen(iso!, AppClock.Now));
+    }
+
+    /// <summary>Oddiy 24 soatlik oyna ochiq bo'lsa, kengaytirilgani ham ochiq — ya'ni
+    /// operator hech qachon botdan KAMROQ imkoniyatga ega bo'lmaydi.</summary>
+    [Fact]
+    public void Operator_oynasi_botnikini_QAMRAB_oladi()
+    {
+        var now = new DateTime(2026, 8, 22, 12, 0, 0);
+        foreach (var h in new[] { 0.5, 5, 23 })
+        {
+            var at = now.AddHours(-h).ToString("yyyy-MM-ddTHH:mm:ss");
+            Assert.True(InstagramContract.DmWindowOpen(at, now));
+            Assert.True(InstagramContract.HumanAgentWindowOpen(at, now));
+        }
+    }
+
 }
