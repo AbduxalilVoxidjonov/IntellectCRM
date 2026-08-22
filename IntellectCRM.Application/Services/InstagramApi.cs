@@ -174,11 +174,44 @@ public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
     /// </summary>
     public async Task<(bool Ok, string Error)> SubscribeWebhookAsync(string token, CancellationToken ct)
     {
-        var url = $"{IgConst.GraphBase}/me/subscribed_apps?subscribed_fields={IgConst.WebhookFieldsCsv}" +
-                  $"&access_token={Uri.EscapeDataString(token ?? "")}";
-        var (ok, _, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Post, url), ct);
-        return (ok, err);
+        // 1) Odatdagi yo'l — hammasi bitta so'rovda (bitta Graph chaqiruvi).
+        var (ok, _, err) = await SendAsync(() => SubscribeRequest(IgConst.WebhookFieldsCsv, token), ct);
+        if (ok) return (true, "");
+
+        // 2) ZAXIRA — MAYDONMA-MAYDON.
+        //
+        // 🔴 NEGA KERAK. Meta bitta noto'g'ri nom uchun BUTUN so'rovni rad etadi
+        // (`code 100 — Param subscribed_fields[N] must be one of {…}`). 2026-08-22 da aynan
+        // shu sodir bo'ldi: ro'yxatda `message_echoes` bor edi va u Meta tomonidan olib
+        // tashlangani uchun `comments` HAM obuna bo'lmadi — izohlar oylab kelmadi, nosozlik
+        // esa "ulash o'tdi" bo'lib ko'rinardi.
+        //
+        // Nom o'zgargani bilan TUZILMA o'zgarmasdi: Meta ertaga yana bir nomga tegsa hammasi
+        // birdan yiqilardi. Endi bitta maydon rad etilsa QOLGANLARI baribir obuna bo'ladi va
+        // xato matnida AYNAN qaysi biri o'tmagani yoziladi.
+        var failed = new List<string>();
+        var passed = new List<string>();
+        foreach (var field in IgConst.WebhookFields)
+        {
+            var (fOk, _, fErr) = await SendAsync(() => SubscribeRequest(field, token), ct);
+            if (fOk) passed.Add(field);
+            else failed.Add($"{field} ({fErr})");
+        }
+
+        if (failed.Count == 0)
+            return (true, "");
+
+        var detail = passed.Count > 0
+            ? $"Obuna qisman o'tdi. Muvaffaqiyatli: {string.Join(", ", passed)}. "
+            : "Obunaning HECH BIR maydoni o'tmadi. ";
+        return (false, detail + $"O'tmadi: {string.Join("; ", failed)}. Birinchi xato: {err}");
     }
+
+    /// <summary>Obuna so'rovi (bitta maydon yoki vergul bilan ajratilgan ro'yxat uchun).</summary>
+    private static HttpRequestMessage SubscribeRequest(string fields, string token) =>
+        new(HttpMethod.Post,
+            $"{IgConst.GraphBase}/me/subscribed_apps?subscribed_fields={Uri.EscapeDataString(fields)}" +
+            $"&access_token={Uri.EscapeDataString(token ?? "")}");
 
     /// <summary>
     /// [8b] Akkaunt HOZIR qaysi maydonlarga obuna — <c>GET /me/subscribed_apps</c>.
@@ -257,7 +290,10 @@ public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
         var payload = new
         {
             recipient = new { comment_id = commentId ?? "" },
-            message = new { text = message ?? "" },
+            // ⚠️ Bu yerda ham BAYT bo'yicha kesiladi (`SendDmAsync` bilan bir xil): ilgari
+            // private reply matni UMUMAN kesilmasdi va API qatlami asimmetrik edi — yangi
+            // chaqiruvchi qo'shilsa 1000 baytdan oshib, javob jimgina yiqilardi.
+            message = new { text = InstagramContract.TrimBytes(message, IgConst.MaxReplyBytes) },
         };
         return await PostMessagesAsync("me", payload, token, ct);
     }
@@ -272,7 +308,9 @@ public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
         var payload = new
         {
             recipient = new { id = recipientId ?? "" },
-            message = new { text = InstagramContract.Trim(message, IgConst.MaxReplyLength) },
+            // ⚠️ BAYT bo'yicha (Meta: UTF-8 ≤1000 bayt). Belgi bo'yicha kesish kirill/emoji
+            // javoblarda chegaradan oshib ketardi — `IgConst.MaxReplyBytes` izohiga qarang.
+            message = new { text = InstagramContract.TrimBytes(message, IgConst.MaxReplyBytes) },
         };
         var path = string.IsNullOrWhiteSpace(igUserId) ? "me" : igUserId;
         return await PostMessagesAsync(path, payload, token, ct);

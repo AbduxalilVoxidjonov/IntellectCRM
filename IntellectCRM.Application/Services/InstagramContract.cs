@@ -194,7 +194,29 @@ public static class IgConst
     public const int MediaCaptionLimit = 300;
     /// <summary>Bilim bazasi promptga shuncha belgigacha kiradi (token narxi cheksiz o'smasin).</summary>
     public const int KnowledgeLimit = 12000;
-    /// <summary>Instagram DM matni chegarasi (Meta: UTF-8, ≤1000 bayt).</summary>
+    /// <summary>
+    /// Instagram xabar matnining HAQIQIY chegarasi — <b>1000 BAYT</b> (Meta: "Message text must
+    /// be UTF-8 and be a 1000 bytes or less").
+    ///
+    /// <para><b>🔴 BAYT, BELGI EMAS — bu yerda jimgina xato bor edi.</b> Ilgari matn
+    /// <see cref="MaxReplyLength"/> (900 <i>belgi</i>) bilan kesilardi. UTF-8 da lotin harfi
+    /// 1 bayt, <b>kirill 2 bayt</b>, emoji <b>4 baytgacha</b>. Ya'ni 900 belgilik ruscha yoki
+    /// kirillcha javob ≈ 1700–1800 bayt bo'lib, Meta uni RAD ETARDI. Nosozlik "goh ishlaydi,
+    /// goh ishlamaydi" bo'lib ko'rinardi: lotincha o'zbekcha javoblarda muammo yo'q edi,
+    /// shuning uchun sinovda topilmasdi.</para>
+    ///
+    /// <para>Yuborishdan oldin matn <see cref="TrimBytes"/> bilan kesiladi.</para>
+    /// </summary>
+    public const int MaxReplyBytes = 1000;
+
+    /// <summary>
+    /// AI'ga beriladigan uzunlik MO'LJALI (belgi) — chegara EMAS.
+    ///
+    /// <para>Haqiqiy chegara — <see cref="MaxReplyBytes"/> (bayt). Bu qiymat AI javobini
+    /// oldindan qisqartirish va sifat jurnalidagi solishtirish uchun ishlatiladi: 900 belgi
+    /// har qanday yozuvda 1000 baytga sig'masligi mumkin, lekin AI'ga "1000 bayt" deb
+    /// tushuntirishdan ko'ra belgi bilan mo'ljal berish aniqroq ishlaydi.</para>
+    /// </summary>
     public const int MaxReplyLength = 900;
 
     /// <summary>Operator qo'lda javob yozsa bot shuncha DAQIQA jim turadi — <b>12 soat</b>.
@@ -572,6 +594,46 @@ public static class InstagramContract
         var t = (s ?? "").Trim();
         if (max <= 1 || t.Length <= max) return t;
         return t[..(max - 1)] + "…";
+    }
+
+    /// <summary>
+    /// Matnni <b>UTF-8 BAYTLAR</b> bo'yicha kesadi (Instagram xabar chegarasi baytda —
+    /// <see cref="IgConst.MaxReplyBytes"/>).
+    ///
+    /// <para><b>Nega alohida funksiya:</b> <see cref="Trim"/> <c>string.Length</c> ni sanaydi,
+    /// ya'ni BELGI. Kirill harfi UTF-8 da 2 bayt, emoji 4 baytgacha — belgi bo'yicha "sig'gan"
+    /// matn baytda chegaradan oshib ketardi va Meta javobni rad etardi.</para>
+    ///
+    /// <para>⚠️ Kesish <b>matn elementi</b> (grapheme cluster) chegarasida bo'ladi: emoji
+    /// surrogat juftligi yoki ZWJ ketma-ketligi (👨‍👩‍👧) o'rtasidan bo'linsa satr buzilib,
+    /// javobda "�" chiqardi.</para>
+    ///
+    /// <para>⚠️ Uch nuqta (<c>…</c>) ning O'ZI ham 3 bayt — u byudjetdan OLDINDAN ayriladi,
+    /// aks holda kesilgan matn baribir chegaradan oshardi.</para>
+    /// </summary>
+    public static string TrimBytes(string? s, int maxBytes)
+    {
+        var t = (s ?? "").Trim();
+        if (maxBytes <= 0) return "";
+        if (Encoding.UTF8.GetByteCount(t) <= maxBytes) return t;
+
+        const string ellipsis = "…";
+        var budget = maxBytes - Encoding.UTF8.GetByteCount(ellipsis);
+        if (budget <= 0) return "";
+
+        var sb = new StringBuilder();
+        var used = 0;
+        var it = StringInfo.GetTextElementEnumerator(t);
+        while (it.MoveNext())
+        {
+            var element = (string)it.Current;
+            var size = Encoding.UTF8.GetByteCount(element);
+            if (used + size > budget) break;
+            sb.Append(element);
+            used += size;
+        }
+
+        return sb.ToString().TrimEnd() + ellipsis;
     }
 
     /// <summary>Loyihadagi ISO satrni (<c>AppClock.Iso()</c>) o'qiydi.</summary>

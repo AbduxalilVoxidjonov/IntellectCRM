@@ -43,7 +43,26 @@ public sealed class IgEmbeddingService(
     /// (<c>EnvKeysWiringTests</c>), model esa amalda o'zgarmaydi. Model almashsa shu konstanta
     /// yangilanadi va vektorlar o'z-o'zidan qayta hisoblanadi
     /// (<see cref="IgKnowledgeRag.NeedsEmbedding"/>).</para></summary>
-    public const string DefaultModel = "text-embedding-004";
+    public const string DefaultModel = "gemini-embedding-001";
+
+    /// <summary>
+    /// 🔴 <b>2026-08-22: <c>text-embedding-004</c> Google tomonidan OLIB TASHLANDI.</b>
+    ///
+    /// <para>Prodda aniqlandi — har tsiklda <c>404: "models/text-embedding-004 is not found for
+    /// API version v1beta, or is not supported for embedContent"</c> qaytardi. Oqibati JIMGINA
+    /// edi: RAG hech qachon ishlamadi (vektor ustuni bo'sh qoldi), modul esa eski yo'lga
+    /// qaytib ishlayverdi — ya'ni tashqaridan hech narsa buzilmagandek ko'rinardi, lekin bilim
+    /// bazasi o'sganda promptning oxiri kesilib, AI "bilmayman" deya boshlardi.</para>
+    ///
+    /// <para>Amaldagi modellar (<c>GET /v1beta/models</c> bilan tekshirilgan):
+    /// <c>gemini-embedding-001</c> (tanlangan — barqaror), <c>gemini-embedding-2</c>,
+    /// <c>gemini-embedding-2-preview</c>. Ikkalasi ham 3072 o'lchamli vektor qaytaradi.</para>
+    ///
+    /// <para>⚠️ Model nomi o'zgarsa vektorlar O'ZI qayta hisoblanadi
+    /// (<see cref="IgKnowledgeRag.NeedsEmbedding"/> <c>EmbeddingModel</c> ustunini solishtiradi) —
+    /// qo'lda tozalash SHART EMAS.</para>
+    /// </summary>
+    private const string RetiredModelNote = "text-embedding-004 (2026-08 da olib tashlangan)";
 
     /// <summary>Vazifa turi — SAQLANADIGAN hujjat uchun.</summary>
     public const string TaskDocument = "RETRIEVAL_DOCUMENT";
@@ -206,7 +225,25 @@ public sealed class IgEmbeddingService(
             if (!ok)
             {
                 failed++;
-                logger.LogWarning("Instagram bilim bazasi: «{Title}» uchun vektor hisoblanmadi — {Error}", k.Title, err);
+
+                // ⚠️ MODEL NOMI ESKIRGAN holati ALOHIDA va ERROR darajasida.
+                //
+                // Sabab: RAG "yumshoq" degradatsiya qiladi — vektor bo'lmasa modul eski yo'l
+                // bilan ishlayveradi. Ya'ni bu nosozlik tashqaridan KO'RINMAYDI va Warning
+                // darajasidagi qator loglar orasida yo'qolib ketadi. 2026-08-22 da aynan
+                // shunday bo'ldi: `text-embedding-004` olib tashlangan, RAG esa hech qachon
+                // yoqilmagan. Xabar NIMA QILISH kerakligini ochiq aytadi.
+                if (err.Contains("404") || err.Contains("is not found", StringComparison.OrdinalIgnoreCase))
+                    logger.LogError(
+                        "Instagram bilim bazasi: EMBEDDING MODELI TOPILMADI ({Model}) — RAG ishlamaydi. "
+                        + "Google model nomini o'zgartirgan bo'lishi mumkin ({Retired} bilan aynan shunday bo'lgan). "
+                        + "Amaldagi ro'yxat: GET https://generativelanguage.googleapis.com/v1beta/models — "
+                        + "so'ng IgEmbeddingService.DefaultModel yangilanadi (vektorlar o'zi qayta hisoblanadi). "
+                        + "Xato: {Error}",
+                        DefaultModel, RetiredModelNote, err);
+                else
+                    logger.LogWarning("Instagram bilim bazasi: «{Title}» uchun vektor hisoblanmadi — {Error}", k.Title, err);
+
                 break;   // qolganini keyingi tsiklda
             }
 

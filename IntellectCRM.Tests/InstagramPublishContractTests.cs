@@ -260,10 +260,24 @@ public class InstagramPublishContractTests
     }
 
     [Fact]
-    public void ValidateMedia_reels_hajmi_300MB_dan_oshmaydi()
+    public void ValidateMedia_reels_hajmi_1GB_gacha_qabul_qilinadi()
     {
-        Assert.True(InstagramPublishContract.ValidateMedia("reels", Mp4(size: 300L * 1024 * 1024)).Ok);
-        Assert.False(InstagramPublishContract.ValidateMedia("reels", Mp4(size: 301L * 1024 * 1024)).Ok);
+        // ⚠️ Ilgari chegara 300 MB edi — bu BIZNING cheklovimiz, Meta'niki emas: telefonda
+        // olingan bir daqiqalik 4K video ham undan oshadi va post umuman yuborilmasdi.
+        Assert.True(InstagramPublishContract.ValidateMedia("reels", Mp4(size: 500L * 1024 * 1024)).Ok);
+        Assert.True(InstagramPublishContract.ValidateMedia("reels", Mp4(size: 1024L * 1024 * 1024)).Ok);
+
+        // 1 GB dan oshgani — Meta'ning HAQIQIY chegarasi, ya'ni bu "yo'q" o'rinli.
+        var (ok, err) = InstagramPublishContract.ValidateMedia("reels", Mp4(size: 1536L * 1024 * 1024));
+        Assert.False(ok);
+        Assert.Contains("hajmi", err, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ValidateMedia_story_videosi_hajm_chegarasi_ALOHIDA_qoladi()
+    {
+        // Reels chegarasi ko'tarilgani story'ga TEGMAYDI — Meta'da ular ayri (100 MB).
+        Assert.False(InstagramPublishContract.ValidateMedia("story", Mp4(dur: 30, size: 500L * 1024 * 1024)).Ok);
     }
 
     [Theory]
@@ -281,11 +295,57 @@ public class InstagramPublishContractTests
         Assert.False(InstagramPublishContract.ValidateMedia("story", Mp4(dur: 30, size: 120L * 1024 * 1024)).Ok);
     }
 
-    [Fact]
-    public void ValidateMedia_reels_9_16_bolishi_kerak()
+    [Theory]
+    [InlineData(1080, 1920, true)]    // 9:16 — tavsiya etilgan, lekin YAGONA variant emas
+    [InlineData(1080, 1080, true)]    // 1:1 — Instagram qabul qiladi (ilgari BLOKLANARDI)
+    [InlineData(1080, 1350, true)]    // 4:5 — vertikal lenta videosi
+    [InlineData(1920, 1080, true)]    // 16:9 — gorizontal
+    [InlineData(2000, 100, false)]    // 20:1 — Meta chegarasidan (10:1) tashqarida
+    [InlineData(100, 2000, true)]     // 0.05:1 — juda tik, lekin 0.01:1 dan keng
+    [InlineData(10, 2000, false)]     // 0.005:1 — quyi chegaradan ham past
+    public void ValidateMedia_reels_nisbati_Meta_diapazoni_0_01_dan_10_gacha(int w, int h, bool expected)
     {
-        Assert.True(InstagramPublishContract.ValidateMedia("reels", Mp4(1080, 1920)).Ok);
-        Assert.False(InstagramPublishContract.ValidateMedia("reels", Mp4(1080, 1080)).Ok);
+        // ⚠️ ENG MUHIM QATOR — 1:1. Ilgari "Video 9:16 nisbatda bo'lishi kerak" degan BIZNING
+        // xatomiz kvadrat va 4:5 videoni Instagram'ga umuman yubormasdi. Meta esa 0.01:1 dan
+        // 10:1 gacha qabul qiladi va kerak bo'lsa o'zi moslaydi.
+        Assert.Equal(expected, InstagramPublishContract.ValidateMedia("reels", Mp4(w, h)).Ok);
+    }
+
+    [Fact]
+    public void ValidateMedia_feed_videosi_ham_reels_bilan_bir_xil_diapazonda()
+    {
+        // `video` turi Meta'ga REELS bo'lib ketadi — demak nisbat qoidasi ham AYNAN bir xil.
+        Assert.True(InstagramPublishContract.ValidateMedia("video", Mp4(1080, 1080)).Ok);
+        Assert.False(InstagramPublishContract.ValidateMedia("video", Mp4(2000, 100)).Ok);
+    }
+
+    [Fact]
+    public void ValidateMedia_absurd_nisbat_sababini_OCHIQ_yozadi()
+    {
+        var (ok, err) = InstagramPublishContract.ValidateMedia("reels", Mp4(2000, 100));
+        Assert.False(ok);
+        Assert.Contains("20:1", err);      // hozirgi nisbat
+        Assert.Contains("10:1", err);      // ruxsat etilgan chegara
+    }
+
+    [Theory]
+    [InlineData(1080, 1920, true)]
+    [InlineData(720, 1280, true)]
+    [InlineData(1080, 1080, false)]   // ⚠️ STORY'da 9:16 QATTIQ qoladi — u to'liq ekran
+    [InlineData(1080, 1350, false)]
+    public void ValidateMedia_story_videosi_9_16_TALABI_saqlanadi(int w, int h, bool expected)
+    {
+        // Reels yumshatilgani story'ga tegmaydi: story butun ekranni egallaydi va boshqa
+        // nisbat katta bo'sh chekka bo'lib chiqadi — foydalanuvchi buni KUTMAYDI.
+        Assert.Equal(expected, InstagramPublishContract.ValidateMedia("story", Mp4(w, h, dur: 30)).Ok);
+    }
+
+    [Fact]
+    public void ValidateMedia_video_olchami_nomalum_bolsa_nisbat_tekshirilmaydi()
+    {
+        // 0 = "o'lchanmagan" (server video kengligini o'qimaydi — §18.9).
+        var unknown = new IgMediaItem("https://cdn.test/a.mp4", IgPublishConst.KindVideo, DurationSeconds: 30);
+        Assert.True(InstagramPublishContract.ValidateMedia("reels", unknown).Ok);
     }
 
     [Fact]
@@ -434,6 +494,97 @@ public class InstagramPublishContractTests
         Assert.Equal("CAROUSEL", r.MediaType);
         Assert.Equal("matn", r.Caption);
         Assert.Equal(2, r.Children!.Count);
+    }
+
+    [Fact]
+    public void BuildCarouselParent_location_id_YUBORILMAYDI()
+    {
+        // 🔴 Meta hujjatlari ZID: qo'llanmada `location_id` umumiy parametr, endpoint
+        // reference jadvalida esa IMAGE ✓ / REELS ✓ / CAROUSEL ✗. Graph qo'llab-quvvatlamagan
+        // parametrni jimgina tashlamaydi — BUTUN so'rovni `code 100` bilan rad etadi.
+        // Ya'ni joylashuv tanlangan HAR BIR karusel yiqilardi. Xavfsiz tomon tanlandi.
+        // Tekshirish yo'li — `BuildCarouselParent` XML izohida yozilgan.
+        var opt = new IgPublishOptions(LocationId: "12345", Collaborators: new[] { "hamkor" });
+        var r = InstagramPublishContract.BuildCarouselParent(new[] { "1", "2" }, "matn", opt);
+
+        Assert.Equal("", r.LocationId);
+        // ⚠️ `collaborators` esa QOLADI — u reference'da karusel uchun ham belgilangan.
+        Assert.Equal(new[] { "hamkor" }, r.Collaborators);
+    }
+
+    [Fact]
+    public void BuildContainerRequest_yakka_postda_location_id_QOLADI()
+    {
+        // Karuseldagi cheklov yakka rasm/reels'ga TEGMAYDI — u yerda maydon hujjatda aniq.
+        var opt = new IgPublishOptions(LocationId: "12345");
+        Assert.Equal("12345", InstagramPublishContract.BuildContainerRequest("image", Jpeg(), "m", opt).LocationId);
+        Assert.Equal("12345", InstagramPublishContract.BuildContainerRequest("reels", Mp4(), "m", opt).LocationId);
+        // Story'da esa avvalgidek bo'sh.
+        Assert.Equal("", InstagramPublishContract.BuildContainerRequest("story", Jpeg(1080, 1920), "m", opt).LocationId);
+    }
+
+    // ===================== 7.5) Ogohlantirishlar (xato EMAS) =====================
+
+    [Fact]
+    public void MediaWarning_9_16_dan_uzoq_reels_uchun_OGOHLANTIRADI_lekin_bloklamaydi()
+    {
+        var square = Mp4(1080, 1080);
+
+        // Post baribir o'tadi — bu "xato" emas...
+        Assert.True(InstagramPublishContract.ValidateMedia("reels", square).Ok);
+
+        // ...lekin foydalanuvchi natijani bilib turishi kerak.
+        var w = InstagramPublishContract.MediaWarning("reels", square);
+        Assert.NotEmpty(w);
+        Assert.Contains("9:16", w);
+    }
+
+    [Fact]
+    public void MediaWarning_9_16_video_uchun_JIM()
+    {
+        Assert.Empty(InstagramPublishContract.MediaWarning("reels", Mp4(1080, 1920)));
+        Assert.Empty(InstagramPublishContract.MediaWarning("video", Mp4(720, 1280)));
+    }
+
+    [Fact]
+    public void MediaWarning_story_va_rasm_uchun_TAKRORLANMAYDI()
+    {
+        // Story'da nisbat QATTIQ tekshiriladi (ValidateMedia xato beradi) — bir xil gapni
+        // ikki marta aytish foydalanuvchini chalg'itardi.
+        Assert.Empty(InstagramPublishContract.MediaWarning("story", Mp4(1080, 1080)));
+        // Rasm — bu ogohlantirish videoga tegishli.
+        Assert.Empty(InstagramPublishContract.MediaWarning("image", Jpeg(1080, 1080)));
+    }
+
+    [Fact]
+    public void MediaWarning_olcham_nomalum_bolsa_JIM_qoladi()
+    {
+        // "Bilmasak — qo'rqitmaymiz" (IgMediaItem kelishuvi bilan bir xil).
+        var unknown = new IgMediaItem("https://cdn.test/a.mp4", IgPublishConst.KindVideo, DurationSeconds: 30);
+        Assert.Empty(InstagramPublishContract.MediaWarning("reels", unknown));
+        Assert.Empty(InstagramPublishContract.MediaWarning("reels", null));
+    }
+
+    [Fact]
+    public void PostWarnings_karuselda_faqat_BIRINCHI_element_boyicha()
+    {
+        // Nisbat qoidasi bilan AYNAN bir xil: qolganlari birinchisiga qirqiladi.
+        var first = new List<IgMediaItem> { Mp4(1080, 1080), Mp4(1080, 1920) };
+        Assert.Single(InstagramPublishContract.PostWarnings("carousel", first));
+
+        var second = new List<IgMediaItem> { Mp4(1080, 1920), Mp4(1080, 1080) };
+        Assert.Empty(InstagramPublishContract.PostWarnings("carousel", second));
+    }
+
+    [Fact]
+    public void PostWarnings_ogohlantirish_ValidatePost_ni_TOXTATMAYDI()
+    {
+        var items = new List<IgMediaItem> { Mp4(1080, 1080) };
+        Assert.True(InstagramPublishContract.ValidatePost("reels", "matn", items).Ok);
+        Assert.NotEmpty(InstagramPublishContract.PostWarnings("reels", items));
+
+        Assert.Empty(InstagramPublishContract.PostWarnings("reels", null));
+        Assert.Empty(InstagramPublishContract.PostWarnings("reels", Array.Empty<IgMediaItem>()));
     }
 
     // ===================== 8) Poll jadvali =====================

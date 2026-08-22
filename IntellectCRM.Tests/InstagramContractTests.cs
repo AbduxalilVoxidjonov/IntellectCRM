@@ -577,4 +577,63 @@ public class InstagramHardeningTests
         Assert.Equal(new[] { "comments" }, InstagramContract.MissingWebhookFields(new[] { " messages " }));
     }
 
+
+    /* ═══════════ MATN CHEGARASI — BAYT, BELGI EMAS ═══════════ */
+
+    /// <summary>
+    /// 🔴 Meta chegarasi — 1000 BAYT. Ilgari matn 900 BELGI bilan kesilardi: kirill harfi
+    /// UTF-8 da 2 bayt, ya'ni 900 belgilik ruscha javob ≈ 1800 bayt bo'lib Meta uni RAD ETARDI.
+    /// Lotincha o'zbekcha javobda muammo yo'q edi — shuning uchun nosozlik "goh ishlaydi,
+    /// goh ishlamaydi" bo'lib ko'rinardi.
+    /// </summary>
+    [Fact]
+    public void Kirill_matn_BAYT_boyicha_kesiladi()
+    {
+        var cyrillic = new string('я', 900);          // 900 belgi = 1800 bayt
+
+        var trimmed = InstagramContract.TrimBytes(cyrillic, IgConst.MaxReplyBytes);
+
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(trimmed) <= IgConst.MaxReplyBytes,
+            $"chegaradan oshdi: {System.Text.Encoding.UTF8.GetByteCount(trimmed)} bayt");
+        Assert.EndsWith("…", trimmed);
+        // Eski (belgi bo'yicha) yo'l bu matnni UMUMAN kesmasdi — o'sha xato qaytmasin.
+        Assert.True(trimmed.Length < cyrillic.Length);
+    }
+
+    /// <summary>Chegaraga sig'gan matn O'ZGARMAYDI — ortiqcha qisqartirish ham xato.</summary>
+    [Fact]
+    public void Sigadigan_matn_ozgarmaydi()
+    {
+        const string text = "Salom! IELTS kursi oyiga 500 000 so'm. Batafsil: +998 90 344 44 34";
+
+        Assert.Equal(text, InstagramContract.TrimBytes(text, IgConst.MaxReplyBytes));
+        Assert.Equal("", InstagramContract.TrimBytes(null, IgConst.MaxReplyBytes));
+        Assert.Equal("", InstagramContract.TrimBytes("matn", 0));
+    }
+
+    /// <summary>⚠️ Emoji o'rtasidan kesilmaydi: surrogat juftlik yoki ZWJ ketma-ketligi
+    /// bo'linsa javobda "�" chiqardi.</summary>
+    [Fact]
+    public void Emoji_ortasidan_kesilmaydi()
+    {
+        var emojis = string.Concat(Enumerable.Repeat("👨‍👩‍👧 ", 200));   // har biri ko'p baytli
+
+        var trimmed = InstagramContract.TrimBytes(emojis, IgConst.MaxReplyBytes);
+
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(trimmed) <= IgConst.MaxReplyBytes);
+        Assert.DoesNotContain('\uFFFD', trimmed);                     // buzilgan belgi yo'q
+        Assert.False(char.IsHighSurrogate(trimmed[^2]), "surrogat juftlik bo'lindi");
+    }
+
+    /// <summary>Uch nuqtaning O'ZI ham 3 bayt — u byudjetdan oldindan ayrilishi kerak,
+    /// aks holda kesilgan matn baribir chegaradan oshardi.</summary>
+    [Fact]
+    public void Uch_nuqta_byudjetga_kiradi()
+    {
+        var trimmed = InstagramContract.TrimBytes(new string('a', 100), 10);
+
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(trimmed) <= 10);
+        Assert.Equal("aaaaaaa…", trimmed);       // 7 bayt matn + 3 bayt "…" = 10
+    }
+
 }

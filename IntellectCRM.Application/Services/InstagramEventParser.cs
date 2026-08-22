@@ -9,7 +9,8 @@ namespace IntellectCRM.Application.Services;
 /// Meta webhook payloadidan ajratib olingan BITTA hodisa (normalizatsiyalangan ichki model).
 /// </summary>
 /// <param name="Kind"><c>comment</c> | <c>dm</c> | <c>echo</c> — va E6 bilan qo'shilgan
-/// <c>deleted</c> (mijoz xabarini o'chirdi) hamda <c>policy</c> (Meta siyosati ogohlantirishi).
+/// <c>deleted</c> (mijoz xabarini o'chirdi) hamda <c>policy</c> (Meta siyosati ogohlantirishi —
+/// ⚠️ joriy yo'lda KELMAYDI, <see cref="InstagramEventParser.KindPolicy"/>).
 /// Oxirgi ikkisi SUHBAT hodisasi emas: ular yangi xabar yozmaydi, mavjud yozuvni tozalaydi
 /// yoki butun modulga ta'sir qiladi.</param>
 /// <param name="Text">Xabar matni. <b>Bo'sh bo'lishi mumkin</b> (rasm/stiker/ovoz) — hodisa
@@ -74,7 +75,41 @@ public record IgIncomingEvent(
     string PolicyAction = "",
 
     /// <summary>Siyosat ogohlantirishining sababi (Meta bergan matn, xom holda).</summary>
-    string PolicyReason = "");
+    string PolicyReason = "",
+
+    /* ─────────── E7: REKLAMA ATRIBUTSIYASI (DM'da ANIQ `ad_id`) ───────────
+       Yana ATAYIN qo'shimcha (default qiymatli) parametrlar — E6 dagi bilan bir xil sabab:
+       mavjud chaqiruvchilar va testlar o'zgarishsiz ishlayveradi, yangi kontekst esa jimgina
+       yo'qolmaydi. */
+
+    /// <summary>«Click to Instagram Direct» reklamasidan kelgan DM'ning e'lon id'si
+    /// (<c>referral.ad_id</c>).
+    ///
+    /// <para>🔴 Bu — <b>ANIQ</b> atributsiya, ya'ni izohdagi <see cref="IgAdAttribution"/>
+    /// TAXMINidan tubdan farq qiladi: qiymatni Meta'ning O'ZI beradi, biz uni
+    /// <c>media.id</c> ↔ <c>CreativeStoryId</c> bo'yicha TIKLAMAYMIZ. Demak bu qiymatni
+    /// «taxminiy» deb belgilash SHART EMAS (qoidalar §20.1 dagi ogohlantirish faqat IZOH
+    /// atributsiyasiga tegishli).</para>
+    ///
+    /// <para>⚠️ Bo'sh qiymat «reklamadan kelmagan» degani EMAS: <c>referral</c> faqat
+    /// SUHBATNI BOSHLAGAN xabarda keladi, keyingi xabarlarda umuman bo'lmaydi. Ya'ni
+    /// atributsiya SUHBAT darajasida (birinchi xabarda bir marta) saqlanishi kerak, har
+    /// xabarda kutilmasin.</para></summary>
+    string AdId = "",
+
+    /// <summary><c>referral.source</c> — murojaat qayerdan boshlangani (masalan <c>ADS</c>,
+    /// <c>SHORTLINK</c>, <c>QR_CODE</c>, <c>IG_ME_LINK</c>).
+    /// <para>Meta bergan HOLICHA saqlanadi (tarjima/normalizatsiya YO'Q): ro'yxat Meta tomonida
+    /// o'sib boradi va noma'lum qiymatni "boshqa" ga aylantirish yangi kanalni JIMGINA
+    /// yashirardi. <c>ad_id</c> odatda faqat <c>ADS</c> da keladi.</para></summary>
+    string AdReferralSource = "",
+
+    /// <summary>E'lon sarlavhasi (<c>referral.ads_context_data.ad_title</c>) — bo'lsa.
+    /// <para>ATAYIN olinadi, chunki <b>kontekst matniga aynan SHU tushadi</b>: 17 xonali
+    /// <c>ad_id</c> na AI'ga, na operatorga hech narsa aytmaydi, e'lon nomi esa aytadi
+    /// («50% chegirma» e'lonidan kelgan odam aynan o'sha chegirmani so'raydi) — qarang
+    /// <see cref="InstagramEventParser.ContextNote"/>.</para></summary>
+    string AdTitle = "");
 
 /// <summary>
 /// Meta'ning XOM webhook JSON'ini ichki hodisalarga aylantiradi.
@@ -119,8 +154,25 @@ public static class InstagramEventParser
     /// deb rad etardi — ya'ni o'chirish so'rovi bizga UMUMAN yetib kelmasdi.</para></summary>
     public const string KindDeleted = "deleted";
 
-    /// <summary>Meta'ning siyosat ogohlantirishi (<c>messaging_policy_enforcement</c>) — cheklov
-    /// qo'yilishidan OLDINGI signal, modulning eng yuqori qiymatli hodisasi.</summary>
+    /// <summary>
+    /// Meta'ning siyosat ogohlantirishi (<c>messaging_policy_enforcement</c>).
+    ///
+    /// <para>🔴 <b>JORIY YO'LDA BU HODISA KELMAYDI — UNGA TAYANIB BO'LMAYDI.</b> Maydon faqat
+    /// «Instagram Messaging API (Messenger Platform)» yo'lida mavjud; loyiha esa «Instagram API
+    /// with Instagram Login» yo'lida ishlaydi (<c>graph.instagram.com</c>,
+    /// <c>instagram_business_*</c> ruxsatlari), Meta ruxsat bergan webhook maydonlari ro'yxatida
+    /// esa <c>messaging_policy_enforcement</c> YO'Q — ya'ni unga <b>obuna bo'lib ham
+    /// bo'lmaydi</b>.</para>
+    ///
+    /// <para>Shuning uchun quyidagi kodni «bizda Meta cheklovi haqida ogohlantirish bor» deb
+    /// tushunmang: amalda cheklovni bilishning yagona yo'li — Graph javoblaridagi xato kodlari
+    /// (190/200/10/613 …) va Meta konsolidagi akkaunt holati. Ogohlantirishga bog'lab yangi
+    /// himoya QURMANG: u hech qachon ishga tushmaydi.</para>
+    ///
+    /// <para>Kod ATAYIN <b>o'chirilmaydi</b>: kelib qolsa to'g'ri ishlaydi va hech qanday zarar
+    /// qilmaydi (yo'l almashsa yoki Meta maydonni ochsa — tayyor turadi), o'chirish esa
+    /// keyinchalik xuddi shu ishni qaytadan yozishni talab qilardi.</para>
+    /// </summary>
     public const string KindPolicy = "policy";
 
     /// <summary>Story'da eslatib o'tish attachment turi.</summary>
@@ -129,13 +181,25 @@ public static class InstagramEventParser
     /// <summary>Ulashilgan IG post attachment turi (eski <c>share</c> 2026-02-01 da olib tashlangan).</summary>
     public const string AttachIgPost = "ig_post";
 
-    /// <summary>Siyosat ogohlantirishi keladigan webhook maydoni.</summary>
+    /// <summary>Siyosat ogohlantirishi keladigan webhook maydoni.
+    /// <para>⚠️ Joriy yo'lda (Instagram Login) bu maydonga obuna bo'lib bo'lmaydi va hodisa
+    /// KELMAYDI — batafsil <see cref="KindPolicy"/> izohida. Nom bu yerda ikki ish qiladi:
+    /// (a) kelib qolgan hodisani tanish, (b) <see cref="UnsupportedFields"/> uni
+    /// "qo'llab-quvvatlanmaydigan maydon" deb ogohlantirmasligi.</para></summary>
     public const string FieldPolicyEnforcement = "messaging_policy_enforcement";
 
     /// <summary>Story manzili kontekst matniga shuncha belgigacha kiradi (CDN havolalari juda uzun).</summary>
     private const int MaxContextUrlLength = 300;
 
-    /// <summary>Siyosat hodisasi kelishi mumkin bo'lgan kalitlar (§<see cref="TryPolicy"/>).</summary>
+    /// <summary>E'lon nomi kontekst matniga shuncha belgigacha kiradi.
+    /// <para>Story manzilidan qisqaroq: reklama sarlavhasi odam o'qiydigan jumla, uzun bo'lsa
+    /// AI promptida asosiy savolni "bo'g'ib" qo'yardi (qoidalar §21.5 dagi caption chegarasi
+    /// bilan bir xil mulohaza).</para></summary>
+    private const int MaxAdTitleLength = 120;
+
+    /// <summary>Siyosat hodisasi kelishi mumkin bo'lgan kalitlar (§<see cref="TryPolicy"/>).
+    /// <para>⚠️ Uchala yozilish ham ATAYIN qabul qilinadi, LEKIN bu "har ehtimolga qarshi"
+    /// kengashuv: joriy yo'lda hodisaning O'ZI kelmaydi (<see cref="KindPolicy"/>).</para></summary>
     private static readonly string[] PolicyKeys =
         { "policy-enforcement", "policy_enforcement", FieldPolicyEnforcement };
 
@@ -236,10 +300,12 @@ public static class InstagramEventParser
         {
             if (ch.ValueKind != JsonValueKind.Object) continue;
 
-            // SIYOSAT OGOHLANTIRISHI `changes[]` ko'rinishida ham kelishi mumkin (Meta uni
-            // `messaging[]` ichida yuboradi, lekin shakl hujjatlarda qat'iy qotirilmagan).
-            // Ikkala ko'rinishni ham qabul qilamiz: bu hodisani BOY BERISH — modulning eng
-            // qimmat signalini yo'qotish degani.
+            // SIYOSAT OGOHLANTIRISHI `changes[]` ko'rinishida ham kelishi mumkin (shakl
+            // hujjatlarda qat'iy qotirilmagan), shuning uchun ikkala ko'rinish ham qabul
+            // qilinadi.
+            // ⚠️ HALOL ESLATMA: joriy yo'lda (Instagram Login) bu hodisa KELMAYDI va unga
+            // obuna ham bo'lib bo'lmaydi — batafsil `KindPolicy` izohida. Bu tarmoq amalda
+            // O'LIK, ya'ni "bizda ogohlantirish bor" deb hisoblash XATO.
             var field = Str(ch, "field");
             if (field == FieldPolicyEnforcement)
             {
@@ -330,6 +396,12 @@ public static class InstagramEventParser
             var (storyId, storyUrl) = ReadStoryReply(msg);
             var (isMention, mentionUrl, hasPost, postUrl) = ReadAttachments(msg);
 
+            // ── REKLAMA ATRIBUTSIYASI (`referral`) ──
+            // ⚠️ Reklamadan kelgan DM'da e'lon id'si ANIQ ko'rinishda keladi; uni o'qimaslik
+            // TO'LIQ JIMGINA yo'qotish edi (suhbat `?source=ads` filtriga tushmasdi, ROI
+            // hisobotida esa reklama samarasi kam ko'rinardi, xato esa chiqmasdi).
+            var (adId, adSource, adTitle) = ReadReferral(m, msg);
+
             var kind = isEcho ? IgConst.KindEcho : IgConst.KindDm;
             var key = EventKeyOf(kind, "", mid, counterparty, ts, text);
             outList.Add(new IgIncomingEvent(
@@ -338,7 +410,8 @@ public static class InstagramEventParser
                 // Story rasmi manzili ikki yo'ldan keladi: javobda `reply_to.story.url`,
                 // eslatishda esa attachment payload'ida. Ustun — javobniki.
                 StoryUrl: storyUrl.Length > 0 ? storyUrl : mentionUrl,
-                IsStoryMention: isMention, HasSharedPost: hasPost, SharedPostUrl: postUrl));
+                IsStoryMention: isMention, HasSharedPost: hasPost, SharedPostUrl: postUrl,
+                AdId: adId, AdReferralSource: adSource, AdTitle: adTitle));
         }
     }
 
@@ -394,13 +467,76 @@ public static class InstagramEventParser
     }
 
     /// <summary>
+    /// REKLAMA ATRIBUTSIYASI: <c>referral.{ad_id, source, ads_context_data.ad_title}</c>.
+    ///
+    /// <para>«Click to Instagram Direct» reklamasini bosgan odam DM yozganda Meta e'lon id'sini
+    /// O'ZI yuboradi — ya'ni bu <b>ANIQ</b> atributsiya (izohdagi <see cref="IgAdAttribution"/>
+    /// esa TAXMINIY: u yerda <c>ad_id</c> umuman kelmaydi va bog'lanish <c>media.id</c> orqali
+    /// tiklanadi).</para>
+    ///
+    /// <para>⚠️ Obyekt UCH joydan kelishi mumkin, parser uchalasini ham ko'radi (ustunlik
+    /// tartibida):</para>
+    /// <list type="number">
+    ///   <item><c>message.referral</c> — reklamadan kelgan odam BIRINCHI xabarni yozganda
+    ///         (amaldagi ASOSIY holat);</item>
+    ///   <item><c>messaging[].referral</c> — xabardan TASHQARIDA (m.me havolasi, ice breaker);</item>
+    ///   <item><c>messaging[].postback.referral</c> — tugma bosilganda.</item>
+    /// </list>
+    /// <para>Ustunlik <c>message</c> nikida: xabar bilan birga kelgan referral aynan SHU
+    /// xabarga tegishli, tashqaridagisi esa umumiy suhbat konteksti bo'lishi mumkin.</para>
+    ///
+    /// <para>⚠️ <b>ANIQ CHEGARA:</b> <c>message</c> obyekti UMUMAN bo'lmagan sof
+    /// <c>referral</c>/<c>postback</c> hodisasi bu yergacha yetib kelmaydi — u yuqorida
+    /// (<c>message</c> tekshiruvida) tashlanadi. Uni qaytarish uchun YANGI hodisa turi kerak
+    /// bo'lardi: matnsiz "xabar" suhbat lentasiga bo'sh qator bo'lib tushardi va dedup kaliti
+    /// ham boshqacha qurilishi kerak edi. Click-to-Direct reklamasida referral BIRINCHI XABAR
+    /// bilan birga keladi, ya'ni asosiy holat qoplangan; qolgani — ochiq ish.</para>
+    /// </summary>
+    private static (string AdId, string Source, string Title) ReadReferral(JsonElement m, JsonElement msg)
+    {
+        var found = TryReferral(msg, out var r)
+                    || TryReferral(m, out r)
+                    || (m.TryGetProperty("postback", out var pb) && TryReferral(pb, out r));
+        if (!found) return ("", "", "");
+
+        var title = r.TryGetProperty("ads_context_data", out var ctx) && ctx.ValueKind == JsonValueKind.Object
+            ? Str(ctx, "ad_title")
+            : "";
+
+        // ⚠️ `ad_id` ATAYIN `Raw` bilan o'qiladi: Meta uni odatda MATN qilib beradi, lekin
+        // ba'zi payloadlarda SON bo'lib keladi — `Str` bunday qiymatni jimgina bo'sh qaytarardi
+        // va atributsiya yana yo'qolardi.
+        return (Raw(r, "ad_id"), Str(r, "source"), title);
+    }
+
+    /// <summary>Berilgan tugunda <c>referral</c> OBYEKTI bormi.
+    /// <para>Obyekt bo'lmagan qiymat (satr, <c>null</c>, massiv) jimgina "yo'q" hisoblanadi —
+    /// buzuq payload butun hodisani yiqitmasin (sinf izohidagi umumiy siyosat).</para></summary>
+    private static bool TryReferral(JsonElement e, out JsonElement value)
+    {
+        if (e.ValueKind == JsonValueKind.Object
+            && e.TryGetProperty("referral", out var v) && v.ValueKind == JsonValueKind.Object)
+        {
+            value = v;
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>
     /// <c>messaging[]</c> elementida siyosat ogohlantirishi bormi.
     ///
     /// <para>⚠️ Meta hujjatida maydon <c>messaging_policy_enforcement</c> deb ataladi, hodisa
-    /// obyekti esa <c>policy-enforcement</c> (DEFIS bilan) kaliti ostida keladi. Loyihaning
-    /// API ma'lumotnomasida bu shakl QAT'IY qotirilmagan, shuning uchun parser ATAYIN kechirimli:
-    /// uchala yozilishni ham qabul qiladi. Bu hodisani boy berish — Meta cheklov qo'yishidan
-    /// oldingi YAGONA ogohlantirishni yo'qotish degani.</para>
+    /// obyekti esa <c>policy-enforcement</c> (DEFIS bilan) kaliti ostida keladi. Shakl QAT'IY
+    /// qotirilmagan, shuning uchun parser ATAYIN kechirimli: uchala yozilishni ham qabul
+    /// qiladi.</para>
+    ///
+    /// <para>🔴 <b>Lekin joriy yo'lda bu hodisa umuman KELMAYDI</b> (<see cref="KindPolicy"/>):
+    /// maydon Messenger Platform yo'liga tegishli, bizdagi Instagram Login yo'lida esa unga
+    /// obuna bo'lib bo'lmaydi. Ya'ni bu metod amalda HECH QACHON <c>true</c> qaytarmaydi —
+    /// undan kelayotgan "signal" ni rejaga kiritmang.</para>
     /// </summary>
     private static bool TryPolicy(JsonElement m, out JsonElement value)
     {
@@ -436,6 +572,8 @@ public static class InstagramEventParser
     /// <para>Navbat fon xizmatida qayta ishlanadi, ya'ni ogohlantirish logga bir necha soniya
     /// (yoki modul o'chiq bo'lsa — umuman) kechikib tushardi. Bu funksiya so'rov kelgan
     /// ZAHOTI log yozish imkonini beradi va HECH QANDAY og'ir ish qilmaydi.</para>
+    /// <para>⚠️ Joriy yo'lda amalda DOIM <c>false</c> qaytaradi — hodisa Instagram Login
+    /// webhook'ida mavjud emas (<see cref="KindPolicy"/>). Uni "monitoring bor" deb hisoblamang.</para>
     /// </summary>
     public static bool ContainsPolicyEnforcement(string? rawJson)
     {
@@ -457,10 +595,26 @@ public static class InstagramEventParser
     /// operatorga ham ko'rinadi — lentada xabar ustida turadi.</para>
     ///
     /// <para>Konteksti yo'q oddiy xabarda BO'SH satr qaytadi, ya'ni mavjud xulq o'zgarmaydi.</para>
+    ///
+    /// <para><b>REKLAMA KONTEKSTI — QAROR (E7):</b> matnga faqat e'lonning NOMI qo'shiladi
+    /// («Reklamadan keldi: …»), <c>ad_id</c> ning O'ZI esa QO'SHILMAYDI. Uch sabab:
+    /// (1) 17 xonali raqam na AI'ga, na operatorga hech narsa aytmaydi va AI uni mijozga
+    /// qaytarib yozib qo'yishi mumkin edi; (2) atributsiya baribir MAYDON sifatida
+    /// (<c>AdId</c>/<c>AdReferralSource</c>) tuzilma darajasida saqlanadi va Inbox'da kampaniya
+    /// chipi bo'lib chiziladi — matnga takrorlash shovqin bo'lardi; (3) e'lon NOMI esa haqiqiy
+    /// kontekst: reklamada nima va'da qilingan bo'lsa, odam aynan shuni so'raydi, AI esa buni
+    /// bilmasa mavzuni noldan izlab yurardi.</para>
     /// </summary>
     public static string ContextNote(IgIncomingEvent e)
     {
         var parts = new List<string>();
+
+        // ⚠️ REKLAMA BIRINCHI o'rinda: "bu odam qayerdan keldi" savoli javobning MAVZUSINI
+        // belgilaydi, story/post esa faqat "nimaga javob yozilyapti" ni aniqlaydi.
+        if (e.AdId.Length > 0 || e.AdTitle.Length > 0)
+            parts.Add(e.AdTitle.Length > 0
+                ? $"Reklamadan keldi: {Shorten(e.AdTitle, MaxAdTitleLength)}"
+                : "Reklamadan keldi");
 
         // ⚠️ ESLATISH ustun: mijoz o'z story'sida bizni belgilagan bo'lsa bu "javob" emas,
         // boshqa hodisa — ikkalasi bir vaqtda kelsa ham matn chalkashmasin.
@@ -487,8 +641,13 @@ public static class InstagramEventParser
     }
 
     /// <summary>Kontekst matni CDN havolasi bilan cheksiz uzayib ketmasin.</summary>
-    private static string ShortUrl(string url) =>
-        url.Length <= MaxContextUrlLength ? url : url[..MaxContextUrlLength] + "…";
+    private static string ShortUrl(string url) => Shorten(url, MaxContextUrlLength);
+
+    /// <summary>Kontekst bo'lagini chegaraga solish. Qirqilgani <b>KO'RINIB tursin</b> uchun
+    /// oxiriga «…» qo'yiladi (jimgina kesish o'qiyotgan odamni aldardi —
+    /// <c>InstagramCaptionService</c> dagi bilan bir xil qoida).</summary>
+    private static string Shorten(string s, int max) =>
+        s.Length <= max ? s : s[..max] + "…";
 
     /* ---------------- dedup kaliti ---------------- */
 

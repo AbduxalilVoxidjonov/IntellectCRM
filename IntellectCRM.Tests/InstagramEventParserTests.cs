@@ -593,6 +593,188 @@ public class InstagramEventParserE6Tests
 }
 
 /// <summary>
+/// E7 — REKLAMA ATRIBUTSIYASI DM'DA (<c>referral</c>).
+///
+/// <para>«Click to Instagram Direct» reklamasidan kelgan DM'da Meta e'lon id'sini O'ZI beradi.
+/// Ilgari parser <c>referral</c> ni UMUMAN o'qimasdi va yo'qotish TO'LIQ JIMGINA edi: suhbat
+/// <c>?source=ads</c> filtriga tushmasdi, ROI hisobotida reklama samarasi kam ko'rinardi,
+/// hech qanday xato esa chiqmasdi.</para>
+///
+/// <para>⚠️ Bu — izohdagi <see cref="IgAdAttribution"/> dan FARQLI o'laroq <b>ANIQ</b>
+/// atributsiya: qiymat tiklanmaydi, Meta bergan holicha olinadi.</para>
+/// </summary>
+public class InstagramEventParserAdReferralTests
+{
+    private const string OurId = "17841400000000000";
+    private const string ClientId = "5550001112223";
+    private const string AdId = "120212345678901234";
+
+    /// <summary><c>message</c> ichini va (ixtiyoriy) <c>messaging[]</c> elementiga qo'shimcha
+    /// maydonlarni tashqaridan beradigan DM payloadi.</summary>
+    private static string Messaging(string messageBody, string extra = "") => $$"""
+        { "object": "instagram", "entry": [{
+            "id": "{{OurId}}", "time": 1786500001,
+            "messaging": [{
+              "sender": { "id": "{{ClientId}}" },
+              "recipient": { "id": "{{OurId}}" },
+              "timestamp": 1786500001000{{extra}},
+              "message": {{messageBody}} }]}]}
+        """;
+
+    /// <summary>Meta'ning haqiqiy <c>referral</c> obyekti (reklama bosilib DM yozilganda).</summary>
+    private const string Referral = $$"""
+        "referral": {
+          "ref": "kurs-sentabr",
+          "ad_id": "{{AdId}}",
+          "source": "ADS",
+          "type": "OPEN_THREAD",
+          "ads_context_data": { "ad_title": "Ingliz tili — 50% chegirma",
+                                "photo_url": "https://cdn.example/ad.jpg" } }
+        """;
+
+    // ===================== 1) ASOSIY HOLAT =====================
+
+    [Fact]
+    public void Reklamadan_kelgan_DM_da_ad_id_oqiladi()
+    {
+        var json = Messaging($$"""{ "mid": "m-ad-1", "text": "Salom", {{Referral}} }""");
+
+        var ev = Assert.Single(InstagramEventParser.Parse(json, OurId));
+
+        Assert.Equal(IgConst.KindDm, ev.Kind);
+        Assert.Equal(AdId, ev.AdId);
+        Assert.Equal("ADS", ev.AdReferralSource);              // Meta bergan HOLICHA
+        Assert.Equal("Ingliz tili — 50% chegirma", ev.AdTitle);
+        Assert.Equal("dm:m-ad-1", ev.EventKey);                // dedup kaliti O'ZGARMAYDI
+    }
+
+    [Fact]
+    public void Kontekstda_elon_NOMI_boladi_ad_id_ning_ozi_EMAS()
+    {
+        // ⚠️ 17 xonali raqam na AI'ga, na operatorga hech narsa aytmaydi (va AI uni mijozga
+        // qaytarib yozib qo'yishi mumkin edi) — atributsiya MAYDON sifatida saqlanadi.
+        var json = Messaging($$"""{ "mid": "m-ad-2", "text": "Narxi?", {{Referral}} }""");
+
+        var note = InstagramEventParser.ContextNote(Assert.Single(InstagramEventParser.Parse(json, OurId)));
+
+        Assert.Contains("Reklamadan keldi", note);
+        Assert.Contains("Ingliz tili — 50% chegirma", note);
+        Assert.DoesNotContain(AdId, note);
+    }
+
+    [Fact]
+    public void Nomsiz_reklamada_kontekst_baribir_yoziladi()
+    {
+        var json = Messaging($$"""
+            { "mid": "m-ad-3", "text": "Salom",
+              "referral": { "ad_id": "{{AdId}}", "source": "ADS" } }
+            """);
+
+        var ev = Assert.Single(InstagramEventParser.Parse(json, OurId));
+
+        Assert.Equal(AdId, ev.AdId);
+        Assert.Equal("", ev.AdTitle);
+        Assert.Equal("[Reklamadan keldi]", InstagramEventParser.ContextNote(ev));
+    }
+
+    [Fact]
+    public void Ad_id_SON_bolib_kelsa_ham_oqiladi()
+    {
+        // Meta uni odatda MATN qilib beradi; son bo'lib kelgani jimgina yo'qolmasin.
+        var json = Messaging($$"""
+            { "mid": "m-ad-4", "text": "Salom", "referral": { "ad_id": {{AdId}}, "source": "ADS" } }
+            """);
+
+        Assert.Equal(AdId, Assert.Single(InstagramEventParser.Parse(json, OurId)).AdId);
+    }
+
+    // ===================== 2) REFERRAL YO'Q — ESKI XULQ =====================
+
+    [Fact]
+    public void Referral_yoq_bolsa_maydonlar_BOSH_qoladi()
+    {
+        var ev = Assert.Single(InstagramEventParser.Parse(
+            Messaging("""{ "mid": "m-1", "text": "Salom" }"""), OurId));
+
+        Assert.Equal("", ev.AdId);
+        Assert.Equal("", ev.AdReferralSource);
+        Assert.Equal("", ev.AdTitle);
+        Assert.Equal("", InstagramEventParser.ContextNote(ev));   // kontekst YO'Q — eski xulq
+    }
+
+    // ===================== 3) BOSHQA JOYLAR: messaging[] va postback =====================
+
+    [Fact]
+    public void Xabardan_TASHQARIDAGI_referral_ham_oqiladi()
+    {
+        // m.me havolasi / ice breaker: `referral` `messaging[]` elementining O'ZIDA keladi.
+        var json = Messaging("""{ "mid": "m-ad-5", "text": "Salom" }""", $", {Referral}");
+
+        var ev = Assert.Single(InstagramEventParser.Parse(json, OurId));
+
+        Assert.Equal(AdId, ev.AdId);
+        Assert.Equal("ADS", ev.AdReferralSource);
+    }
+
+    [Fact]
+    public void Postback_ichidagi_referral_ham_oqiladi()
+    {
+        var json = Messaging("""{ "mid": "m-ad-6", "text": "Salom" }""",
+            $$""", "postback": { "title": "Boshlash", {{Referral}} }""");
+
+        Assert.Equal(AdId, Assert.Single(InstagramEventParser.Parse(json, OurId)).AdId);
+    }
+
+    [Fact]
+    public void Xabardagi_referral_TASHQARIDAGIDAN_ustun()
+    {
+        // Xabar bilan birga kelgan referral AYNAN shu xabarga tegishli.
+        var json = Messaging(
+            """{ "mid": "m-ad-7", "text": "Salom", "referral": { "ad_id": "111", "source": "ADS" } }""",
+            """, "referral": { "ad_id": "222", "source": "SHORTLINK" }""");
+
+        var ev = Assert.Single(InstagramEventParser.Parse(json, OurId));
+
+        Assert.Equal("111", ev.AdId);
+        Assert.Equal("ADS", ev.AdReferralSource);
+    }
+
+    // ===================== 4) BUZUQ / QISMAN REFERRAL — YIQILMAYDI =====================
+
+    [Theory]
+    [InlineData("""{ "mid": "m-b1", "text": "Salom", "referral": "ADS" }""")]              // obyekt emas
+    [InlineData("""{ "mid": "m-b1", "text": "Salom", "referral": null }""")]               // null
+    [InlineData("""{ "mid": "m-b1", "text": "Salom", "referral": [] }""")]                 // massiv
+    [InlineData("""{ "mid": "m-b1", "text": "Salom", "referral": {} }""")]                 // bo'sh
+    [InlineData("""{ "mid": "m-b1", "text": "Salom", "referral": { "source": "ADS" } }""")] // ad_id yo'q
+    // konteksti satr (obyekt emas)
+    [InlineData("""{ "mid": "m-b1", "text": "Salom", "referral": { "ad_id": "1", "ads_context_data": "x" } }""")]
+    public void Buzuq_yoki_qisman_referral_hodisani_YIQITMAYDI(string messageBody)
+    {
+        var ev = Assert.Single(InstagramEventParser.Parse(Messaging(messageBody), OurId));
+
+        Assert.Equal(IgConst.KindDm, ev.Kind);       // xabarning O'ZI baribir qaytadi
+        Assert.Equal("dm:m-b1", ev.EventKey);
+        Assert.Equal("", ev.AdTitle);                // nomi yo'q — kontekst matni ham qo'shilmaydi
+    }
+
+    [Fact]
+    public void Reklama_konteksti_story_kontekstidan_OLDIN_turadi()
+    {
+        // "Qayerdan keldi" javobning MAVZUSINI belgilaydi, story esa faqat "nimaga javob".
+        var json = Messaging($$"""
+            { "mid": "m-ad-8", "text": "Zo'r!",
+              "reply_to": { "story": { "id": "18000000000000009" } }, {{Referral}} }
+            """);
+
+        var note = InstagramEventParser.ContextNote(Assert.Single(InstagramEventParser.Parse(json, OurId)));
+
+        Assert.StartsWith("[Reklamadan keldi", note);
+        Assert.Contains("Story'ga javob", note);
+    }
+}
+
+/// <summary>
 /// E3 — REKLAMA IZOHI ATRIBUTSIYASI (<see cref="IgAdAttribution"/>), sof funksiyalar.
 ///
 /// <para>⚠️ Bu — <b>TAXMINIY</b> atributsiya: <c>comments</c> webhook'ida <c>ad_id</c> umuman

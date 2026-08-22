@@ -402,7 +402,10 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         }
 
         if (string.IsNullOrWhiteSpace(reply)) { await db.SaveChangesAsync(ct); return; }
-        reply = InstagramContract.Trim(reply, IgConst.MaxReplyLength);
+        // Belgi bo'yicha MO'LJAL (AI javobi juda uzun bo'lsa qisqartiriladi), so'ng BAYT
+        // bo'yicha haqiqiy chegara — Meta aynan baytni sanaydi (`IgConst.MaxReplyBytes`).
+        reply = InstagramContract.TrimBytes(
+            InstagramContract.Trim(reply, IgConst.MaxReplyLength), IgConst.MaxReplyBytes);
 
         // ── 7) TABIIY KECHIKISH (bir zumda kelgan javob spamga o'xshaydi) ──
         //
@@ -743,6 +746,26 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
     private async Task<IgAdAttribution.AdMatch> TryAttributeAdAsync(
         IAppDbContext db, IgIncomingEvent inc, CancellationToken ct)
     {
+        // ── 0) ANIQ ATRIBUTSIYA — Meta bergan `referral.ad_id` (DM) ──
+        //
+        // 🔴 Bu TAXMIN EMAS. "Click to Instagram Direct" reklamasidan kelgan DM'da Meta
+        // `message.referral.ad_id` ni O'ZI beradi — pastdagi media↔creative solishtiruvi kabi
+        // tiklash kerak emas. Ilgari bu maydon parserda umuman o'qilmasdi va TO'LIQ JIMGINA
+        // yo'qolardi: reklamadan kelgan suhbat organik bo'lib qolar, ROI hisoboti esa
+        // reklamani "pul keltirmagan" deb ko'rsatardi.
+        //
+        // ⚠️ `referral` faqat suhbatni BOSHLAGAN xabarda keladi — shuning uchun natija
+        // suhbat darajasida saqlanadi (chaqiruvchi `conv.AdId` bo'sh bo'lsagina yozadi).
+        var exactAdId = (inc.AdId ?? "").Trim();
+        if (exactAdId.Length > 0)
+        {
+            var campaign = await ResolveCampaignAsync(db, exactAdId, ct);
+            logger.LogInformation(
+                "Instagram: reklama ANIQ aniqlandi (referral → e'lon {Ad}, kampaniya {Campaign})",
+                exactAdId, campaign.Length > 0 ? campaign : "—");
+            return new IgAdAttribution.AdMatch(exactAdId, campaign);
+        }
+
         var media = (inc.MediaId ?? "").Trim();
         if (media.Length == 0) return IgAdAttribution.AdMatch.None;
 
@@ -797,6 +820,49 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
         {
             logger.LogWarning(ex, "Instagram: reklama atributsiyasi bajarilmadi ({Media}) — izoh organik deb qoladi", media);
             return IgAdAttribution.AdMatch.None;
+        }
+    }
+
+    /// <summary>
+    /// Berilgan e'lon id'si uchun KAMPANIYA id'sini topadi (`ad → adset → campaign`).
+    ///
+    /// <para>E'lon bizning sinxronlangan jadvalimizda bo'lmasligi mumkin (reklama statistikasi
+    /// moduli o'chiq yoki hali sinxronlanmagan) — u holda BO'SH satr qaytadi va e'lon id'sining
+    /// o'zi baribir saqlanadi: yarim ma'lumot hech qanaqasidan yaxshiroq.</para>
+    ///
+    /// <para>⚠️ Xato YUTILADI: atributsiya — yordamchi ma'lumot, u tufayli mijozning xabari
+    /// qayta ishlanmay qolmasligi kerak.</para>
+    /// </summary>
+    private async Task<string> ResolveCampaignAsync(IAppDbContext db, string adId, CancellationToken ct)
+    {
+        try
+        {
+            var node = await db.IgAdEntities.AsNoTracking()
+                .Where(a => a.ExternalId == adId)
+                .Select(a => new { a.ExternalId, a.Level, a.ParentId, a.CreativeStoryId })
+                .FirstOrDefaultAsync(ct);
+            if (node is null) return "";
+
+            var self = new IgAdAttribution.AdRow(node.ExternalId, node.Level, node.ParentId, node.CreativeStoryId);
+
+            var parents = new List<IgAdAttribution.AdRow>();
+            var parentId = (node.ParentId ?? "").Trim();
+            if (parentId.Length > 0)
+            {
+                var p = await db.IgAdEntities.AsNoTracking()
+                    .Where(a => a.ExternalId == parentId)
+                    .Select(a => new { a.ExternalId, a.Level, a.ParentId, a.CreativeStoryId })
+                    .FirstOrDefaultAsync(ct);
+                if (p is not null)
+                    parents.Add(new IgAdAttribution.AdRow(p.ExternalId, p.Level, p.ParentId, p.CreativeStoryId));
+            }
+
+            return IgAdAttribution.CampaignOf(self, parents);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Instagram: kampaniya id topilmadi ({Ad}) — e'lon id'si o'zi saqlanadi", adId);
+            return "";
         }
     }
 

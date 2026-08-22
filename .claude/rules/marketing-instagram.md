@@ -1380,9 +1380,23 @@ undan ham tez) — manzil saqlanadi, lekin unga tayanib bo'lmaydi; operator hech
 (migratsiya bu ish doirasidan tashqarida) — kontekst matnga qo'shiladi, aks holda "Salom!"
 degan story javobi butunlay tushunarsiz bo'lardi.
 
-### 20.3. 🔴 `messaging_policy_enforcement` — cheklovdan OLDINGI YAGONA signal
+### 20.3. `messaging_policy_enforcement` — 🔴 JORIY YO'LDA KELMAYDI (kod zaxira sifatida qoladi)
 
-Kelganda **ikki narsa DARHOL** bajariladi:
+🔴 **2026-08-22 da aniqlandi:** bu hodisa **"Instagram Messaging API (Messenger Platform)"**
+yo'liga tegishli. Loyiha esa **"Instagram API with Instagram Login"** yo'lida
+(`graph.instagram.com`, `instagram_business_*` scope'lari) va Meta ruxsat bergan webhook
+maydonlari ro'yxatida `messaging_policy_enforcement` **YO'Q** — ya'ni unga **obuna bo'lib ham
+bo'lmaydi** va hodisa **hech qachon kelmaydi**.
+
+⚠️ Shuning uchun bu **"cheklovdan oldingi yagona signal" EMAS** — ilgari shu yerda va kod
+izohlarida shunday yozilgan edi va bu **xato tasavvur** berardi ("bizda ogohlantirish bor").
+Meta cheklovini bilishning haqiqiy yo'llari: **Graph xato kodlari** (`10`, `200`, `368`,
+`551`) va **Meta konsolidagi ogohlantirishlar**.
+
+Kod **O'CHIRILMADI**: hodisa kelib qolsa to'g'ri ishlaydi va zarar qilmaydi. Lekin unga
+**tayanib bo'lmaydi** — yangi funksiya bu signalga bog'lanmasin.
+
+Kelgan taqdirda **ikki narsa DARHOL** bajariladi:
 
 1. **Avtomatika pauza qilinadi** — `InstagramAutoReplyComments` va `InstagramAutoReplyDm`
    o'chiriladi;
@@ -1398,8 +1412,7 @@ xatoni takrorlashga olib kelardi.
 
 ⚠️ **Maydon nomi bir xil emas:** Meta hujjatida `messaging_policy_enforcement`, hodisa obyekti
 esa `policy-enforcement` (**DEFIS** bilan) kaliti ostida keladi. Parser ATAYIN kechirimli —
-**uchala yozilishni** ham qabul qiladi. Bu hodisani boy berish — cheklovdan oldingi yagona
-ogohlantirishni yo'qotish degani.
+**uchala yozilishni** ham qabul qiladi (kelib qolgan taqdirda shakl tufayli boy berilmasin).
 ⚠️ Meta bu hodisada **`mid` bermaydi**, shuning uchun `EventKey` `action|reason` ning barqaror
 hash'idan quriladi (§5 deterministiklik qoidasi). Shakl kutilmagan bo'lsa ham signal
 qolishi uchun `action` bo'sh bo'lganda `"warning"` yoziladi.

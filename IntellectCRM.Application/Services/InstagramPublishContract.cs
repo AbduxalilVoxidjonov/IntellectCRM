@@ -73,7 +73,22 @@ public static class IgPublishConst
     /* ═════════════ Media chegaralari (§5.5) ═════════════ */
 
     public const long MaxImageBytes = 8L * 1024 * 1024;        // rasm ≤ 8 MB
-    public const long MaxReelsBytes = 300L * 1024 * 1024;      // reels ≤ 300 MB
+
+    /// <summary>
+    /// Reels/video hajmi — <b>1 GB</b> (Meta spetsifikatsiyasi).
+    /// <para>⚠️ Ilgari bu yerda <b>300 MB</b> turardi — bu <b>bizning</b> cheklovimiz edi, Meta'niki
+    /// emas: telefonda olingan bir daqiqalik 4K video ham 300 MB dan oshadi va post
+    /// Instagram'ga <b>umuman yuborilmasdi</b>. Qoida bitta: bu yerda faqat Meta'ning
+    /// haqiqiy chegarasi turadi — "ehtiyot uchun" qisqartirilgan son ishlaydigan postni
+    /// jimgina to'sib qo'yadi.</para>
+    /// <para>⚠️ Bu konstanta yuklash marshrutining hajm chegarasi hamdir
+    /// (<c>InstagramController.Media</c> dagi <c>RequestSizeLimit</c> va
+    /// <c>MarketingPublicMedia.MaxBytesFor</c>) — ya'ni o'zgartirilsa yuklanadigan faylning
+    /// eng katta hajmi ham o'zgaradi. Bu ATAYIN bitta joydan: "yuklab bo'ldi, lekin joylab
+    /// bo'lmadi" holati eng chalg'ituvchisi bo'lardi.</para>
+    /// </summary>
+    public const long MaxReelsBytes = 1024L * 1024 * 1024;     // reels ≤ 1 GB (Meta)
+
     public const long MaxStoryVideoBytes = 100L * 1024 * 1024; // story video ≤ 100 MB
 
     public const double MinReelsSeconds = 3, MaxReelsSeconds = 900;   // 3 s – 15 daqiqa
@@ -84,15 +99,42 @@ public static class IgPublishConst
     /// <summary>Feed rasmining kengligi (px).</summary>
     public const int FeedMinWidth = 320, FeedMaxWidth = 1440;
 
-    /// <summary>Story/Reels nisbati — 9:16.</summary>
-    public const double StoryRatio = 9.0 / 16.0;
     /// <summary>
-    /// 9:16 dan ruxsat etilgan chetlanish.
+    /// <b>STORY</b> nisbati — 9:16 (to'liq ekran).
+    /// <para>⚠️ Nomi "Story" — bu qiymat REELS uchun <b>MAJBURIY EMAS</b> (qarang
+    /// <see cref="VideoMinRatio"/>): story haqiqatan butun ekranni egallaydi, reels esa
+    /// lentada ham ko'rinadi va Instagram uni o'zi moslaydi.</para>
+    /// </summary>
+    public const double StoryRatio = 9.0 / 16.0;
+
+    /// <summary>
+    /// 9:16 dan ruxsat etilgan chetlanish (STORY uchun qattiq, REELS uchun faqat
+    /// <b>ogohlantirish</b> chegarasi — <see cref="InstagramPublishContract.MediaWarning"/>).
     /// <para>⚠️ Aynan 0.5625 talab qilinsa 1080×1921 kabi bir piksellik farq ham postni rad
     /// etardi. Chetlanish ATAYIN kichik (±0.02): kengroq nisbat Instagram tomonidan qirqiladi
     /// va foydalanuvchi buni "rasmimning yarmi kesilib qolibdi" deb ko'radi.</para>
     /// </summary>
     public const double StoryRatioTolerance = 0.02;
+
+    /// <summary>
+    /// <b>VIDEO/REELS nisbatining HAQIQIY chegarasi — 0.01:1 dan 10:1 gacha</b> (Meta
+    /// spetsifikatsiyasi, Reels va feed videosi uchun bir xil).
+    ///
+    /// <para>⚠️ Ilgari video uchun <b>9:16 MAJBURIY</b> edi va 1:1 (kvadrat) yoki 4:5
+    /// (vertikal lenta) video "Video 9:16 nisbatda bo'lishi kerak" xatosi bilan Instagram'ga
+    /// <b>umuman yuborilmasdi</b>. Bu bizning cheklovimiz edi: Meta bunday videoni qabul
+    /// qiladi va kerak bo'lsa o'zi qirqadi/chekka qo'shadi.</para>
+    ///
+    /// <para>9:16 dan uzoq nisbat endi <b>XATO EMAS, OGOHLANTIRISH</b>
+    /// (<see cref="InstagramPublishContract.MediaWarning"/>) — qaror foydalanuvchining
+    /// o'zida qoladi. Diapazon esa "aql bovar qilmaydigan" qiymatni (masalan 20:1 lenta)
+    /// baribir ushlab qoladi, aks holda post faqat 10 daqiqalik poll'dan keyin
+    /// <c>2207009</c> bilan yiqilardi.</para>
+    ///
+    /// <para>⚠️ STORY bu diapazonga KIRMAYDI — u yerda 9:16 talabi qoladi
+    /// (<see cref="StoryRatio"/>).</para>
+    /// </summary>
+    public const double VideoMinRatio = 0.01, VideoMaxRatio = 10.0;
 
     public const int MinCarouselItems = 2, MaxCarouselItems = 10;
 
@@ -263,6 +305,12 @@ public static class InstagramPublishContract
     /// videosini baribir Reels sifatida joylaydi va <c>media_type=VIDEO</c> eskirgan yo'l.
     /// <c>image</c> uchun esa parametr UMUMAN yuborilmaydi (standart qiymat) — ortiqcha
     /// parametr Graph'da <c>code 100</c> berishi mumkin.</para>
+    ///
+    /// <para>⚠️ <b>"REELS" degani "9:16 shart" DEGANI EMAS.</b> Bu xarita faqat Meta'ning
+    /// <c>media_type</c> qiymatini tanlaydi; nisbat qoidasi esa <see cref="ValidateVideo"/>
+    /// da va u REELS uchun <b>0.01:1 – 10:1</b> (<see cref="IgPublishConst.VideoMinRatio"/>).
+    /// Ilgari aynan shu ikkisi aralashtirilgan edi: "video ham REELS bo'ladi" degan mantiqdan
+    /// "demak 9:16 bo'lishi shart" xulosasi chiqarilgan va kvadrat video bloklanardi.</para>
     /// </summary>
     public static string MediaTypeOf(string? postType) => NormalizePostType(postType) switch
     {
@@ -449,13 +497,29 @@ public static class InstagramPublishContract
             if (!coverOk) return (false, "Muqova: " + coverErr);
         }
 
-        // Story va Reels — 9:16. Karusel/feed videosi birinchi elementning nisbatiga qirqiladi.
-        if (item.Width > 0 && item.Height > 0 && checkRatio
-            && type is IgPublishConst.TypeStory or IgPublishConst.TypeReels or IgPublishConst.TypeVideo)
+        // ═══ NISBAT — STORY va REELS uchun qoida ATAYIN HAR XIL ═══
+        //
+        // ⚠️ STORY: 9:16 QATTIQ talab. Story butun ekranni egallaydi va boshqa nisbat
+        //    yuqori/pastda katta bo'sh chekka bo'lib chiqadi — bu foydalanuvchi KUTMAGAN
+        //    natija, ya'ni uni oldindan aytgan ma'qul.
+        //
+        // ⚠️ REELS / feed videosi: FAQAT Meta diapazoni (0.01:1 – 10:1). Ilgari bu yerda ham
+        //    9:16 talab qilinardi va kvadrat (1:1) yoki 4:5 video Instagram'ga UMUMAN
+        //    yuborilmasdi — bizning cheklovimiz haqiqiy postlarni bloklardi. 9:16 dan uzoq
+        //    nisbat endi XATO emas, OGOHLANTIRISH (`MediaWarning`).
+        if (item.Width > 0 && item.Height > 0 && checkRatio)
         {
             var ratio = (double)item.Width / item.Height;
-            if (!NearStoryRatio(ratio))
-                return (false, "Video 9:16 nisbatda bo'lishi kerak (masalan 1080×1920).");
+
+            if (isStory)
+            {
+                if (!NearStoryRatio(ratio))
+                    return (false, "Story videosi 9:16 nisbatda bo'lishi kerak (masalan 1080×1920).");
+            }
+            else if (ratio < IgPublishConst.VideoMinRatio || ratio > IgPublishConst.VideoMaxRatio)
+            {
+                return (false, $"Video nisbati {RatioText(ratio)} — Instagram {RatioText(IgPublishConst.VideoMinRatio)} dan {RatioText(IgPublishConst.VideoMaxRatio)} gacha qabul qiladi.");
+            }
         }
 
         return (true, "");
@@ -464,7 +528,76 @@ public static class InstagramPublishContract
     private static bool NearStoryRatio(double ratio) =>
         Math.Abs(ratio - IgPublishConst.StoryRatio) <= IgPublishConst.StoryRatioTolerance;
 
+    /// <summary>Nisbatni odam o'qiydigan ko'rinishga keltiradi: <c>0.5625</c> → <c>"0.56:1"</c>.</summary>
+    private static string RatioText(double ratio) => $"{ratio.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}:1";
+
     private static string Mb(long bytes) => (bytes / 1024d / 1024d).ToString("0.#");
+
+    /* ═════════════════════ 3.5) OGOHLANTIRISHLAR — "xato emas, lekin bilib qo'ying" ═════════════════════ */
+
+    /// <summary>
+    /// Media bo'yicha OGOHLANTIRISH matni (bo'sh satr — ogohlantirish yo'q).
+    ///
+    /// <para><b>Nega alohida mexanizm kerak bo'ldi.</b> Validatsiya faqat ikki javob bera
+    /// olardi: "o'tdi" yoki "post umuman yuborilmaydi". Nisbat esa uchinchi holatga tegishli —
+    /// <b>Instagram qabul qiladi, lekin natija foydalanuvchi kutgandek chiqmasligi mumkin</b>
+    /// (masalan 1:1 reels lentada qirqiladi yoki chekka bo'sh joy qo'shiladi). Ilgari bu holat
+    /// XATO deb qaytarilar va butunlay ishlaydigan postni bloklardi.</para>
+    ///
+    /// <para>⚠️ Bu funksiya <b>hech qachon ish oqimini to'xtatmaydi</b>: uni UI (composer)
+    /// yoki log ko'rsatadi, <see cref="ValidatePost"/> esa unga QARAMAYDI. Ya'ni yangi
+    /// ogohlantirish qo'shish hech qachon postni bloklab qo'ymaydi — bu ATAYIN shunday
+    /// ajratilgan.</para>
+    ///
+    /// <para>⚠️ O'lcham noma'lum (0) bo'lsa ogohlantirish ham YO'Q — "bilmasak, qo'rqitmaymiz"
+    /// (<see cref="IgMediaItem"/> kelishuvi bilan bir xil).</para>
+    /// </summary>
+    public static string MediaWarning(string? postType, IgMediaItem? item)
+    {
+        if (item is null) return "";
+
+        var type = NormalizePostType(postType);
+        var kind = (item.Kind ?? "").Trim().ToLowerInvariant() == IgPublishConst.KindVideo
+            ? IgPublishConst.KindVideo : IgPublishConst.KindImage;
+
+        // Story'da nisbat QATTIQ tekshiriladi (ValidateMedia xato qaytaradi) — bu yerda
+        // takrorlash foydalanuvchiga bir xil gapni ikki marta aytish bo'lardi.
+        if (kind != IgPublishConst.KindVideo || type == IgPublishConst.TypeStory) return "";
+        if (item.Width <= 0 || item.Height <= 0) return "";
+
+        var ratio = (double)item.Width / item.Height;
+        if (NearStoryRatio(ratio)) return "";
+
+        return $"Video 9:16 emas ({item.Width}×{item.Height}) — Instagram uni qirqishi yoki "
+             + "chetiga bo'sh joy qo'shishi mumkin. To'liq ekran uchun 1080×1920 tavsiya etiladi.";
+    }
+
+    /// <summary>
+    /// BUTUN post bo'yicha ogohlantirishlar ro'yxati (bo'sh ro'yxat — hammasi joyida).
+    /// <para>Karuselda faqat <b>BIRINCHI</b> element ko'riladi — <see cref="ValidatePost"/>
+    /// dagi nisbat qoidasi bilan AYNAN bir xil (qolganlari birinchisiga qirqiladi, ya'ni
+    /// ular haqida ogohlantirish chalg'itardi).</para>
+    /// </summary>
+    public static IReadOnlyList<string> PostWarnings(string? postType, IReadOnlyList<IgMediaItem>? media)
+    {
+        var items = media ?? Array.Empty<IgMediaItem>();
+        if (items.Count == 0) return Array.Empty<string>();
+
+        var type = NormalizePostType(postType);
+        if (type == IgPublishConst.TypeCarousel)
+        {
+            var first = MediaWarning(type, items[0]);
+            return first.Length == 0 ? Array.Empty<string>() : new[] { first };
+        }
+
+        var list = new List<string>();
+        foreach (var it in items)
+        {
+            var w = MediaWarning(type, it);
+            if (w.Length > 0) list.Add(w);
+        }
+        return list;
+    }
 
     /// <summary>
     /// BUTUN postni tekshiradi (caption + media to'plami) — worker konteyner yaratishdan
@@ -558,7 +691,37 @@ public static class InstagramPublishContract
             AudioName: isReels ? opt.AudioName : "");
     }
 
-    /// <summary>Karusel OTA-ONASI: <c>media_type=CAROUSEL</c> + bolalar id'lari + caption.</summary>
+    /// <summary>
+    /// Karusel OTA-ONASI: <c>media_type=CAROUSEL</c> + bolalar id'lari + caption.
+    ///
+    /// <para>🔴 <b><c>location_id</c> KARUSELDA YUBORILMAYDI</b> — bu ATAYIN qabul qilingan
+    /// qaror, "unutilgan maydon" emas.</para>
+    ///
+    /// <para><b>Nega.</b> Meta hujjatlari bu yerda ZID: qo'llanma matnida <c>location_id</c>
+    /// umumiy parametr sifatida sanaladi, endpoint reference'ning parametrlar jadvalida esa u
+    /// <c>IMAGE</c> ✓ va <c>REELS</c> ✓ uchun belgilangan, <c>CAROUSEL</c> uchun ✗. Graph
+    /// qo'llab-quvvatlamaydigan parametrni <b>jimgina e'tiborsiz qoldirmaydi</b> — u butun
+    /// so'rovni <c>code 100</c> bilan rad etadi. Ya'ni ikki ehtimol teng emas:</para>
+    /// <list type="bullet">
+    ///   <item>yubormasak va Meta aslida qo'llab-quvvatlasa — joylashuv belgisi yo'q post
+    ///   (kichik yo'qotish, foydalanuvchi kutgan narsaning bir qismi);</item>
+    ///   <item>yuborsak va Meta qo'llab-quvvatlamasa — <b>joylashuv tanlangan HAR BIR karusel
+    ///   yiqiladi</b>, sabab esa "code 100" degan tushunarsiz matn bo'lib ko'rinadi.</item>
+    /// </list>
+    /// <para>Shuning uchun xavfsiz tomon tanlandi. Bolalarda ham yuborilmaydi
+    /// (<see cref="BuildContainerRequest"/> dagi <c>asCarouselChild</c> tarmog'i) — karusel
+    /// bolasi faqat media konteyneri.</para>
+    ///
+    /// <para><b>QANDAY TEKSHIRISH KERAK</b> (qaror ochiq qoldirilgan): sinov akkauntida
+    /// bitta karusel konteyner qurib, unga <c>location_id</c> qo'shib
+    /// <c>POST /{ig-user-id}/media</c> chaqiriladi. <c>code 100</c> qaytsa — hozirgi xulq
+    /// to'g'ri va bu izoh tasdiqlangan deb belgilanadi; muvaffaqiyatli o'tsa va joylashuv
+    /// postda ko'rinsa — quyidagi qatorni <c>LocationId: opt.LocationId</c> ga qaytarish
+    /// yetarli (<paramref name="options"/> shu maqsadda saqlab qolingan).</para>
+    ///
+    /// <para>⚠️ <c>collaborators</c> esa YUBORILADI — u reference'da karusel uchun ham
+    /// belgilangan va bu yerda hech qanday ziddiyat yo'q.</para>
+    /// </summary>
     public static IgContainerRequest BuildCarouselParent(
         IReadOnlyList<string> childIds, string? caption = "", IgPublishOptions? options = null)
     {
@@ -567,7 +730,7 @@ public static class InstagramPublishContract
             MediaType: IgPublishConst.MtCarousel,
             Caption: caption ?? "",
             Children: childIds,
-            LocationId: opt.LocationId,
+            LocationId: "",                       // ⚠️ ATAYIN bo'sh — sabab yuqoridagi izohda
             Collaborators: opt.Collaborators);
     }
 
@@ -666,7 +829,7 @@ public static class InstagramPublishContract
         IgPublishConst.ErrNotJpeg =>
             "Rasm JPEG emas — faqat .jpg/.jpeg qabul qilinadi.",
         IgPublishConst.ErrBadRatio =>
-            "Rasm/video nisbati noto'g'ri (feed uchun 4:5–1.91:1, story va reels uchun 9:16).",
+            "Rasm/video nisbati noto'g'ri (feed rasmi 4:5–1.91:1, story 9:16, video 0.01:1–10:1).",
         IgPublishConst.ErrCaptionTooLong =>
             $"Post matni juda uzun (ruxsat {IgPublishConst.MaxCaptionLength} belgi).",
         IgPublishConst.ErrVideoCodec =>
