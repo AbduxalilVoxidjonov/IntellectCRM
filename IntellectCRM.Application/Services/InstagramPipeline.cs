@@ -92,8 +92,11 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
 
                 ev.Status = IgConst.EvSkipped;
                 ev.Error = unsupported.Length > 0
-                    ? $"Qo'llab-quvvatlanmaydigan webhook maydoni: {unsupported}. "
-                      + "Modul faqat `comments` va `messages` obunasini ishlatadi (`IgConst.WebhookFields`)."
+                    ? $"Qo'llab-quvvatlanmaydigan webhook hodisasi: {unsupported}. "
+                      + "Modul faqat `comments` va `messages` ni ishlaydi. Agar KUTILGAN hodisa "
+                      + "(izoh yoki DM) o'rniga shular kelayotgan bo'lsa — Meta Dashboard'da "
+                      + "ILOVA darajasida `messages`/`comments` maydonlari belgilanmagan "
+                      + "(akkaunt obunasi yolg'iz YETMAYDI, ikkala qatlam ham kerak)."
                     : "Qayta ishlanadigan hodisa topilmadi (qo'llab-quvvatlanmaydigan tur yoki o'z yozuvimiz).";
                 ev.ProcessedAt = AppClock.Iso();
                 await db.SaveChangesAsync(ct);

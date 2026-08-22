@@ -950,6 +950,52 @@ public class IgAdAttributionTests
         Assert.Equal("mentions, live_comments", fields);   // takrorsiz va tartibi saqlanadi
     }
 
+    /// <summary>
+    /// 🔴 DM tomonida hodisa turi <c>changes[].field</c> da EMAS, <c>messaging[]</c>
+    /// obyektining KALITIDA keladi. 2026-08-22 da prodda aynan shu holat bo'ldi: Meta faqat
+    /// <c>message_edit</c> yuborardi (ilova darajasida <c>messages</c> belgilanmagan), navbatda
+    /// esa "qo'llab-quvvatlanmaydigan tur" degan umumiy matn turardi va "DM nega kelmayapti"
+    /// savoli javobsiz qolardi.
+    /// </summary>
+    [Fact]
+    public void Messaging_ichidagi_hodisa_turi_ham_nomlanadi()
+    {
+        const string raw = """
+            {"object":"instagram","entry":[{"time":1787421411124,"id":"178414632",
+              "messaging":[{"timestamp":1787421411020,"message_edit":{"mid":"abc","num_edit":0}}]}]}
+            """;
+
+        Assert.Equal("message_edit", InstagramEventParser.UnsupportedFields(raw));
+    }
+
+    /// <summary>Konvert maydonlari (kim/kimga/qachon) hodisa turi EMAS — ro'yxatga tushmasin,
+    /// aks holda har xabarda "sender, recipient, timestamp" degan shovqin chiqardi.</summary>
+    [Fact]
+    public void Oddiy_DM_da_hech_narsa_nomlanmaydi()
+    {
+        const string raw = """
+            {"object":"instagram","entry":[{"id":"1","messaging":[{
+              "sender":{"id":"5"},"recipient":{"id":"1"},"timestamp":1787421411020,
+              "message":{"mid":"m1","text":"Salom"}}]}]}
+            """;
+
+        Assert.Equal("", InstagramEventParser.UnsupportedFields(raw));
+    }
+
+    /// <summary>Izoh va DM tomonidagi turlar BIRGA to'planadi va takrorlanmaydi.</summary>
+    [Fact]
+    public void Izoh_va_DM_turlari_birga_toplanadi()
+    {
+        const string raw = """
+            {"entry":[
+              {"id":"1","changes":[{"field":"mentions","value":{}}]},
+              {"id":"1","messaging":[{"message_edit":{"mid":"a"}},{"reaction":{"mid":"b"}},
+                                     {"message_edit":{"mid":"c"}}]}]}
+            """;
+
+        Assert.Equal("mentions, message_edit, reaction", InstagramEventParser.UnsupportedFields(raw));
+    }
+
     /// <summary>Ishlanadigan maydonlar ro'yxatga TUSHMAYDI — aks holda normal izoh hodisasi
     /// ham "qo'llab-quvvatlanmaydi" deb belgilanardi.</summary>
     [Theory]

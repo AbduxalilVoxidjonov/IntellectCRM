@@ -272,16 +272,46 @@ public static class InstagramEventParser
             foreach (var entry in entries.EnumerateArray())
             {
                 if (entry.ValueKind != JsonValueKind.Object) continue;
-                if (!entry.TryGetProperty("changes", out var changes) || changes.ValueKind != JsonValueKind.Array)
-                    continue;
 
-                foreach (var ch in changes.EnumerateArray())
+                // (a) IZOH tomoni — `changes[].field`.
+                if (entry.TryGetProperty("changes", out var changes) && changes.ValueKind == JsonValueKind.Array)
                 {
-                    if (ch.ValueKind != JsonValueKind.Object) continue;
-                    var field = Str(ch, "field");
-                    if (field.Length == 0) continue;
-                    if (field == "comments" || field == FieldPolicyEnforcement) continue;
-                    if (!found.Contains(field)) found.Add(field);
+                    foreach (var ch in changes.EnumerateArray())
+                    {
+                        if (ch.ValueKind != JsonValueKind.Object) continue;
+                        var field = Str(ch, "field");
+                        if (field.Length == 0) continue;
+                        if (field == "comments" || field == FieldPolicyEnforcement) continue;
+                        if (!found.Contains(field)) found.Add(field);
+                    }
+                }
+
+                // (b) XABAR tomoni — `messaging[]` ELEMENTINING KALITI.
+                //
+                // 🔴 Bu ATAYIN qo'shildi (2026-08-22, prodda). DM hodisalarida maydon nomi
+                // `changes[].field` da EMAS, `messaging[]` obyektining kalitida keladi:
+                // `{"messaging":[{"message_edit":{…}}]}`. Ya'ni (a) qismi bunday hodisani
+                // KO'RMASDI va navbatda faqat "qo'llab-quvvatlanmaydigan tur" degan UMUMIY
+                // matn qolardi.
+                //
+                // Aynan shu tufayli haqiqiy nosozlik yashiringan edi: Meta bizga faqat
+                // `message_edit` yuborardi (ilova darajasida `messages` maydoni belgilanmagan),
+                // sabab esa hech qayerda yozilmagani uchun "DM kelmayapti" savoli javobsiz
+                // qolardi.
+                if (entry.TryGetProperty("messaging", out var messaging) && messaging.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var m in messaging.EnumerateArray())
+                    {
+                        if (m.ValueKind != JsonValueKind.Object) continue;
+                        // `message` — biz ishlaydigan yagona kalit; qolgan uchtasi konvert
+                        // ma'lumoti (kim, kimga, qachon), hodisa turi emas.
+                        foreach (var prop in m.EnumerateObject())
+                        {
+                            var key = prop.Name;
+                            if (key is "message" or "sender" or "recipient" or "timestamp") continue;
+                            if (!found.Contains(key)) found.Add(key);
+                        }
+                    }
                 }
             }
         }
