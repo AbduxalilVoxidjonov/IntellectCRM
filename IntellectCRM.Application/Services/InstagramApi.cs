@@ -165,13 +165,65 @@ public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
         }
     }
 
-    /// <summary>[8] Webhook obunasi. <c>message_echoes</c> ATAYIN — operator pauzasi shunga tayanadi.</summary>
+    /// <summary>
+    /// [8] Webhook obunasi — maydonlar <see cref="IgConst.WebhookFields"/> dan.
+    ///
+    /// <para><b>🔴 <c>message_echoes</c> OLIB TASHLANDI (2026-08-22).</b> Meta uni qabul
+    /// qilmaydi va butun so'rovni rad etadi (<c>IGApiException 100</c>) — ya'ni <c>comments</c>
+    /// ham obuna bo'lmasdi. Sabab va echo qanday kelishi: <see cref="IgConst.WebhookFields"/>.</para>
+    /// </summary>
     public async Task<(bool Ok, string Error)> SubscribeWebhookAsync(string token, CancellationToken ct)
     {
-        var url = $"{IgConst.GraphBase}/me/subscribed_apps?subscribed_fields=comments,messages,message_echoes" +
+        var url = $"{IgConst.GraphBase}/me/subscribed_apps?subscribed_fields={IgConst.WebhookFieldsCsv}" +
                   $"&access_token={Uri.EscapeDataString(token ?? "")}";
         var (ok, _, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Post, url), ct);
         return (ok, err);
+    }
+
+    /// <summary>
+    /// [8b] Akkaunt HOZIR qaysi maydonlarga obuna — <c>GET /me/subscribed_apps</c>.
+    ///
+    /// <para><b>Nega kerak:</b> <c>IgAccount.WebhookSubscribed</c> ulanish paytidagi suratcha
+    /// va eskirishi mumkin. Diagnostika holatni Meta'dan JONLI o'qishi kerak, aks holda
+    /// "hammasi yashil, lekin hodisa kelmayapti" holati sababsiz qolardi
+    /// (<see cref="InstagramContract.MissingWebhookFields"/>).</para>
+    ///
+    /// <para>Javob: <c>{"data":[{"id":"…","subscribed_fields":["comments","messages"]}]}</c>.
+    /// Obuna umuman yo'q bo'lsa <c>data</c> BO'SH massiv bo'ladi — bu xato emas, shuning uchun
+    /// <c>Ok = true</c> va ro'yxat bo'sh qaytadi.</para>
+    /// </summary>
+    public async Task<(bool Ok, IReadOnlyList<string> Fields, string Error)> GetSubscribedFieldsAsync(
+        string token, CancellationToken ct)
+    {
+        var url = $"{IgConst.GraphBase}/me/subscribed_apps?access_token={Uri.EscapeDataString(token ?? "")}";
+        var (ok, body, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), ct);
+        if (!ok) return (false, Array.Empty<string>(), err);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var list = new List<string>();
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var app in data.EnumerateArray())
+                {
+                    if (app.ValueKind != JsonValueKind.Object) continue;
+                    if (!app.TryGetProperty("subscribed_fields", out var fs) || fs.ValueKind != JsonValueKind.Array)
+                        continue;
+                    foreach (var f in fs.EnumerateArray())
+                        if (f.ValueKind == JsonValueKind.String)
+                        {
+                            var name = f.GetString() ?? "";
+                            if (name.Length > 0 && !list.Contains(name)) list.Add(name);
+                        }
+                }
+            }
+            return (true, list, "");
+        }
+        catch (JsonException)
+        {
+            return (false, Array.Empty<string>(), "Instagram javobini o'qib bo'lmadi (kutilmagan format).");
+        }
     }
 
     /* ═════════════════════════ Amallar ═════════════════════════ */

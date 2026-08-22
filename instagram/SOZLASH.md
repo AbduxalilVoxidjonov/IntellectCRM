@@ -188,9 +188,14 @@ So'ng **Subscribe** maydonlarini belgilang:
 |---|---|
 | `comments` | izohlar |
 | `messages` | DM |
-| `message_echoes` | **SHART** — operator qo'lda javob yozganini shundan bilamiz (bot jim turadi) |
+🔴 **`message_echoes` ni QIDIRMANG — u endi YO'Q.** Meta uni qabul qilinadigan maydonlar
+ro'yxatidan olib tashlagan (2026-08-22 da prodda tekshirildi: yuborilsa
+`IGApiException 100 "Param subscribed_fields[N] must be one of {…}"` qaytadi va **butun
+so'rov rad etiladi**, ya'ni `comments` ham obuna bo'lmay qoladi). Operator qo'lda yozgan
+xabar endi `messages` obunasi ostida `is_echo: true` bilan keladi va bot o'sha suhbatda
+baribir jim turadi.
 
-⚠️ `message_echoes` belgilanmasa: operator telefonidan javob yozganda bot buni bilmaydi va
+⚠️ `messages` belgilanmasa: operator telefonidan javob yozganda bot buni bilmaydi va
 mijoz bir vaqtda **ikki odam bilan** gaplashadi.
 
 ✅ **Qanday tekshiriladi:** "Verify and save" yashil; CRM → Marketing → Sozlamalar →

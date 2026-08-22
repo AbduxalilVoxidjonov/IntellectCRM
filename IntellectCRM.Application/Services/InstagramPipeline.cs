@@ -93,7 +93,7 @@ public sealed class InstagramPipeline(IServiceProvider services, ILogger<Instagr
                 ev.Status = IgConst.EvSkipped;
                 ev.Error = unsupported.Length > 0
                     ? $"Qo'llab-quvvatlanmaydigan webhook maydoni: {unsupported}. "
-                      + "Meta Dashboard'da faqat `comments`, `messages`, `message_echoes` obunasi kerak."
+                      + "Modul faqat `comments` va `messages` obunasini ishlatadi (`IgConst.WebhookFields`)."
                     : "Qayta ishlanadigan hodisa topilmadi (qo'llab-quvvatlanmaydigan tur yoki o'z yozuvimiz).";
                 ev.ProcessedAt = AppClock.Iso();
                 await db.SaveChangesAsync(ct);

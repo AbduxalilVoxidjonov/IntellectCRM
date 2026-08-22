@@ -45,6 +45,30 @@ public static class IgConst
     public const string GraphRoot = "https://graph.instagram.com";
     public const string AuthorizeUrl = "https://www.instagram.com/oauth/authorize";
 
+    /// <summary>
+    /// WEBHOOK OBUNASI maydonlari (<c>POST /me/subscribed_apps?subscribed_fields=…</c>) —
+    /// modul ISHLATADIGAN maydonlar, boshqasi yo'q.
+    ///
+    /// <para><b>🔴 <c>message_echoes</c> BU YERDA YO'Q va bu ATAYIN.</b> Meta uni qabul
+    /// qiladigan maydonlar ro'yxatidan olib tashlagan: yuborilsa butun so'rov
+    /// <c>IGApiException 100 "Param subscribed_fields[N] must be one of {…}"</c> bilan
+    /// RAD ETILADI — ya'ni <c>comments</c> ham obuna bo'lmay qoladi. 2026-08-22 da prodda
+    /// aynan shu holat topildi: akkaunt faqat <c>messages</c> ga obuna bo'lib turardi va
+    /// izohlar UMUMAN kelmasdi.</para>
+    ///
+    /// <para>Echo hodisasi yo'qolmaydi: markaz akkauntidan chiqqan xabar <c>messages</c>
+    /// obunasi ostida <c>message.is_echo = true</c> bilan keladi va
+    /// <see cref="InstagramEventParser"/> uni o'sha yerdan o'qiydi (operator pauzasi ishlaydi).</para>
+    ///
+    /// <para>⚠️ Yangi maydon QO'SHISHDAN oldin parser uni ISHLAY OLISHINI tekshiring:
+    /// obuna bo'lingan, lekin qo'llab-quvvatlanmaydigan maydon navbatni <c>skipped</c>
+    /// yozuvlar bilan to'ldiradi (<c>mentions</c>, <c>live_comments</c>).</para>
+    /// </summary>
+    public static readonly string[] WebhookFields = { "comments", "messages" };
+
+    /// <summary>Obuna so'rovi uchun vergul bilan ajratilgan ro'yxat.</summary>
+    public static string WebhookFieldsCsv => string.Join(",", WebhookFields);
+
     /* ---- REKLAMA LIDLARI (Meta Lead Ads) ----
        ⚠️ Bu YAGONA joy, qayerda `graph.facebook.com` ISHLATILADI va bu ATAYIN: reklama lidi
        FACEBOOK PAGE obyektiga tegishli va `graph.instagram.com` da bunday endpoint YO'Q
@@ -344,6 +368,28 @@ public static class InstagramContract
     /// </summary>
     public static bool NeedsLoginToken(bool agentEnabled, bool publishEnabled) =>
         agentEnabled || publishEnabled;
+
+    /// <summary>
+    /// Akkaunt Meta'da QAYSI kerakli maydonlarga obuna EMAS — bo'sh ro'yxat = hammasi joyida.
+    ///
+    /// <para><b>🔴 Nega bu tekshiruv kerak.</b> <c>IgAccount.WebhookSubscribed</c> — ULANISH
+    /// PAYTIDAGI suratcha, ya'ni "o'sha kuni so'rov muvaffaqiyatli o'tdi" degani. Obuna esa
+    /// keyin O'ZGARISHI mumkin: Meta maydon nomini olib tashlaydi, admin Dashboard'dan
+    /// belgini olib qo'yadi, ilova qayta ko'rib chiqishga tushadi. Bazadagi <c>true</c>
+    /// shundan keyin ham <c>true</c> bo'lib qolaveradi va diagnostika "hammasi joyida"
+    /// deb ko'rsatardi — hodisa esa kelmasdi. Shuning uchun holat Meta'dan JONLI o'qiladi.</para>
+    ///
+    /// <para>⚠️ Solishtirish katta-kichik harfga bog'liq emas va ortiqcha maydonlarga
+    /// e'tibor bermaydi: markaz Dashboard'dan qo'shimcha maydon yoqqan bo'lsa (masalan
+    /// <c>mentions</c>) bu XATO emas — ular parserda jimgina tashlanadi.</para>
+    /// </summary>
+    public static IReadOnlyList<string> MissingWebhookFields(IEnumerable<string>? actual)
+    {
+        var have = new HashSet<string>(
+            (actual ?? Array.Empty<string>()).Select(f => (f ?? "").Trim()),
+            StringComparer.OrdinalIgnoreCase);
+        return IgConst.WebhookFields.Where(f => !have.Contains(f)).ToList();
+    }
 
     /// <summary>
     /// MODULNING TASHQI (OMMAVIY) MANZIL ASOSI — <c>https://host</c>, oxirida <c>/</c> YO'Q.

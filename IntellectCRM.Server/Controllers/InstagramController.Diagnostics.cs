@@ -151,7 +151,10 @@ public partial class InstagramController
     /// bermayapti" bo'lib ko'rinardi).</para>
     ///
     /// <para>⚠️ Token ishlagani YETMAYDI: <c>subscribed_apps</c> obunasi bo'lmasa Meta
-    /// hodisani UMUMAN yubormaydi. Shuning uchun obunasiz akkaunt "nosoz" deb belgilanadi.</para>
+    /// hodisani UMUMAN yubormaydi. Shuning uchun obuna <b>Meta'dan JONLI</b> o'qiladi
+    /// (<see cref="InstagramApi.GetSubscribedFieldsAsync"/>) va bazadagi
+    /// <c>WebhookSubscribed</c> bayrog'iga ishonilmaydi — u ulanish paytidagi suratcha va
+    /// eskirishi mumkin. Kerakli maydon yetishmasa AYNAN qaysi biri yozib ko'rsatiladi.</para>
     /// </summary>
     private async Task<IgDiagProbe> CheckAccountAsync(IgAccount acc, CancellationToken c)
     {
@@ -167,13 +170,32 @@ public partial class InstagramController
                 $"Token BOSHQA akkauntniki: Meta @{Or(username, "—")} akkauntini qaytardi.",
                 "Akkauntni uzib, kerakli Instagram profili bilan qaytadan ulang.");
 
-        if (!acc.WebhookSubscribed)
+        // ── OBUNA — META'DAN JONLI (bazadagi bayroqqa ISHONILMAYDI) ──
+        //
+        // 🔴 `acc.WebhookSubscribed` — ULANISH PAYTIDAGI suratcha. U keyin eskiradi: Meta maydon
+        // nomini olib tashlashi, admin Dashboard'dan belgini olib qo'yishi mumkin. 2026-08-22 da
+        // prodda aynan shu holat topildi — bazada "obuna bor" turardi, Meta'da esa faqat
+        // `messages` obunasi bor edi va IZOHLAR UMUMAN KELMASDI. Ya'ni diagnostika yashil
+        // ko'rsatib, muammoni yashirardi.
+        var (subOk, fields, subErr) = await api.GetSubscribedFieldsAsync(acc.AccessToken, c);
+        if (!subOk)
             return IgDiagProbe.Fail(
-                $"Token ishlayapti (@{Or(username, acc.Username)}), lekin webhook obunasi yo'q — "
-                + "izoh va DM hodisalari kelmaydi.",
-                "Akkauntni qayta ulang: obuna (`subscribed_apps`) aynan ulanish paytida qilinadi.");
+                $"Token ishlayapti (@{Or(username, acc.Username)}), lekin webhook obunasini "
+                + $"tekshirib bo'lmadi: {subErr}",
+                "Birozdan keyin qaytadan urinib ko'ring — bu vaqtinchalik xato bo'lishi mumkin.");
 
-        return IgDiagProbe.Pass($"Aloqa bor — @{Or(username, acc.Username)} (webhook obunasi faol).");
+        var missing = InstagramContract.MissingWebhookFields(fields);
+        if (missing.Count > 0)
+            return IgDiagProbe.Fail(
+                $"Token ishlayapti (@{Or(username, acc.Username)}), lekin webhook obunasida "
+                + $"YETISHMAYDI: {string.Join(", ", missing)}"
+                + (fields.Count > 0 ? $" (hozir obuna: {string.Join(", ", fields)})" : " (obuna umuman yo'q)")
+                + ". Bu maydonlar bo'yicha hodisa UMUMAN kelmaydi.",
+                "Marketing → Sozlamalar → «Instagram'ni ulash» bilan akkauntni QAYTA ULANG — "
+                + "obuna aynan ulanish paytida qilinadi.");
+
+        return IgDiagProbe.Pass(
+            $"Aloqa bor — @{Or(username, acc.Username)} (obuna: {string.Join(", ", fields)}).");
     }
 
     /// <summary>

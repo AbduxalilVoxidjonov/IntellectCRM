@@ -400,7 +400,7 @@ public class InstagramWebhookController(
             return Back("profil");
         }
 
-        // --- webhook obunasi (comments, messages, message_echoes) ---
+        // --- webhook obunasi (`IgConst.WebhookFields`: comments, messages) ---
         // Obuna bo'lmasa hodisalar UMUMAN kelmaydi, lekin akkaunt baribir saqlanadi: holat
         // Sozlamalar sahifasida qizil ko'rinadi va "Qayta ulash" bilan tuzatiladi.
         var (okSub, errSub) = await api.SubscribeWebhookAsync(longToken, ct);

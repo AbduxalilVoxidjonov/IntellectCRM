@@ -540,4 +540,41 @@ public class InstagramHardeningTests
         Assert.Equal(expected, InstagramContract.NeedsLoginToken(agent, publish));
     }
 
+
+    /* ═══════════ WEBHOOK OBUNASI ═══════════ */
+
+    /// <summary>
+    /// 🔴 <c>message_echoes</c> obuna ro'yxatida BO'LMASLIGI shart: Meta uni qabul qilmaydi va
+    /// butun so'rovni rad etadi (<c>IGApiException 100</c>) — natijada <c>comments</c> ham
+    /// obuna bo'lmay qolardi. 2026-08-22 da prodda aynan shu holat topilgan: akkaunt faqat
+    /// <c>messages</c> ga obuna bo'lib turgan va izohlar umuman kelmagan.
+    /// </summary>
+    [Fact]
+    public void Obuna_royxati_faqat_qollab_quvvatlanadigan_maydonlardan()
+    {
+        Assert.Equal(new[] { "comments", "messages" }, IgConst.WebhookFields);
+        Assert.DoesNotContain("message_echoes", IgConst.WebhookFieldsCsv);
+        Assert.Equal("comments,messages", IgConst.WebhookFieldsCsv);
+    }
+
+    /// <summary>Yetishmayotgan maydon ANIQ ko'rsatiladi — "obuna yo'q" degan umumiy xabar
+    /// adminni qayerga qarashini aytmasdi.</summary>
+    [Fact]
+    public void Yetishmayotgan_obuna_maydoni_topiladi()
+    {
+        Assert.Equal(new[] { "comments" }, InstagramContract.MissingWebhookFields(new[] { "messages" }));
+        Assert.Equal(new[] { "comments", "messages" }, InstagramContract.MissingWebhookFields(Array.Empty<string>()));
+        Assert.Empty(InstagramContract.MissingWebhookFields(new[] { "messages", "comments" }));
+    }
+
+    /// <summary>Ortiqcha maydon XATO emas (admin Dashboard'dan qo'shgan bo'lishi mumkin),
+    /// katta-kichik harf ham ahamiyatsiz, <c>null</c> esa "obuna yo'q" degani.</summary>
+    [Fact]
+    public void Ortiqcha_maydon_va_harf_registri_muammo_emas()
+    {
+        Assert.Empty(InstagramContract.MissingWebhookFields(new[] { "Comments", "MESSAGES", "mentions" }));
+        Assert.Equal(2, InstagramContract.MissingWebhookFields(null).Count);
+        Assert.Equal(new[] { "comments" }, InstagramContract.MissingWebhookFields(new[] { " messages " }));
+    }
+
 }

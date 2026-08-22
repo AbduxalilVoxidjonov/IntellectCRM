@@ -114,7 +114,8 @@ To'liq bosqichma-bosqich qo'llanma: **[`SOZLASH.md`](SOZLASH.md)** (~30–40 daq
 3. `.env` ga `INSTAGRAM_APP_SECRET` va `INSTAGRAM_VERIFY_TOKEN` yoziladi (`docker compose up -d`);
 4. CRM → Marketing → Sozlamalar: **App ID** kiritiladi;
 5. Meta'da webhook ulanadi: `https://<domen>/api/public/instagram/webhook`,
-   maydonlar `comments`, `messages`, `message_echoes`;
+   maydonlar `comments` va `messages` (⚠️ `message_echoes` Meta'da endi YO'Q — echo
+   `messages` ichida `is_echo` bilan keladi);
 6. **«Instagram'ni ulash»** bosiladi (OAuth) — token, ID lar va webhook obunasi avtomatik;
 7. **Bilim bazasi** to'ldiriladi (kurslar va narxlar);
 8. `POST /test-agent` yoki Sozlamalardagi sinov maydoni bilan tekshiriladi;

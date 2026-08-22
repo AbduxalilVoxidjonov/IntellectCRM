@@ -112,10 +112,13 @@ sifatida username'ni ham solishtiradi.
 
 ```
 POST {GraphBase}/me/subscribed_apps
-      ?subscribed_fields=comments,messages,message_echoes&access_token=<UZOQ>
+      ?subscribed_fields=comments,messages&access_token=<UZOQ>
 ```
 
-`message_echoes` **ataylab** — operator pauzasi shunga tayanadi (§5.3).
+🔴 `message_echoes` **YO'Q** — Meta uni qabul qilmaydi (`IGApiException 100`) va u yuborilsa
+BUTUN so'rov rad etiladi, ya'ni `comments` ham obuna bo'lmaydi. Echo endi `messages` obunasi
+ostida `message.is_echo = true` bilan keladi — operator pauzasi (§5.3) o'zgarishsiz ishlaydi.
+Yagona manba: `IgConst.WebhookFields`.
 
 ### 1.6. Token yangilash — `RefreshTokenAsync`
 
