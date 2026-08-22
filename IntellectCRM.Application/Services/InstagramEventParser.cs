@@ -281,7 +281,10 @@ public static class InstagramEventParser
                         if (ch.ValueKind != JsonValueKind.Object) continue;
                         var field = Str(ch, "field");
                         if (field.Length == 0) continue;
-                        if (field == "comments" || field == FieldPolicyEnforcement) continue;
+                        // `messages` — Meta «Test» tugmasining DM konverti, biz uni ISHLAYMIZ
+                        // (`ReadComments`), shuning uchun "qo'llab-quvvatlanmaydi" ro'yxatiga
+                        // tushmasligi kerak.
+                        if (field is "comments" or "messages" || field == FieldPolicyEnforcement) continue;
                         if (!found.Contains(field)) found.Add(field);
                     }
                 }
@@ -344,6 +347,24 @@ public static class InstagramEventParser
                 continue;
             }
 
+            // ── XABAR, LEKIN `changes[]` KONVERTIDA (Meta Dashboard'ning «Test» tugmasi) ──
+            //
+            // 🔴 2026-08-22 da prodda aniqlandi. HAQIQIY DM hodisasi `entry[].messaging[]` da
+            // keladi, Meta konsolidagi «Test» tugmasi esa HAR QANDAY maydonni bir xil konvertda
+            // yuboradi: `changes[].field = "messages"`, `value` ichida esa AYNAN `messaging[]`
+            // elementining o'zi (`sender` · `recipient` · `timestamp` · `message`).
+            //
+            // Qo'llab-quvvatlanmasa sinov "Qo'llab-quvvatlanmaydigan hodisa: messages" degan
+            // CHALG'ITUVCHI xato berardi — ya'ni biz ISHLAYDIGAN maydon nomi "qo'llab-
+            // quvvatlanmaydi" deb ko'rsatilardi va sozlayotgan odam modulda nuqson bor deb
+            // o'ylardi. Endi sinov ham uchdan-uchgacha o'tadi.
+            if (field == "messages")
+            {
+                if (ch.TryGetProperty("value", out var mv) && mv.ValueKind == JsonValueKind.Object)
+                    ReadMessagingItem(mv, entryId, entryTime, self, outList);
+                continue;
+            }
+
             // `mentions`, `live_comments` va boshqa maydonlar qo'llab-quvvatlanmaydi — ular
             // tashlanadi, lekin hodisa navbatda `skipped` bo'lib ko'rinadi (jimgina yo'qolmaydi).
             if (field != "comments") continue;
@@ -381,8 +402,22 @@ public static class InstagramEventParser
         if (!entry.TryGetProperty("messaging", out var arr) || arr.ValueKind != JsonValueKind.Array) return;
 
         foreach (var m in arr.EnumerateArray())
+            ReadMessagingItem(m, entryId, entryTime, self, outList);
+    }
+
+    /// <summary>
+    /// BITTA xabar hodisasi (`messaging[]` elementi yoki unga TENG shakl).
+    ///
+    /// <para><b>Nega alohida:</b> Meta Dashboard'dagi <b>«Test»</b> tugmasi AYNAN shu obyektni
+    /// boshqa konvertda yuboradi — <c>changes[].field = "messages"</c> ning <c>value</c> si
+    /// sifatida (<see cref="ReadComments"/> ga qarang). Ikkala konvert ham shu yerga keladi,
+    /// ya'ni parse qoidasi IKKI JOYDA ayri ketmaydi.</para>
+    /// </summary>
+    private static void ReadMessagingItem(
+        JsonElement m, string entryId, string entryTime, IgSelf self, List<IgIncomingEvent> outList)
+    {
         {
-            if (m.ValueKind != JsonValueKind.Object) continue;
+            if (m.ValueKind != JsonValueKind.Object) return;
 
             // ── META SIYOSATI OGOHLANTIRISHI ──
             // `message` obyekti YO'Q, shuning uchun u pastdagi tekshiruvdan OLDIN ko'riladi
@@ -390,11 +425,11 @@ public static class InstagramEventParser
             if (TryPolicy(m, out var policyValue))
             {
                 AddPolicy(policyValue, entryId, entryTime, outList);
-                continue;
+                return;
             }
 
             // `reaction`, `read`, `delivery` — xabar emas, e'tiborga olinmaydi.
-            if (!m.TryGetProperty("message", out var msg) || msg.ValueKind != JsonValueKind.Object) continue;
+            if (!m.TryGetProperty("message", out var msg) || msg.ValueKind != JsonValueKind.Object) return;
 
             var senderId = Sub(m, "sender", "id");
             var recipientId = Sub(m, "recipient", "id");
@@ -406,8 +441,8 @@ public static class InstagramEventParser
             // kelmasa ham o'z xabarimizga javob yozib qo'ymaymiz).
             var isEcho = Bool(msg, "is_echo") || IsOurs(senderId, "", self, entryId);
             var counterparty = isEcho ? recipientId : senderId;
-            if (counterparty.Length == 0) continue;
-            if (IsOurs(counterparty, "", self, entryId)) continue;   // o'zimizga o'zimiz — mumkin emas
+            if (counterparty.Length == 0) return;
+            if (IsOurs(counterparty, "", self, entryId)) return;   // o'zimizga o'zimiz — mumkin emas
 
             // ── XABAR O'CHIRILDI (`is_deleted`) ──
             // Bu YANGI xabar emas: mavjud yozuvning MAZMUNI o'chirilishi kerak (Platform Terms).
@@ -419,7 +454,7 @@ public static class InstagramEventParser
                 outList.Add(new IgIncomingEvent(
                     KindDeleted, "", counterparty, "", "", "", mid, delKey, isEcho, ToIso(ts),
                     IsDeleted: true));
-                continue;
+                return;
             }
 
             // ── STORY JAVOBI · STORY MENTION · ULASHILGAN IG POST ──
